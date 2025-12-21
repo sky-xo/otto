@@ -21,6 +21,7 @@ type MessageFilter struct {
 	Limit    int
 	Mention  string
 	ReaderID string
+	SinceID  string
 }
 
 func CreateMessage(db *sql.DB, m Message) error {
@@ -39,6 +40,10 @@ func ListMessages(db *sql.DB, f MessageFilter) ([]Message, error) {
 	if f.FromID != "" {
 		where = appendWhere(where, "from_id = ?")
 		args = append(args, f.FromID)
+	}
+	if f.SinceID != "" {
+		where = appendWhere(where, "created_at > (SELECT created_at FROM messages WHERE id = ?)")
+		args = append(args, f.SinceID)
 	}
 	if where != "" {
 		query += " WHERE " + where

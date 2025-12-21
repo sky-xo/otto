@@ -20,6 +20,7 @@ func Execute() {
 	rootCmd.AddCommand(commands.NewSpawnCmd())
 	rootCmd.AddCommand(commands.NewPromptCmd())
 	rootCmd.AddCommand(commands.NewAttachCmd())
+	rootCmd.AddCommand(commands.NewWatchCmd())
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)

@@ -555,6 +555,41 @@ Codex sessions:
 
 Otto tracks the mapping: `agent-id → session-id` in `config.json`.
 
+## Compatibility
+
+### packnplay
+
+Otto works seamlessly inside [packnplay](https://github.com/obra/packnplay) containers with no modifications needed.
+
+packnplay creates persistent Docker containers with AI CLI tools pre-installed. When running inside a packnplay container:
+- `claude` and `codex` commands are available
+- Project directory is mounted at the same host path
+- Credentials are pre-configured
+- Git worktrees work normally (created on mounted filesystem, persist on host)
+
+Typical workflow:
+```bash
+# On host - start packnplay session
+packnplay run claude
+
+# Inside container - use otto normally
+otto spawn codex "implement backend" --worktree backend
+otto status
+otto messages
+```
+
+The two tools are complementary:
+- **packnplay**: Container isolation, credential management, reproducible environment
+- **otto**: Multi-agent orchestration within that environment
+
+### superpowers
+
+Otto complements the superpowers plugin:
+- **superpowers**: Skills that guide agent behavior (TDD, debugging, code review, etc.)
+- **otto**: Spawns and coordinates multiple agents
+
+Agents spawned by otto can use superpowers skills. The orchestrator uses skills like `brainstorming` and `writing-plans`, while implementation agents use `executing-plans` and `test-driven-development`.
+
 ## Open Questions
 
 1. **Package name:** `otto-agent`? `otto-cli`? Just `otto`?

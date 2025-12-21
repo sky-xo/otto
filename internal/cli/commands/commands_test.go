@@ -34,7 +34,7 @@ func TestAskSetsWaiting(t *testing.T) {
 	}
 }
 
-func TestCompleteSetesDone(t *testing.T) {
+func TestCompleteSetsDone(t *testing.T) {
 	db := openTestDB(t)
 	_ = repo.CreateAgent(db, repo.Agent{ID: "authbackend", Type: "claude", Task: "task", Status: "working"})
 	err := runComplete(db, "authbackend", "All done!")

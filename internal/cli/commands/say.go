@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"regexp"
 
 	"otto/internal/config"
@@ -97,6 +98,6 @@ func openDB() (*sql.DB, error) {
 		return nil, errors.New("could not determine scope")
 	}
 
-	dbPath := config.DataDir() + "/orchestrators/" + scopePath + "/otto.db"
+	dbPath := filepath.Join(config.DataDir(), "orchestrators", scopePath, "otto.db")
 	return db.Open(dbPath)
 }

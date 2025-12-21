@@ -46,6 +46,43 @@ Otto is a CLI tool that enables a single Claude Code session to orchestrate mult
 
 ## Core Concepts
 
+### The Ephemeral Orchestrator Model
+
+A key architectural insight: **the orchestrator conversation is ephemeral, but state is durable.**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ DURABLE STATE (persists forever)                            │
+│                                                             │
+│  otto.db           → agents, messages, status               │
+│  docs/plans/*.md   → what we're building, why, progress     │
+│  .worktrees/       → isolated agent workspaces              │
+│  git history       → what was actually done                 │
+└─────────────────────────────────────────────────────────────┘
+                              ↑
+                              │ reads/writes
+                              │
+┌─────────────────────────────────────────────────────────────┐
+│ EPHEMERAL ORCHESTRATOR (current Claude Code session)        │
+│                                                             │
+│  - Reads plan documents to understand context               │
+│  - Queries otto for current state                           │
+│  - Makes decisions, spawns agents, answers questions        │
+│  - Can end anytime - state persists without it              │
+│  - New session picks up from durable state                  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Implications:**
+
+1. **Conversations can be short** - End a session, start a new one, lose nothing important. The plan document and otto.db have everything.
+
+2. **Context comes from docs, not chat** - Plan documents (`docs/plans/*.md`) are the source of truth for what you're building and why.
+
+3. **No special "resume" needed** - A new session just reads the plan and runs `otto status`. Full context restored.
+
+4. **Agents are truly independent** - They don't need the orchestrator session to exist. They write to otto.db, any future session can pick them up.
+
 ### Orchestrator
 
 The orchestrator is just Claude Code with knowledge of otto commands. It:
@@ -55,6 +92,20 @@ The orchestrator is just Claude Code with knowledge of otto commands. It:
 - Tracks agent status via `otto status`
 
 There's no separate UI - the conversation with Claude Code IS the interface.
+
+**Starting a new session:**
+```bash
+# Read the plan to understand context
+cat docs/plans/current-feature.md
+
+# Check agent states
+otto status
+
+# Check for pending messages
+otto messages
+```
+
+This gives the orchestrator everything it needs to continue where the previous session left off.
 
 ### Agents
 

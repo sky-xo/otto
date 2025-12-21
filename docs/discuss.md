@@ -2,100 +2,80 @@
 
 This file captures topics we haven't fully resolved yet, for continuation in future sessions.
 
-## Open Topics
+## Resolved Topics
 
-### 1. `otto handoff` Command
+### 1. `otto handoff` Command - SKIPPED
 
-**Context:** When one agent finishes and needs to pass work to another (e.g., debug agent → fix agent).
+**Decision:** Don't add this. The orchestrator stays in control of spawning agents.
 
-**Current approach (works):**
-1. Agent posts findings to #main channel
+**Rationale:** The orchestrator has visibility that agents don't have (e.g., could monitor agent context usage). Keeping the orchestrator in the loop for all spawns is a feature, not a limitation. Current flow works fine:
+1. Agent posts findings to #main
 2. Orchestrator reads them
-3. Orchestrator spawns next agent with `--context "findings..."`
-
-**Proposed alternative:**
-```bash
-otto handoff --agent agent-debug --to codex "Fix the leak" --context "Root cause: ..."
-```
-
-**Tradeoff:** Convenience vs. orchestrator visibility. Handoff bypasses orchestrator, current approach keeps orchestrator in the loop.
-
-**Decision needed:** Add this for v0, or defer?
+3. Orchestrator spawns next agent with `--context`
 
 ---
 
-### 2. Channels Within Orchestrators (v2?)
+### 2. Channels Within Orchestrators - SKIPPED
 
-**Context:** What if you want multiple work streams in one branch?
+**Decision:** Stick with one orchestrator per branch. Multiple work streams = multiple branches.
 
-**Current design:** One orchestrator per project/branch. Multiple work streams = multiple branches.
-
-**Alternative:** Channels within an orchestrator (like Slack channels):
-```
-Orchestrator: my-app/main
-├── #auth-feature (agents working on auth)
-├── #bugfix-123 (agents fixing bug)
-└── #main (general)
-```
-
-**Current thinking:** Skip for v0. Branch-per-task is simpler. Revisit if it feels too heavy in practice.
+**Rationale:** Simpler model. If checking multiple orchestrators becomes painful, can add `otto attention --all` later to aggregate across them.
 
 ---
 
-### 3. Message Filtering/Pagination
+### 3. Message Filtering - INCLUDED IN V0
 
-**Context:** After hours of work, message history could be huge.
-
-**Proposed solution:**
+**Decision:** Keep as designed:
 ```bash
 otto messages              # unread only (default)
 otto messages --all        # everything
 otto messages --last 20    # recent
 otto messages --from agent-abc  # from specific agent
+otto messages --questions  # only questions needing answers
 ```
 
-**Status:** Not yet added to design doc. Probably add for v0.
+---
+
+### 4. Package Name - DECIDED
+
+**Decision:** `otto`. May prefix with GitHub org/user later if npm conflicts.
 
 ---
 
-### 4. Package Name
+### 5. API Simplification - DECIDED
 
-**Options:**
-- `otto` - clean but might conflict
-- `otto-agent` - descriptive
-- `otto-cli` - explicit about what it is
-
-**Decision needed:** Check npm for conflicts, pick one.
+**Decision:** Dropped `otto update`. Agents have three commands:
+- `otto say` - post to channel
+- `otto ask` - ask a question (sets agent to WAITING)
+- `otto complete` - mark task done
 
 ---
 
-## Key Decisions Already Made
+## Key Decisions Summary
 
-These are resolved - documenting for context continuity:
-
-1. **Architecture:** CLI tool called via Bash, not MCP server. Simpler installation.
-
+1. **Architecture:** CLI tool called via Bash, not MCP server.
 2. **Storage:** SQLite in `~/.otto/orchestrators/<project>/<branch>/otto.db`
-
-3. **Messaging:** Group chat model with #main channel. @mentions for attention. DMs available but discouraged.
-
-4. **Agent identification:** Explicit `--agent <id>` flag on all commands (env vars don't persist between tool calls).
-
-5. **Worktrees:** `--worktree <name>` flag creates isolated workspace in `.worktrees/`. Follows superpowers conventions.
-
+3. **Messaging:** Single shared message stream. @mentions for attention. No DMs.
+4. **Agent identification:** Explicit `--id <agent>` flag on agent commands. Orchestrator commands reject `--id`.
+5. **Worktrees:** `--worktree <name>` flag creates isolated workspace in `.worktrees/`.
 6. **Orchestrator scoping:** Auto-detect from project dir + git branch. Override with `--in <name>`.
-
 7. **Ephemeral orchestrator model:** Conversations are disposable, state lives in otto.db and plan documents.
-
-8. **Compatibility:** Works inside packnplay containers with no modifications. Complements superpowers skills.
-
-9. **Session resume:** Both Claude Code (`--resume`) and Codex (`codex resume`) support session resume. Otto tracks session IDs.
+8. **Compatibility:** Works inside packnplay containers. Complements superpowers skills.
+9. **Session resume:** Both Claude Code (`--resume`) and Codex (`codex resume`) support session resume.
+10. **No handoff command:** Orchestrator controls all spawns.
+11. **No channels:** One orchestrator per branch.
+12. **Simplified agent commands:** `say`, `ask`, `complete` (no `update`).
+13. **`otto prompt` for orchestrator→agent:** Direct to agent, not in chat. Wakes up idle agents.
+14. **Chat is for agent-to-agent:** Orchestrator doesn't need to post prompts to chat (already has context).
+15. **`otto watch` for v0:** Simple message tail. Full TUI dashboard + daemon in v2+.
+16. **Go over Node:** Single binary, fast startup, great for CLI. Bubbletea for TUI (v2+).
+17. **Orchestrator can post to chat:** `otto say "..."` without `--id`. Useful for broadcasts. `@all` wakes all agents (when daemon exists in v2+).
+18. **`--id` flag determines role:** Agent commands require `--id`. Orchestrator commands reject `--id`. Simple enforcement.
+19. **Seed → Sprout → Tree scoping:** V0 = core loop + manual polling. V1 = worktrees, kill/clean. V2+ = daemon, dashboard, super-orchestrator.
 
 ---
 
 ## Superpowers Integration
-
-Otto works with superpowers skills:
 
 | Agent Role | Skills Used |
 |------------|-------------|
@@ -105,21 +85,17 @@ Otto works with superpowers skills:
 | Review agent | requesting-code-review |
 | All agents | verification-before-completion |
 
-The orchestrator uses `using-git-worktrees` when setting up agent workspaces.
-
 ---
 
 ## Files in This Project
 
 - `docs/design.md` - Main design document (comprehensive)
 - `docs/scenarios.md` - 5 usage scenarios testing the API
-- `docs/discuss.md` - This file (open topics)
+- `docs/discuss.md` - This file (resolved topics + decisions)
 
 ---
 
-## Next Steps for Implementation
-
-Once discussion is complete:
+## Next Steps
 
 1. Initialize npm package
 2. Implement Phase 1 MVP (see design.md)

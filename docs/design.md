@@ -184,8 +184,7 @@ CREATE TABLE agents (
 CREATE TABLE messages (
   id TEXT PRIMARY KEY,
   from_id TEXT NOT NULL,        -- agent ID or 'orchestrator' or 'human'
-  channel TEXT DEFAULT 'main',  -- 'main' or 'dm:<agent1>:<agent2>'
-  type TEXT NOT NULL,           -- 'say', 'question', 'update', 'complete'
+  type TEXT NOT NULL,           -- 'say', 'question', 'complete'
   content TEXT NOT NULL,
   mentions TEXT,                -- JSON array: ["agent-def", "orchestrator"]
   requires_human BOOLEAN DEFAULT FALSE,
@@ -194,18 +193,16 @@ CREATE TABLE messages (
 );
 
 -- Indexes for common queries
-CREATE INDEX idx_messages_channel ON messages(channel, created_at);
+CREATE INDEX idx_messages_created ON messages(created_at);
 CREATE INDEX idx_agents_status ON agents(status);
 ```
 
 ### Communication Model
 
-Agents communicate via a **group chat** model (like Slack/Discord):
+All agents share a single message stream - like a shared log or chat room:
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│ #main (everyone sees)                                   │
-│                                                         │
 │ [agent-abc] Finished auth backend. @agent-def ready     │
 │             for frontend integration.                   │
 │                                                         │
@@ -217,27 +214,21 @@ Agents communicate via a **group chat** model (like Slack/Discord):
 └─────────────────────────────────────────────────────────┘
 ```
 
-**Main channel (#main):**
-- All messages visible to all agents and orchestrator
-- @mentions direct attention without limiting visibility
-- Default for most communication
-
-**DMs (private):**
-- For quick private coordination between two agents
-- Still logged in the database (for debugging)
-- Discouraged for important decisions
+**Simple model:**
+- All messages visible to everyone
+- @mentions direct attention to specific agents
+- Agents can filter to just messages that @mention them
 
 **Why this model:**
-- All agents have shared context
-- Orchestrator/human has full visibility
-- Natural mental model everyone understands
+- Full visibility for orchestrator and human
+- Shared context across all agents
 - @mentions make it clear who should respond
+- Agents choose how much of the stream to read
 
 ### Message Types
 
 - `say` - general message to the channel
-- `question` - needs a response (blocks until answered)
-- `update` - status update, no response needed
+- `question` - needs a response (sets agent to WAITING)
 - `complete` - task finished, here's the result
 
 ### Why SQLite?
@@ -321,52 +312,78 @@ my-app/feature-auth:
 
 ### otto messages
 
-View the main channel or check for messages:
+View messages:
 
 ```bash
-otto messages              # unread messages (default)
-otto messages --all        # all messages
-otto messages --last 20    # last 20 messages
-otto messages --from agent-abc  # from specific agent
-otto messages --dm         # show DMs
-otto messages --questions  # only questions needing answers
+otto messages                        # unread messages (default)
+otto messages --all                  # all messages
+otto messages --last 20              # last 20 messages
+otto messages --from agent-abc       # from specific agent
+otto messages --mentions agent-def   # messages that @mention an agent
+otto messages --questions            # only questions needing answers
 ```
 
 Output:
 ```
-#main:
-  [agent-abc] Finished auth backend. @agent-def ready for you
-  [agent-def] QUESTION: What's the token format?
-  [agent-abc] JWT, 7 days. See src/auth/jwt.ts
-  [orchestrator] @agent-ghi start review when ready
+[agent-abc] Finished auth backend. @agent-def ready for you
+[agent-def] QUESTION: What's the token format?
+[agent-abc] JWT, 7 days. See src/auth/jwt.ts
+[orchestrator] @agent-ghi start review when ready
 ```
 
 ### otto say
 
-Post a message to the main channel:
+Post a message to chat:
 
 ```bash
-otto say --agent <agent-id> "message"
-otto say --agent agent-abc "Finished auth backend, @agent-def ready for frontend"
+# Orchestrator posts (no --id flag)
+otto say "Schema changed, see docs/schema.md"
+otto say "@all new requirement: support OAuth"
+
+# Agent posts (with --id flag)
+otto say --id <agent-id> "message"
+otto say --id agent-abc "Finished auth backend, @agent-def ready for frontend"
 ```
 
-### otto dm
+Use `@all` to mention all active agents. The daemon will wake them.
 
-Send a direct message to another agent:
+### otto prompt
+
+Wake up an agent with new instructions (used by orchestrator):
 
 ```bash
-otto dm --agent <agent-id> --to <target-id> "message"
-otto dm --agent agent-abc --to agent-def "Quick q about the API format"
+otto prompt <agent-id> "message"
+otto prompt agent-abc "Use argon2 for password hashing"
+otto prompt agent-def "Backend is ready, start frontend integration"
 ```
 
-### otto reply
+This resumes the agent's session with the given prompt. Use this to:
+- Answer a WAITING agent's question
+- Give a DONE agent new work
+- Redirect an agent mid-task
 
-Reply to a question (used by orchestrator or other agents):
+Note: Prompts are direct to the agent, not posted to chat. This keeps the chat clean for agent-to-agent communication.
+
+### otto watch
+
+Watch messages in real-time (Seed/V0 - simple polling):
 
 ```bash
-otto reply <message-id> "response"
-otto reply msg-123 "Use 7 day expiration"
+otto watch
 ```
+
+Polls the message stream and prints new messages as they arrive:
+
+```
+[agent-abc] Backend done. @agent-def ready for frontend
+[agent-def] Got it, starting now
+[agent-def] QUESTION: What auth lib?
+[orchestrator] @all schema changed, see docs/schema.md
+```
+
+Run this in a separate terminal tab to monitor your agents.
+
+**Future (Tree/V2+):** Upgrade to full TUI dashboard with agent sidebar and daemon that auto-wakes agents on @mentions.
 
 ### otto attach
 
@@ -428,40 +445,33 @@ Additional context: <context>
 
 ## Communication
 
-You're part of a team. All agents share a main channel (#main) where everyone
-can see messages. Use this for most communication.
+You're part of a team. All agents share a message stream where everyone can
+see everything. Use @mentions to direct attention to specific agents.
 
-IMPORTANT: Always include your agent ID (--agent <agent-id>) in every command.
+IMPORTANT: Always include your ID (--id <agent-id>) in every command.
 
-### Check for messages (do this periodically!)
-otto messages --unread --agent <agent-id>
+### Check for messages
+otto messages --id <agent-id>              # unread messages
+otto messages --mentions <agent-id>        # just messages that @mention you
 
-### Post to main channel (everyone sees)
-otto say --agent <agent-id> "Finished auth backend, @agent-def ready for frontend"
+### Post a message
+otto say --id <agent-id> "Finished auth backend, @agent-def ready for frontend"
 
-### Ask a question (waits for response)
-otto ask --agent <agent-id> "Should auth tokens expire after 24h or 7d?"
+### Ask a question (sets you to WAITING)
+otto ask --id <agent-id> "Should auth tokens expire after 24h or 7d?"
 
 ### Ask a question requiring human input
-otto ask --agent <agent-id> --human "What should the error message say?"
-
-### Send a status update
-otto update --agent <agent-id> "Starting on logout flow"
-
-### DM another agent (use sparingly - prefer main channel)
-otto dm --agent <agent-id> --to <other-agent> "Quick q about API format"
+otto ask --id <agent-id> --human "What should the error message say?"
 
 ### Mark task as complete
-otto complete --agent <agent-id> "Auth system implemented. PR ready."
+otto complete --id <agent-id> "Auth system implemented. PR ready."
 
 ## Guidelines
 
 **Check messages regularly** - other agents or the orchestrator may have
-questions or updates for you.
+questions or updates for you. Prioritize messages that @mention you.
 
 **Use @mentions** - when you need a specific agent's attention, @mention them.
-
-**Prefer main channel** - keep most communication visible so everyone has context.
 
 **Escalate with --human when:**
 - UX decisions
@@ -540,8 +550,8 @@ This is a security decision - what's your preference?"
 
 User: "argon2"
 
-Orchestrator: → otto send agent-abc "Use argon2"
-"Sent. Agents continuing..."
+Orchestrator: → otto prompt agent-abc "Use argon2"
+"Sent. Agent resumed."
 
 [later]
 
@@ -551,50 +561,71 @@ Orchestrator: "Both agents done. Spawning review agent."
 
 ## Implementation Plan
 
-### Phase 1: MVP
+We follow a **Seed → Sprout → Tree** scope model.
+
+### Seed (V0) - Core Loop
+
+The minimal viable orchestration system. Validate the idea before adding polish.
 
 - [ ] SQLite database setup (agents, messages tables)
 - [ ] `otto spawn` - spawn Claude Code and Codex agents
 - [ ] `otto status` - list agents and their states
 - [ ] `otto messages` - check for pending messages
-- [ ] `otto send` - send message to agent
+- [ ] `otto prompt` - wake up an agent with new instructions
+- [ ] `otto say` - post to chat (orchestrator or agent with --id)
+- [ ] `otto ask` - agent asks a question (sets to WAITING)
+- [ ] `otto complete` - agent marks task done
 - [ ] `otto attach` - print resume command
-- [ ] Agent commands: `otto ask`, `otto update`, `otto complete`
+- [ ] `otto watch` - simple message tail for debugging (poll + print, no TUI)
 - [ ] Auto-detect project/branch scoping
 - [ ] Agent prompt templates with escalation instructions
 
-### Phase 2: Polish
+**Not in Seed:** No daemon, no worktrees, no TUI dashboard. Orchestrator manually polls with `otto messages`.
 
+### Sprout (V1) - Friction Reducers
+
+Add features that reduce friction once core loop is validated.
+
+- [ ] Worktree support (`--worktree`) for parallel agents
 - [ ] `otto kill` and `otto clean`
 - [ ] `otto list` for orchestrators
-- [ ] Better output formatting
-- [ ] Agent output capture/logging
 - [ ] `--in` flag for custom orchestrator names
+- [ ] Optional message streaming view (upgrade `otto watch`)
 
-### Phase 3: Nice-to-haves
+### Tree (V2+) - Full Experience
 
+The polished multi-agent experience.
+
+- [ ] Full dashboard TUI with Bubbletea (chat + agent sidebar)
+- [ ] Daemon with auto-wakeup on @mentions
+- [ ] Super-orchestrator: attention router across multiple orchestrators
 - [ ] Auto-open terminal for attach
-- [ ] Hooks integration for auto-checking messages
 - [ ] Web dashboard for visualization
-- [ ] Agent-to-agent direct messaging
 
 ## Technical Details
 
 ### Distribution
 
-npm package:
+Single binary via:
 ```bash
-npm install -g otto-agent
-# or
-npx otto-agent spawn ...
+# Go install
+go install github.com/youruser/otto@latest
+
+# Or download binary from GitHub releases
+curl -L https://github.com/youruser/otto/releases/latest/download/otto-darwin-arm64 -o otto
+chmod +x otto
+
+# Or homebrew (future)
+brew install youruser/tap/otto
 ```
 
 ### Tech Stack
 
-- **Language:** TypeScript (Node.js)
-- **CLI framework:** Commander or Yargs
-- **Database:** better-sqlite3 (synchronous, fast, no native dependencies on most platforms)
-- **Process management:** child_process, with output capture
+- **Language:** Go
+- **CLI framework:** Cobra (standard for Go CLIs)
+- **Terminal UI:** Bubbletea + Lipgloss (what lazygit uses) - for `otto start` dashboard
+- **Database:** go-sqlite3 or modernc.org/sqlite (pure Go, no CGO)
+- **Process management:** os/exec
 
 ### Session Management
 
@@ -643,12 +674,24 @@ Otto complements the superpowers plugin:
 
 Agents spawned by otto can use superpowers skills. The orchestrator uses skills like `brainstorming` and `writing-plans`, while implementation agents use `executing-plans` and `test-driven-development`.
 
+## Decisions Made
+
+1. **Package name:** `otto` (may prefix with GitHub org/user later if needed)
+2. **No `otto handoff`:** Orchestrator stays in control of spawning new agents. This gives the orchestrator visibility into agent context usage and keeps coordination centralized.
+3. **No channels within orchestrators:** Stick with one orchestrator per branch. Multiple work streams = multiple branches/orchestrators.
+4. **Simplified agent commands:** Just `say`, `ask`, `complete`. Dropped `update` (use `say` instead).
+5. **No DMs:** Single shared message stream. All messages visible to everyone. Agents use `--mentions` to filter for messages directed at them. Simpler model, full visibility.
+6. **`prompt` not `reply`:** Orchestrator uses `otto prompt` to wake up agents with new instructions. Works for answering questions OR giving new work. Direct to agent, not posted to chat.
+7. **Chat is for agent-to-agent:** The message stream is where agents talk to each other. Orchestrator prompts are direct (not in chat) because the orchestrator already has its own context.
+8. **`otto watch` for v0, full dashboard later:** Simple message tail for debugging in Seed. Full Bubbletea TUI + daemon in Tree (v2+).
+9. **Orchestrator can post to chat:** `otto say "..."` without `--id` posts as orchestrator. Useful for broadcasts. `@all` mentions all active agents.
+10. **`--id` flag determines role:** Agent commands require `--id <agent>`. Orchestrator commands (`spawn`, `prompt`, `kill`) reject `--id` with an error. Simple enforcement without token complexity.
+11. **Seed → Sprout → Tree scoping:** Start minimal (no daemon, no worktrees), add friction reducers, then polish.
+
 ## Open Questions
 
-1. **Package name:** `otto-agent`? `otto-cli`? Just `otto`?
-2. **Message polling vs hooks:** Should orchestrator manually check, or use Claude Code hooks?
-3. **Agent timeout:** Should agents auto-terminate after inactivity?
-4. **Cross-machine sync:** Future feature - sync orchestrator state across machines?
+1. **Agent timeout:** Should agents auto-terminate after inactivity?
+2. **Cross-machine sync:** Future feature - sync orchestrator state across machines?
 
 ## Summary
 

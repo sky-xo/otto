@@ -114,8 +114,8 @@ Agents are Claude Code or Codex sessions running in non-interactive mode:
 - **Codex:** `codex exec "task"`
 
 Both support session resume:
-- **Claude Code:** `claude --resume <session-id>`
-- **Codex:** `codex resume <session-id>`
+- **Claude Code:** `claude --resume <session-id>` (interactive attach) and `claude --continue --print "<message>"` for headless continuation.
+- **Codex:** `codex resume <session-id>` (interactive attach) and `codex exec resume <session-id> "<message>"` for headless continuation.
 
 This enables the "attach" pattern - you can jump into any agent's session interactively.
 
@@ -315,9 +315,8 @@ my-app/feature-auth:
 View messages:
 
 ```bash
-otto messages                        # unread messages (default)
-otto messages --all                  # all messages
-otto messages --last 20              # last 20 messages
+otto messages                        # unread messages (default, no limit)
+otto messages --last 20              # last 20 messages (read + unread)
 otto messages --from agent-abc       # from specific agent
 otto messages --mentions agent-def   # messages that @mention an agent
 otto messages --questions            # only questions needing answers
@@ -361,6 +360,10 @@ This resumes the agent's session with the given prompt. Use this to:
 - Answer a WAITING agent's question
 - Give a DONE agent new work
 - Redirect an agent mid-task
+
+**Implementation note (V0):**
+- Claude uses `--continue --print` for automation; `--resume --print` is only used if verified.
+- Codex uses `codex exec resume <id> "<message>"` for automation.
 
 Note: Prompts are direct to the agent, not posted to chat. This keeps the chat clean for agent-to-agent communication.
 
@@ -635,9 +638,10 @@ Claude Code sessions:
 
 Codex sessions:
 - Stored in `~/.codex/sessions/`
-- Resume with `codex resume <session-id>` or `--last`
+- Resume interactively with `codex resume <session-id>`
+- Headless continuation with `codex exec resume <session-id> "<message>"`
 
-Otto tracks the mapping: `agent-id → session-id` in `config.json`.
+Otto tracks the mapping: `agent-id → session-id` in `otto.db` (session IDs can be captured from `codex exec --json` events).
 
 ## Compatibility
 

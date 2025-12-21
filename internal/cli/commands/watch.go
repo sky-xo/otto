@@ -63,9 +63,3 @@ func runWatch(ctx context.Context, db *sql.DB) error {
 		time.Sleep(1 * time.Second)
 	}
 }
-
-// nextSince returns the ID to use for the next poll.
-// This helper exists to support testing.
-func nextSince(lastID string) string {
-	return lastID
-}

@@ -42,7 +42,7 @@ func ListMessages(db *sql.DB, f MessageFilter) ([]Message, error) {
 		args = append(args, f.FromID)
 	}
 	if f.SinceID != "" {
-		where = appendWhere(where, "created_at > (SELECT created_at FROM messages WHERE id = ?)")
+		where = appendWhere(where, "created_at > COALESCE((SELECT created_at FROM messages WHERE id = ?), '1970-01-01')")
 		args = append(args, f.SinceID)
 	}
 	if where != "" {

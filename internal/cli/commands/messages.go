@@ -46,7 +46,12 @@ func runMessages(db *sql.DB) error {
 		msgType = "question"
 	}
 
-	filter := parseMessagesFlags(messagesFromID, msgType, messagesLast, messagesID)
+	// Only apply unread filtering if --id is provided AND --last is not set
+	readerID := messagesID
+	if messagesLast > 0 {
+		readerID = "" // --last means show all messages, ignore read status
+	}
+	filter := parseMessagesFlags(messagesFromID, msgType, messagesLast, readerID)
 	filter.Mention = messagesMention
 
 	// List messages

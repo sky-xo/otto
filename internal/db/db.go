@@ -48,6 +48,10 @@ func Open(path string) (*sql.DB, error) {
 }
 
 func ensureSchema(conn *sql.DB) error {
-	_, err := conn.Exec(schemaSQL)
-	return err
+	if _, err := conn.Exec(schemaSQL); err != nil {
+		return err
+	}
+	// Migration: add pid column if it doesn't exist
+	_, _ = conn.Exec(`ALTER TABLE agents ADD COLUMN pid INTEGER`)
+	return nil
 }

@@ -23,6 +23,7 @@ Plan: `docs/plans/2025-12-22-otto-v0.md`
 
 Features that reduce friction once core loop is validated.
 
+- [ ] Orchestration skill
 - [ ] TUI: 3-line task descriptions (less truncation)
 - [ ] TUI: agents panel on left side
 - [ ] `otto kill` - stop an agent
@@ -30,7 +31,6 @@ Features that reduce friction once core loop is validated.
 - [ ] `otto list` - list orchestrators
 - [ ] Auto-detect agent process exit (mark done/failed when process ends)
 - [ ] otto should also work for with codex being the orchestrator
-- [ ] Hierarchical todos in SQLite (orchestrator + agent level)
 
 ## V2 - Full Experience
 
@@ -38,6 +38,7 @@ The polished multi-agent experience.
 
 - [ ] Clickable TUI - click agent to view conversation history
 - [ ] Mouse support (scroll, select, expand/collapse)
+- [ ] Hierarchical todos in SQLite (orchestrator + agent level)
 - [ ] Daemon with auto-wakeup on @mentions
 - [ ] Super-orchestrator: attention router across multiple orchestrators
 - [ ] Auto-open terminal for attach
@@ -56,4 +57,3 @@ Features being explored (not yet ready for implementation):
 
 - `docs/ARCHITECTURE.md` - How Otto works
 - `docs/SCENARIOS.md` - Usage scenarios / test cases
-- `docs/discuss.md` - Decision log

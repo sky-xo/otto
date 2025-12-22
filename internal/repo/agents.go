@@ -10,17 +10,18 @@ type Agent struct {
 	Task      string
 	Status    string
 	SessionID sql.NullString
+	Pid       sql.NullInt64
 }
 
 func CreateAgent(db *sql.DB, a Agent) error {
-	_, err := db.Exec(`INSERT INTO agents (id, type, task, status, session_id) VALUES (?, ?, ?, ?, ?)`, a.ID, a.Type, a.Task, a.Status, a.SessionID)
+	_, err := db.Exec(`INSERT INTO agents (id, type, task, status, session_id, pid) VALUES (?, ?, ?, ?, ?, ?)`, a.ID, a.Type, a.Task, a.Status, a.SessionID, a.Pid)
 	return err
 }
 
 func GetAgent(db *sql.DB, id string) (Agent, error) {
 	var a Agent
-	err := db.QueryRow(`SELECT id, type, task, status, session_id FROM agents WHERE id = ?`, id).
-		Scan(&a.ID, &a.Type, &a.Task, &a.Status, &a.SessionID)
+	err := db.QueryRow(`SELECT id, type, task, status, session_id, pid FROM agents WHERE id = ?`, id).
+		Scan(&a.ID, &a.Type, &a.Task, &a.Status, &a.SessionID, &a.Pid)
 	return a, err
 }
 
@@ -29,8 +30,13 @@ func UpdateAgentStatus(db *sql.DB, id, status string) error {
 	return err
 }
 
+func UpdateAgentPid(db *sql.DB, id string, pid int) error {
+	_, err := db.Exec(`UPDATE agents SET pid = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, pid, id)
+	return err
+}
+
 func ListAgents(db *sql.DB) ([]Agent, error) {
-	rows, err := db.Query(`SELECT id, type, task, status, session_id FROM agents ORDER BY created_at ASC`)
+	rows, err := db.Query(`SELECT id, type, task, status, session_id, pid FROM agents ORDER BY created_at ASC`)
 	if err != nil {
 		return nil, err
 	}
@@ -39,7 +45,7 @@ func ListAgents(db *sql.DB) ([]Agent, error) {
 	var out []Agent
 	for rows.Next() {
 		var a Agent
-		if err := rows.Scan(&a.ID, &a.Type, &a.Task, &a.Status, &a.SessionID); err != nil {
+		if err := rows.Scan(&a.ID, &a.Type, &a.Task, &a.Status, &a.SessionID, &a.Pid); err != nil {
 			return nil, err
 		}
 		out = append(out, a)

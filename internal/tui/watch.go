@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"otto/internal/process"
 	"otto/internal/repo"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -113,6 +114,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tickMsg:
 		return m, tea.Batch(
 			tickCmd(),
+			cleanupStaleAgentsCmd(m.db),
 			fetchMessagesCmd(m.db, m.lastSeenID),
 			fetchAgentsCmd(m.db),
 		)
@@ -330,6 +332,23 @@ func fetchAgentsCmd(db *sql.DB) tea.Cmd {
 			return err
 		}
 		return agentsMsg(agents)
+	}
+}
+
+func cleanupStaleAgentsCmd(db *sql.DB) tea.Cmd {
+	return func() tea.Msg {
+		agents, err := repo.ListAgents(db)
+		if err != nil {
+			return nil
+		}
+		for _, a := range agents {
+			if a.Status == "working" && a.Pid.Valid {
+				if !process.IsProcessAlive(int(a.Pid.Int64)) {
+					_ = repo.UpdateAgentStatus(db, a.ID, "done")
+				}
+			}
+		}
+		return nil
 	}
 }
 

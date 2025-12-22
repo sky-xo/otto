@@ -88,9 +88,17 @@ func runSpawn(db *sql.DB, runner ottoexec.Runner, agentType, task, files, contex
 	// Build and run command
 	cmdArgs := buildSpawnCommand(agentType, prompt, sessionID)
 
-	// Run the command (keep agent record even if it fails)
-	if err := runner.Run(cmdArgs[0], cmdArgs[1:]...); err != nil {
-		// Mark agent as failed when process exits with error
+	// Start the command and get PID
+	pid, wait, err := runner.Start(cmdArgs[0], cmdArgs[1:]...)
+	if err != nil {
+		return fmt.Errorf("spawn %s: %w", agentType, err)
+	}
+
+	// Update agent with PID
+	_ = repo.UpdateAgentPid(db, agentID, pid)
+
+	// Wait for process
+	if err := wait(); err != nil {
 		_ = repo.UpdateAgentStatus(db, agentID, "failed")
 		return fmt.Errorf("spawn %s: %w", agentType, err)
 	}

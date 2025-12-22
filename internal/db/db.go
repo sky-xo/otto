@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS agents (
   task TEXT NOT NULL,
   status TEXT NOT NULL,
   session_id TEXT,
+  pid INTEGER,
   worktree_path TEXT,
   branch_name TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,

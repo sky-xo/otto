@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"otto/internal/process"
 	"otto/internal/repo"
 	"otto/internal/tui"
 
@@ -49,6 +50,9 @@ func runWatch(ctx context.Context, db *sql.DB) error {
 		default:
 		}
 
+		// Clean up stale agents
+		cleanupStaleAgents(db)
+
 		// Build filter
 		filter := repo.MessageFilter{}
 		if lastSeenID != "" {
@@ -69,5 +73,19 @@ func runWatch(ctx context.Context, db *sql.DB) error {
 
 		// Sleep before next poll
 		time.Sleep(1 * time.Second)
+	}
+}
+
+func cleanupStaleAgents(db *sql.DB) {
+	agents, err := repo.ListAgents(db)
+	if err != nil {
+		return
+	}
+	for _, a := range agents {
+		if a.Status == "working" && a.Pid.Valid {
+			if !process.IsProcessAlive(int(a.Pid.Int64)) {
+				_ = repo.UpdateAgentStatus(db, a.ID, "done")
+			}
+		}
 	}
 }

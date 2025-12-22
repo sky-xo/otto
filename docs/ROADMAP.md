@@ -30,6 +30,7 @@ Features that reduce friction once core loop is validated.
 - [ ] `otto list` - list orchestrators
 - [ ] Auto-detect agent process exit (mark done/failed when process ends)
 - [ ] otto should also work for with codex being the orchestrator
+- [ ] Hierarchical todos in SQLite (orchestrator + agent level)
 
 ## V2 - Full Experience
 
@@ -43,6 +44,13 @@ The polished multi-agent experience.
 - [ ] Web dashboard for visualization
 - [ ] `--in` flag for custom orchestrator names
 - [ ] `--worktree` flag for parallel agent isolation
+
+## Design Drafts
+
+Features being explored (not yet ready for implementation):
+
+- `docs/plans/2025-12-22-orchestration-skill-design.md` - When to use Otto vs subagents
+- `docs/plans/2025-12-22-todos-design.md` - Hierarchical todos system
 
 ## Reference Docs
 

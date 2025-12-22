@@ -36,7 +36,7 @@ make watch    # Build and run TUI
 | `prompt <agent> "<msg>"` | Send message to agent |
 | `say/ask/complete` | Agent messaging |
 | `messages/status` | View messages and agent states |
-| `watch [--ui]` | Monitor message stream |
+| `watch` | Monitor message stream (TUI in terminal, plain text when piped) |
 
 ## Coding Conventions
 
@@ -49,6 +49,16 @@ make watch    # Build and run TUI
 
 Two tables: `agents` (id, type, task, status, session_id) and `messages` (id, from_id, type, content, mentions, read_by).
 
-## Design Docs
+## Documentation
 
-See `docs/design.md` for full architecture and `docs/scenarios.md` for usage examples.
+- `docs/ROADMAP.md` - Feature status by version
+- `docs/ARCHITECTURE.md` - How Otto works
+- `docs/SCENARIOS.md` - Usage scenarios / test cases
+- `docs/plans/` - Design docs and implementation plans
+
+## Documentation Conventions
+
+When brainstorming new features or design ideas:
+- Create `docs/plans/YYYY-MM-DD-<feature>-design.md`
+- Mark status at top: `Draft` → `Ready for review` → `Approved`
+- Keep ROADMAP.md as quick overview, detailed design goes in plan files

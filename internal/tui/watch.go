@@ -3,6 +3,7 @@ package tui
 import (
 	"database/sql"
 	"fmt"
+	"hash/fnv"
 	"strings"
 	"time"
 
@@ -45,6 +46,21 @@ var (
 			Foreground(lipgloss.Color("8")).
 			Italic(true)
 )
+
+// usernameColor returns a consistent ANSI color for a given username
+// using hash-based selection from a palette
+func usernameColor(name string) lipgloss.Color {
+	// Palette: cyan (6), green (2), yellow (3), magenta (5), blue (4), red (1)
+	palette := []string{"6", "2", "3", "5", "4", "1"}
+
+	// Hash the name
+	h := fnv.New32a()
+	h.Write([]byte(name))
+	hash := h.Sum32()
+
+	// Pick a color from the palette
+	return lipgloss.Color(palette[hash%uint32(len(palette))])
+}
 
 type tickMsg time.Time
 type messagesMsg []repo.Message
@@ -209,23 +225,44 @@ func (m model) renderMessages(width, height int) string {
 
 	for i := start; i < end; i++ {
 		msg := m.messages[i]
-		// Format: [type] from: content (truncated to fit)
-		line := fmt.Sprintf("[%s] %s: %s", msg.Type, msg.FromID, msg.Content)
 
-		// Truncate if too long
-		maxLen := width - 4
-		if len(line) > maxLen {
-			line = line[:maxLen-3] + "..."
+		// Create username style with hash-based color and bold
+		usernameStyle := lipgloss.NewStyle().
+			Foreground(usernameColor(msg.FromID)).
+			Bold(true)
+
+		var content string
+		var contentStyle lipgloss.Style
+
+		// Format and style based on message type
+		switch msg.Type {
+		case "exit":
+			content = fmt.Sprintf("exited – %s", msg.Content)
+			contentStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+		case "complete":
+			content = fmt.Sprintf("completed – %s", msg.Content)
+			contentStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+		case "error":
+			content = msg.Content
+			contentStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
+		case "say", "ask":
+			content = msg.Content
+			contentStyle = messageStyle
+		default:
+			// For other types (task, etc.), show them normally
+			content = msg.Content
+			contentStyle = messageStyle
 		}
 
-		// Style based on type
-		switch msg.Type {
-		case "error":
-			line = lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Render(line)
-		case "task":
-			line = lipgloss.NewStyle().Foreground(lipgloss.Color("14")).Render(line)
-		default:
-			line = messageStyle.Render(line)
+		// Build the line: username + space + content
+		line := usernameStyle.Render(msg.FromID) + " " + contentStyle.Render(content)
+
+		// Truncate if too long (account for ANSI codes by using visual length approximation)
+		// We'll use a simple heuristic: username + content should fit
+		maxContentLen := width - len(msg.FromID) - 6 // Account for spacing and border
+		if len(content) > maxContentLen && maxContentLen > 3 {
+			content = content[:maxContentLen-3] + "..."
+			line = usernameStyle.Render(msg.FromID) + " " + contentStyle.Render(content)
 		}
 
 		lines = append(lines, line)

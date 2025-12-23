@@ -11,6 +11,7 @@ type Runner interface {
 	Run(name string, args ...string) error
 	Start(name string, args ...string) (pid int, wait func() error, err error)
 	StartWithCapture(name string, args ...string) (pid int, stdoutLines <-chan string, wait func() error, err error)
+	StartWithCaptureEnv(name string, env []string, args ...string) (pid int, stdoutLines <-chan string, wait func() error, err error)
 }
 
 // DefaultRunner uses os/exec
@@ -36,7 +37,16 @@ func (r *DefaultRunner) Start(name string, args ...string) (int, func() error, e
 }
 
 func (r *DefaultRunner) StartWithCapture(name string, args ...string) (int, <-chan string, func() error, error) {
+	return r.StartWithCaptureEnv(name, nil, args...)
+}
+
+func (r *DefaultRunner) StartWithCaptureEnv(name string, env []string, args ...string) (int, <-chan string, func() error, error) {
 	cmd := exec.Command(name, args...)
+
+	// Set environment if provided
+	if env != nil {
+		cmd.Env = env
+	}
 
 	// Get stdout pipe for reading
 	stdoutPipe, err := cmd.StdoutPipe()

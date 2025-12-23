@@ -132,8 +132,9 @@ func TestBuildSpawnPromptWithFilesAndContext(t *testing.T) {
 
 // mockRunner for testing
 type mockRunner struct {
-	startWithCaptureFunc func(name string, args ...string) (int, <-chan string, func() error, error)
-	startFunc            func(name string, args ...string) (int, func() error, error)
+	startWithCaptureFunc    func(name string, args ...string) (int, <-chan string, func() error, error)
+	startWithCaptureEnvFunc func(name string, env []string, args ...string) (int, <-chan string, func() error, error)
+	startFunc               func(name string, args ...string) (int, func() error, error)
 }
 
 // Ensure mockRunner implements ottoexec.Runner
@@ -159,6 +160,15 @@ func (m *mockRunner) StartWithCapture(name string, args ...string) (int, <-chan 
 	return 1234, lines, func() error { return nil }, nil
 }
 
+func (m *mockRunner) StartWithCaptureEnv(name string, env []string, args ...string) (int, <-chan string, func() error, error) {
+	if m.startWithCaptureEnvFunc != nil {
+		return m.startWithCaptureEnvFunc(name, env, args...)
+	}
+	lines := make(chan string)
+	close(lines)
+	return 1234, lines, func() error { return nil }, nil
+}
+
 func TestCodexSpawnCapturesThreadID(t *testing.T) {
 	db := openTestDB(t)
 
@@ -170,7 +180,7 @@ func TestCodexSpawnCapturesThreadID(t *testing.T) {
 	close(lines)
 
 	runner := &mockRunner{
-		startWithCaptureFunc: func(name string, args ...string) (int, <-chan string, func() error, error) {
+		startWithCaptureEnvFunc: func(name string, env []string, args ...string) (int, <-chan string, func() error, error) {
 			return 5678, lines, func() error { return nil }, nil
 		},
 	}
@@ -198,7 +208,7 @@ func TestCodexSpawnWithoutThreadID(t *testing.T) {
 	close(lines)
 
 	runner := &mockRunner{
-		startWithCaptureFunc: func(name string, args ...string) (int, <-chan string, func() error, error) {
+		startWithCaptureEnvFunc: func(name string, env []string, args ...string) (int, <-chan string, func() error, error) {
 			return 5678, lines, func() error { return nil }, nil
 		},
 	}
@@ -239,5 +249,44 @@ func TestClaudeSpawnUsesNormalStart(t *testing.T) {
 
 	if !called {
 		t.Fatal("Start() should have been called for Claude")
+	}
+}
+
+func TestCodexSpawnSetsCodexHome(t *testing.T) {
+	db := openTestDB(t)
+
+	var capturedEnv []string
+	lines := make(chan string)
+	close(lines)
+
+	runner := &mockRunner{
+		startWithCaptureEnvFunc: func(name string, env []string, args ...string) (int, <-chan string, func() error, error) {
+			capturedEnv = env
+			return 5678, lines, func() error { return nil }, nil
+		},
+	}
+
+	// Run Codex spawn
+	err := runSpawn(db, runner, "codex", "test task", "", "")
+	if err != nil {
+		t.Fatalf("runSpawn failed: %v", err)
+	}
+
+	// Verify CODEX_HOME was set
+	found := false
+	for _, envVar := range capturedEnv {
+		if strings.HasPrefix(envVar, "CODEX_HOME=") {
+			found = true
+			// Verify it's a temp directory
+			codexHome := strings.TrimPrefix(envVar, "CODEX_HOME=")
+			if !strings.Contains(codexHome, "otto-codex-") {
+				t.Fatalf("CODEX_HOME should be temp dir with 'otto-codex-' prefix, got %q", codexHome)
+			}
+			break
+		}
+	}
+
+	if !found {
+		t.Fatal("CODEX_HOME environment variable should be set for Codex agents")
 	}
 }

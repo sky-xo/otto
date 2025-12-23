@@ -135,8 +135,19 @@ func runSpawn(db *sql.DB, runner ottoexec.Runner, agentType, task, files, contex
 }
 
 func runCodexSpawn(db *sql.DB, runner ottoexec.Runner, agentID string, cmdArgs []string) error {
+	// Create temp directory for CODEX_HOME to bypass superpowers
+	tempDir, err := os.MkdirTemp("", "otto-codex-*")
+	if err != nil {
+		return fmt.Errorf("create temp CODEX_HOME: %w", err)
+	}
+	// Note: intentionally not cleaning up tempDir - OS will clean it eventually
+	// This avoids potential race conditions if cleanup happens while agent is still running
+
+	// Set CODEX_HOME to temp dir to bypass ~/.codex/AGENTS.md
+	env := append(os.Environ(), fmt.Sprintf("CODEX_HOME=%s", tempDir))
+
 	// Start with capture to parse JSON output
-	pid, lines, wait, err := runner.StartWithCapture(cmdArgs[0], cmdArgs[1:]...)
+	pid, lines, wait, err := runner.StartWithCaptureEnv(cmdArgs[0], env, cmdArgs[1:]...)
 	if err != nil {
 		return fmt.Errorf("spawn codex: %w", err)
 	}

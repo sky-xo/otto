@@ -9,6 +9,7 @@ import (
 // Runner wraps os/exec for easier test stubbing
 type Runner interface {
 	Run(name string, args ...string) error
+	RunWithEnv(name string, env []string, args ...string) error
 	Start(name string, args ...string) (pid int, wait func() error, err error)
 	StartWithCapture(name string, args ...string) (pid int, stdoutLines <-chan string, wait func() error, err error)
 	StartWithCaptureEnv(name string, env []string, args ...string) (pid int, stdoutLines <-chan string, wait func() error, err error)
@@ -22,6 +23,17 @@ func (r *DefaultRunner) Run(name string, args ...string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
+	return cmd.Run()
+}
+
+func (r *DefaultRunner) RunWithEnv(name string, env []string, args ...string) error {
+	cmd := exec.Command(name, args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+	if env != nil {
+		cmd.Env = env
+	}
 	return cmd.Run()
 }
 

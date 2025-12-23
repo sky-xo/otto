@@ -73,9 +73,9 @@ Based on analysis from both Claude and Codex agents, we use separate tables with
 ### Schema Changes
 
 ```sql
--- Agents table: add completed_at, new statuses
+-- Agents table: add completed_at, standardize statuses
 ALTER TABLE agents ADD COLUMN completed_at DATETIME;
--- Status values: 'busy', 'blocked', 'complete', 'failed'
+-- Status values: 'busy', 'blocked', 'complete', 'failed' (deprecate legacy values)
 
 -- Messages table: add to_id for prompt routing
 ALTER TABLE messages ADD COLUMN to_id TEXT;
@@ -87,10 +87,11 @@ CREATE TABLE transcript_entries (
   id TEXT PRIMARY KEY,
   agent_id TEXT NOT NULL,
   direction TEXT NOT NULL,     -- 'in' (prompt) or 'out' (stdout/stderr)
-  stream TEXT,                 -- NULL for prompts, 'stdout'/'stderr' for output
+  stream TEXT,                 -- NULL for prompts, 'stdout' or 'stderr' for output
   content TEXT NOT NULL,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+-- Note: Capture both stdout and stderr from the start
 
 CREATE INDEX idx_transcript_agent ON transcript_entries(agent_id, created_at);
 CREATE INDEX idx_agents_cleanup ON agents(completed_at) WHERE completed_at IS NOT NULL;
@@ -251,13 +252,24 @@ func (r *Runner) StartWithCapture(cmd string, agentID string, db *sql.DB) {
 - Sets `status = 'complete'`, `completed_at = NOW()`
 - No longer deletes agent row
 
-## Open Questions / Future Work
+## Design Decisions
 
-1. **Stderr handling** - Capture as separate stream type for filtering/coloring
-2. **Chunk size** - Tune the 4KB buffer size based on real usage
-3. **Timestamp precision** - May need microseconds if events interleave rapidly
-4. **Multi-agent prompts** - Future: one prompt to multiple agents (shared prompt_id)
-5. **Third column** - Future: right-side panel for todos/status (mentioned in brainstorm)
+Finalized through discussion with Codex agents:
+
+1. **Stderr** - Capture now as `stream='stderr'`. Low incremental cost while building stdout capture, valuable for debugging agent failures.
+
+2. **Status enum** - Standardize to `{busy, blocked, complete, failed}`. Deprecate legacy values (`idle`, `working`, `active`, `pending`). One-time migration, cleaner codebase.
+
+3. **Cleanup location** - Run opportunistically on every DB open. The DELETE is idempotent and fast with indexed `completed_at`. Handle errors gracefully (log and continue, don't fail the command). Skip on SQLITE_BUSY. TUI tick can also run it for long sessions.
+
+4. **On resume** - Clear `completed_at` (set to NULL) and set status back to `busy`. Agent is active again; the 7-day clock restarts on next completion.
+
+## Future Work
+
+1. **Chunk size tuning** - Adjust 4KB buffer based on real usage
+2. **Timestamp precision** - May need microseconds if events interleave rapidly
+3. **Multi-agent prompts** - One prompt to multiple agents (shared prompt_id)
+4. **Third column** - Right-side panel for todos/status
 
 ## Migration Path
 

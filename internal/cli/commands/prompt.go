@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	ottoexec "otto/internal/exec"
 	"otto/internal/repo"
@@ -65,9 +67,44 @@ func runPrompt(db *sql.DB, runner ottoexec.Runner, agentID, message string) erro
 		return fmt.Errorf("unsupported agent type %q", agent.Type)
 	}
 
-	// Run command
+	// For Codex agents, set up temp CODEX_HOME to bypass superpowers
+	if agent.Type == "codex" {
+		return runCodexPrompt(runner, cmdArgs)
+	}
+
+	// Run command for Claude agents
 	if err := runner.Run(cmdArgs[0], cmdArgs[1:]...); err != nil {
 		return fmt.Errorf("prompt %s: %w", agent.Type, err)
+	}
+
+	return nil
+}
+
+func runCodexPrompt(runner ottoexec.Runner, cmdArgs []string) error {
+	// Create temp directory for CODEX_HOME to bypass superpowers
+	tempDir, err := os.MkdirTemp("", "otto-codex-*")
+	if err != nil {
+		return fmt.Errorf("create temp CODEX_HOME: %w", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Copy auth.json from real CODEX_HOME to preserve credentials
+	realCodexHome := os.Getenv("CODEX_HOME")
+	if realCodexHome == "" {
+		home, _ := os.UserHomeDir()
+		realCodexHome = filepath.Join(home, ".codex")
+	}
+	authSrc := filepath.Join(realCodexHome, "auth.json")
+	if authData, err := os.ReadFile(authSrc); err == nil {
+		_ = os.WriteFile(filepath.Join(tempDir, "auth.json"), authData, 0600)
+	}
+
+	// Set CODEX_HOME to temp dir to bypass ~/.codex/AGENTS.md
+	env := append(os.Environ(), fmt.Sprintf("CODEX_HOME=%s", tempDir))
+
+	// Run command with modified environment
+	if err := runner.RunWithEnv(cmdArgs[0], env, cmdArgs[1:]...); err != nil {
+		return fmt.Errorf("prompt codex: %w", err)
 	}
 
 	return nil

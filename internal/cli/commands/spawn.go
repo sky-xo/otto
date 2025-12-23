@@ -2,6 +2,7 @@ package commands
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -56,11 +57,7 @@ func runSpawn(db *sql.DB, runner ottoexec.Runner, agentType, task, files, contex
 	// Generate agent ID from task slug
 	agentID := generateAgentID(db, task)
 
-	// TODO: For Codex agents, we should capture the actual thread_id from
-	// `codex exec --json` output rather than using our own UUID. For V0,
-	// we use our own UUID which means prompt/attach may not work correctly
-	// with Codex until this is fixed.
-	// Generate session ID
+	// Generate session ID (for Claude, or as placeholder for Codex until we capture thread_id)
 	sessionID := uuid.New().String()
 
 	// Create agent row (status: working)
@@ -88,7 +85,12 @@ func runSpawn(db *sql.DB, runner ottoexec.Runner, agentType, task, files, contex
 	// Build and run command
 	cmdArgs := buildSpawnCommand(agentType, prompt, sessionID)
 
-	// Start the command and get PID
+	// For Codex agents, we need to capture the thread_id from JSON output
+	if agentType == "codex" {
+		return runCodexSpawn(db, runner, agentID, cmdArgs)
+	}
+
+	// For Claude agents, use normal Start
 	pid, wait, err := runner.Start(cmdArgs[0], cmdArgs[1:]...)
 	if err != nil {
 		return fmt.Errorf("spawn %s: %w", agentType, err)
@@ -101,6 +103,64 @@ func runSpawn(db *sql.DB, runner ottoexec.Runner, agentType, task, files, contex
 	if err := wait(); err != nil {
 		_ = repo.UpdateAgentStatus(db, agentID, "failed")
 		return fmt.Errorf("spawn %s: %w", agentType, err)
+	}
+
+	// Mark agent as done when process exits successfully
+	// (unless agent already marked itself via otto complete)
+	agent, getErr := repo.GetAgent(db, agentID)
+	if getErr == nil && agent.Status == "working" {
+		_ = repo.UpdateAgentStatus(db, agentID, "done")
+	}
+
+	return nil
+}
+
+func runCodexSpawn(db *sql.DB, runner ottoexec.Runner, agentID string, cmdArgs []string) error {
+	// Start with capture to parse JSON output
+	pid, lines, wait, err := runner.StartWithCapture(cmdArgs[0], cmdArgs[1:]...)
+	if err != nil {
+		return fmt.Errorf("spawn codex: %w", err)
+	}
+
+	// Update agent with PID
+	_ = repo.UpdateAgentPid(db, agentID, pid)
+
+	// Parse output stream for thread_id in background
+	done := make(chan bool, 1)
+	threadIDCaptured := false
+	go func() {
+		defer func() { done <- threadIDCaptured }()
+		for line := range lines {
+			// Try to parse as JSON
+			var event map[string]interface{}
+			if err := json.Unmarshal([]byte(line), &event); err != nil {
+				continue // not JSON, skip
+			}
+
+			// Check for thread.started event
+			if eventType, ok := event["type"].(string); ok && eventType == "thread.started" {
+				if threadID, ok := event["thread_id"].(string); ok && threadID != "" {
+					// Update session_id in database
+					_ = repo.UpdateAgentSessionID(db, agentID, threadID)
+					threadIDCaptured = true
+					return
+				}
+			}
+		}
+	}()
+
+	// Wait for process
+	if err := wait(); err != nil {
+		_ = repo.UpdateAgentStatus(db, agentID, "failed")
+		return fmt.Errorf("spawn codex: %w", err)
+	}
+
+	// Wait for goroutine to finish processing
+	threadIDCaptured = <-done
+
+	// If we didn't capture thread_id, log a warning (but don't fail)
+	if !threadIDCaptured {
+		fmt.Fprintf(os.Stderr, "Warning: Could not capture thread_id for Codex agent %s\n", agentID)
 	}
 
 	// Mark agent as done when process exits successfully
@@ -184,6 +244,6 @@ func buildSpawnCommand(agentType, prompt, sessionID string) []string {
 	if agentType == "claude" {
 		return []string{"claude", "-p", prompt, "--session-id", sessionID}
 	}
-	// codex
-	return []string{"codex", "exec", prompt}
+	// codex - use --json to capture thread_id
+	return []string{"codex", "exec", "--json", prompt}
 }

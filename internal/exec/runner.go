@@ -1,6 +1,7 @@
 package exec
 
 import (
+	"bufio"
 	"os"
 	"os/exec"
 )
@@ -9,6 +10,7 @@ import (
 type Runner interface {
 	Run(name string, args ...string) error
 	Start(name string, args ...string) (pid int, wait func() error, err error)
+	StartWithCapture(name string, args ...string) (pid int, stdoutLines <-chan string, wait func() error, err error)
 }
 
 // DefaultRunner uses os/exec
@@ -31,4 +33,41 @@ func (r *DefaultRunner) Start(name string, args ...string) (int, func() error, e
 		return 0, nil, err
 	}
 	return cmd.Process.Pid, cmd.Wait, nil
+}
+
+func (r *DefaultRunner) StartWithCapture(name string, args ...string) (int, <-chan string, func() error, error) {
+	cmd := exec.Command(name, args...)
+
+	// Get stdout pipe for reading
+	stdoutPipe, err := cmd.StdoutPipe()
+	if err != nil {
+		return 0, nil, nil, err
+	}
+
+	// Stderr goes directly to terminal
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+
+	// Start the command
+	if err := cmd.Start(); err != nil {
+		return 0, nil, nil, err
+	}
+
+	// Create channel for streaming lines
+	lines := make(chan string, 10)
+
+	// Start goroutine to read and forward stdout
+	go func() {
+		defer close(lines)
+		scanner := bufio.NewScanner(stdoutPipe)
+		for scanner.Scan() {
+			line := scanner.Text()
+			// Send to channel for parsing
+			lines <- line
+			// Also write to stdout so user sees output
+			os.Stdout.WriteString(line + "\n")
+		}
+	}()
+
+	return cmd.Process.Pid, lines, cmd.Wait, nil
 }

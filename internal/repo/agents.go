@@ -35,6 +35,11 @@ func UpdateAgentPid(db *sql.DB, id string, pid int) error {
 	return err
 }
 
+func UpdateAgentSessionID(db *sql.DB, id string, sessionID string) error {
+	_, err := db.Exec(`UPDATE agents SET session_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, sessionID, id)
+	return err
+}
+
 func ListAgents(db *sql.DB) ([]Agent, error) {
 	rows, err := db.Query(`SELECT id, type, task, status, session_id, pid FROM agents ORDER BY created_at ASC`)
 	if err != nil {

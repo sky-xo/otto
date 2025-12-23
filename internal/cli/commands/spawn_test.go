@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	ottoexec "otto/internal/exec"
 	"otto/internal/repo"
 )
 
@@ -32,7 +33,7 @@ func TestSpawnBuildsClaudeCommand(t *testing.T) {
 
 func TestSpawnBuildsCodexCommand(t *testing.T) {
 	cmd := buildSpawnCommand("codex", "test prompt", "session-123")
-	expected := []string{"codex", "exec", "test prompt"}
+	expected := []string{"codex", "exec", "--json", "test prompt"}
 
 	if len(cmd) != len(expected) {
 		t.Fatalf("expected %d args, got %d", len(expected), len(cmd))
@@ -126,5 +127,135 @@ func TestBuildSpawnPromptWithFilesAndContext(t *testing.T) {
 	}
 	if !strings.Contains(prompt, "use JWT tokens") {
 		t.Fatal("prompt should contain context")
+	}
+}
+
+// mockRunner for testing
+type mockRunner struct {
+	startWithCaptureFunc func(name string, args ...string) (int, <-chan string, func() error, error)
+	startFunc            func(name string, args ...string) (int, func() error, error)
+}
+
+// Ensure mockRunner implements ottoexec.Runner
+var _ ottoexec.Runner = (*mockRunner)(nil)
+
+func (m *mockRunner) Run(name string, args ...string) error {
+	return nil
+}
+
+func (m *mockRunner) Start(name string, args ...string) (int, func() error, error) {
+	if m.startFunc != nil {
+		return m.startFunc(name, args...)
+	}
+	return 1234, func() error { return nil }, nil
+}
+
+func (m *mockRunner) StartWithCapture(name string, args ...string) (int, <-chan string, func() error, error) {
+	if m.startWithCaptureFunc != nil {
+		return m.startWithCaptureFunc(name, args...)
+	}
+	lines := make(chan string)
+	close(lines)
+	return 1234, lines, func() error { return nil }, nil
+}
+
+func TestCodexSpawnCapturesThreadID(t *testing.T) {
+	db := openTestDB(t)
+
+	// Create mock runner that simulates Codex JSON output
+	lines := make(chan string, 5)
+	lines <- `{"type":"other_event","data":"something"}`
+	lines <- `{"type":"thread.started","thread_id":"thread_abc123"}`
+	lines <- `{"type":"message","content":"hello"}`
+	close(lines)
+
+	runner := &mockRunner{
+		startWithCaptureFunc: func(name string, args ...string) (int, <-chan string, func() error, error) {
+			return 5678, lines, func() error { return nil }, nil
+		},
+	}
+
+	// Run Codex spawn
+	err := runSpawn(db, runner, "codex", "test task", "", "")
+	if err != nil {
+		t.Fatalf("runSpawn failed: %v", err)
+	}
+
+	// Verify agent was created with correct thread_id
+	agent, err := repo.GetAgent(db, "testtask")
+	if err != nil {
+		t.Fatalf("get agent: %v", err)
+	}
+
+	if !agent.SessionID.Valid {
+		t.Fatal("session_id should be valid")
+	}
+
+	if agent.SessionID.String != "thread_abc123" {
+		t.Fatalf("expected thread_id 'thread_abc123', got %q", agent.SessionID.String)
+	}
+}
+
+func TestCodexSpawnWithoutThreadID(t *testing.T) {
+	db := openTestDB(t)
+
+	// Create mock runner with no thread.started event
+	lines := make(chan string, 3)
+	lines <- `{"type":"message","content":"hello"}`
+	lines <- `{"type":"other_event","data":"something"}`
+	close(lines)
+
+	runner := &mockRunner{
+		startWithCaptureFunc: func(name string, args ...string) (int, <-chan string, func() error, error) {
+			return 5678, lines, func() error { return nil }, nil
+		},
+	}
+
+	// Run Codex spawn
+	err := runSpawn(db, runner, "codex", "test task", "", "")
+	if err != nil {
+		t.Fatalf("runSpawn failed: %v", err)
+	}
+
+	// Verify agent was created (should still work even without thread_id)
+	agent, err := repo.GetAgent(db, "testtask")
+	if err != nil {
+		t.Fatalf("get agent: %v", err)
+	}
+
+	// Session ID should still be the UUID we generated
+	if !agent.SessionID.Valid {
+		t.Fatal("session_id should be valid")
+	}
+
+	// Should not be "thread_abc123" since we didn't capture it
+	if strings.HasPrefix(agent.SessionID.String, "thread_") {
+		t.Fatal("session_id should not have been updated to a thread_id")
+	}
+}
+
+func TestClaudeSpawnUsesNormalStart(t *testing.T) {
+	db := openTestDB(t)
+
+	called := false
+	runner := &mockRunner{
+		startFunc: func(name string, args ...string) (int, func() error, error) {
+			called = true
+			// Verify it's a Claude command
+			if name != "claude" {
+				t.Fatalf("expected 'claude', got %q", name)
+			}
+			return 1234, func() error { return nil }, nil
+		},
+	}
+
+	// Run Claude spawn
+	err := runSpawn(db, runner, "claude", "test task", "", "")
+	if err != nil {
+		t.Fatalf("runSpawn failed: %v", err)
+	}
+
+	if !called {
+		t.Fatal("Start() should have been called for Claude")
 	}
 }

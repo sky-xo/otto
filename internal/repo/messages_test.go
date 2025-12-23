@@ -1,9 +1,18 @@
 package repo
 
 import (
+	"database/sql"
 	"encoding/json"
 	"testing"
 )
+
+// Helper to create sql.NullString for ToID in tests
+func nullStr(s string) sql.NullString {
+	if s == "" {
+		return sql.NullString{}
+	}
+	return sql.NullString{String: s, Valid: true}
+}
 
 func TestCreateMessage(t *testing.T) {
 	db := openTestDB(t)
@@ -11,7 +20,7 @@ func TestCreateMessage(t *testing.T) {
 	msg := Message{
 		ID:            "m1",
 		FromID:        "agent-1",
-		ToID:          "agent-2",
+		ToID:          nullStr("agent-2"),
 		Type:          "say",
 		Content:       "hello",
 		MentionsJSON:  `["agent-2"]`,
@@ -40,10 +49,10 @@ func TestListMessagesFilters(t *testing.T) {
 	db := openTestDB(t)
 
 	messages := []Message{
-		{ID: "m1", FromID: "agent-1", ToID: "agent-2", Type: "say", Content: "hello", MentionsJSON: `["agent-1","agent-2"]`, ReadByJSON: `[]`},
-		{ID: "m2", FromID: "agent-1", ToID: "agent-3", Type: "question", Content: "help", MentionsJSON: `["agent-2"]`, ReadByJSON: `["reader-1"]`},
-		{ID: "m3", FromID: "agent-2", ToID: "", Type: "say", Content: "later", MentionsJSON: `["agent-3"]`, ReadByJSON: `[]`},
-		{ID: "m4", FromID: "agent-2", ToID: "agent-3", Type: "say", Content: "bad json", MentionsJSON: `not-json`, ReadByJSON: `[]`},
+		{ID: "m1", FromID: "agent-1", ToID: nullStr("agent-2"), Type: "say", Content: "hello", MentionsJSON: `["agent-1","agent-2"]`, ReadByJSON: `[]`},
+		{ID: "m2", FromID: "agent-1", ToID: nullStr("agent-3"), Type: "question", Content: "help", MentionsJSON: `["agent-2"]`, ReadByJSON: `["reader-1"]`},
+		{ID: "m3", FromID: "agent-2", ToID: nullStr(""), Type: "say", Content: "later", MentionsJSON: `["agent-3"]`, ReadByJSON: `[]`},
+		{ID: "m4", FromID: "agent-2", ToID: nullStr("agent-3"), Type: "say", Content: "bad json", MentionsJSON: `not-json`, ReadByJSON: `[]`},
 	}
 
 	for _, msg := range messages {
@@ -86,7 +95,7 @@ func TestListMessagesFilters(t *testing.T) {
 		if err != nil {
 			t.Fatalf("list: %v", err)
 		}
-		if len(msgs) != 2 || msgs[0].ToID != "agent-3" || msgs[1].ToID != "agent-3" {
+		if len(msgs) != 2 || msgs[0].ToID.String != "agent-3" || msgs[1].ToID.String != "agent-3" {
 			t.Fatalf("unexpected messages: %#v", msgs)
 		}
 	})
@@ -111,9 +120,9 @@ func TestListMessagesSinceAndLimit(t *testing.T) {
 	db := openTestDB(t)
 
 	messages := []Message{
-		{ID: "m1", FromID: "agent-1", ToID: "agent-2", Type: "say", Content: "one", MentionsJSON: `[]`, ReadByJSON: `[]`},
-		{ID: "m2", FromID: "agent-1", ToID: "agent-2", Type: "say", Content: "two", MentionsJSON: `[]`, ReadByJSON: `[]`},
-		{ID: "m3", FromID: "agent-1", ToID: "agent-2", Type: "say", Content: "three", MentionsJSON: `[]`, ReadByJSON: `[]`},
+		{ID: "m1", FromID: "agent-1", ToID: nullStr("agent-2"), Type: "say", Content: "one", MentionsJSON: `[]`, ReadByJSON: `[]`},
+		{ID: "m2", FromID: "agent-1", ToID: nullStr("agent-2"), Type: "say", Content: "two", MentionsJSON: `[]`, ReadByJSON: `[]`},
+		{ID: "m3", FromID: "agent-1", ToID: nullStr("agent-2"), Type: "say", Content: "three", MentionsJSON: `[]`, ReadByJSON: `[]`},
 	}
 
 	for _, msg := range messages {

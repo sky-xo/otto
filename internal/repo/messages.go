@@ -8,7 +8,7 @@ import (
 type Message struct {
 	ID            string
 	FromID        string
-	ToID          string
+	ToID          sql.NullString
 	Type          string
 	Content       string
 	MentionsJSON  string

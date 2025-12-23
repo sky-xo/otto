@@ -181,18 +181,10 @@ func TestCodexSpawnCapturesThreadID(t *testing.T) {
 		t.Fatalf("runSpawn failed: %v", err)
 	}
 
-	// Verify agent was created with correct thread_id
-	agent, err := repo.GetAgent(db, "testtask")
-	if err != nil {
-		t.Fatalf("get agent: %v", err)
-	}
-
-	if !agent.SessionID.Valid {
-		t.Fatal("session_id should be valid")
-	}
-
-	if agent.SessionID.String != "thread_abc123" {
-		t.Fatalf("expected thread_id 'thread_abc123', got %q", agent.SessionID.String)
+	// Agent should be deleted after process exits
+	_, err = repo.GetAgent(db, "testtask")
+	if err != sql.ErrNoRows {
+		t.Fatalf("expected agent to be deleted, got err=%v", err)
 	}
 }
 
@@ -217,20 +209,10 @@ func TestCodexSpawnWithoutThreadID(t *testing.T) {
 		t.Fatalf("runSpawn failed: %v", err)
 	}
 
-	// Verify agent was created (should still work even without thread_id)
-	agent, err := repo.GetAgent(db, "testtask")
-	if err != nil {
-		t.Fatalf("get agent: %v", err)
-	}
-
-	// Session ID should still be the UUID we generated
-	if !agent.SessionID.Valid {
-		t.Fatal("session_id should be valid")
-	}
-
-	// Should not be "thread_abc123" since we didn't capture it
-	if strings.HasPrefix(agent.SessionID.String, "thread_") {
-		t.Fatal("session_id should not have been updated to a thread_id")
+	// Agent should be deleted after process exits
+	_, err = repo.GetAgent(db, "testtask")
+	if err != sql.ErrNoRows {
+		t.Fatalf("expected agent to be deleted, got err=%v", err)
 	}
 }
 

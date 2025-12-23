@@ -57,3 +57,8 @@ func ListAgents(db *sql.DB) ([]Agent, error) {
 	}
 	return out, rows.Err()
 }
+
+func DeleteAgent(db *sql.DB, id string) error {
+	_, err := db.Exec(`DELETE FROM agents WHERE id = ?`, id)
+	return err
+}

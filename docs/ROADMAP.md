@@ -23,14 +23,15 @@ Plan: `docs/plans/2025-12-22-otto-v0.md`
 
 Features that reduce friction once core loop is validated.
 
-- [ ] Orchestration skill
+- [x] Orchestration skill (`otto install-skills`, otto-orchestrate skill)
+- [x] Auto-detect agent process exit (PID tracking + cleanup in watch)
+- [x] Codex session resume (capture real thread_id from JSON)
 - [ ] TUI: 3-line task descriptions (less truncation)
 - [ ] TUI: agents panel on left side
 - [ ] `otto kill` - stop an agent
 - [ ] `otto clean` - remove DONE/FAILED agents
 - [ ] `otto list` - list orchestrators
-- [ ] Auto-detect agent process exit (mark done/failed when process ends)
-- [ ] otto should also work for with codex being the orchestrator
+- [ ] otto should also work with codex being the orchestrator
 
 ## V2 - Full Experience
 

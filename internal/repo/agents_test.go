@@ -79,3 +79,22 @@ func TestUpdateAgentSessionID(t *testing.T) {
 		t.Fatalf("expected session_id %q, got %q", realThreadID, agent.SessionID.String)
 	}
 }
+
+func TestDeleteAgent(t *testing.T) {
+	conn := openTestDB(t)
+	defer conn.Close()
+
+	agent := Agent{ID: "test", Type: "claude", Task: "test task", Status: "working"}
+	if err := CreateAgent(conn, agent); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	if err := DeleteAgent(conn, "test"); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+
+	_, err := GetAgent(conn, "test")
+	if err != sql.ErrNoRows {
+		t.Fatalf("expected ErrNoRows, got %v", err)
+	}
+}

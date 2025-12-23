@@ -344,7 +344,17 @@ func cleanupStaleAgentsCmd(db *sql.DB) tea.Cmd {
 		for _, a := range agents {
 			if a.Status == "working" && a.Pid.Valid {
 				if !process.IsProcessAlive(int(a.Pid.Int64)) {
-					_ = repo.UpdateAgentStatus(db, a.ID, "done")
+					// Post exit message and delete agent
+					msg := repo.Message{
+						ID:           fmt.Sprintf("%s-exit-%d", a.ID, time.Now().Unix()),
+						FromID:       a.ID,
+						Type:         "exit",
+						Content:      "EXITED: process died unexpectedly",
+						MentionsJSON: "[]",
+						ReadByJSON:   "[]",
+					}
+					_ = repo.CreateMessage(db, msg)
+					_ = repo.DeleteAgent(db, a.ID)
 				}
 			}
 		}

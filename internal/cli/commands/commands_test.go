@@ -37,7 +37,7 @@ func TestAskSetsWaiting(t *testing.T) {
 	}
 }
 
-func TestCompleteSetsDone(t *testing.T) {
+func TestCompleteDeletesAgent(t *testing.T) {
 	db := openTestDB(t)
 	_ = repo.CreateAgent(db, repo.Agent{ID: "authbackend", Type: "claude", Task: "task", Status: "working"})
 	err := runComplete(db, "authbackend", "All done!")
@@ -45,9 +45,16 @@ func TestCompleteSetsDone(t *testing.T) {
 		t.Fatalf("complete: %v", err)
 	}
 
-	agents, _ := repo.ListAgents(db)
-	if agents[0].Status != "done" {
-		t.Fatalf("expected done, got %q", agents[0].Status)
+	// Agent should be deleted after completion
+	_, err = repo.GetAgent(db, "authbackend")
+	if err != sql.ErrNoRows {
+		t.Fatalf("expected agent to be deleted, got err=%v", err)
+	}
+
+	// Message should still exist
+	msgs, _ := repo.ListMessages(db, repo.MessageFilter{Type: "complete"})
+	if len(msgs) != 1 {
+		t.Fatalf("expected 1 complete message, got %d", len(msgs))
 	}
 }
 

@@ -101,15 +101,34 @@ func runSpawn(db *sql.DB, runner ottoexec.Runner, agentType, task, files, contex
 
 	// Wait for process
 	if err := wait(); err != nil {
-		_ = repo.UpdateAgentStatus(db, agentID, "failed")
+		// Post failure message and delete agent
+		msg := repo.Message{
+			ID:           uuid.New().String(),
+			FromID:       agentID,
+			Type:         "exit",
+			Content:      fmt.Sprintf("EXITED: process failed: %v", err),
+			MentionsJSON: "[]",
+			ReadByJSON:   "[]",
+		}
+		_ = repo.CreateMessage(db, msg)
+		_ = repo.DeleteAgent(db, agentID)
 		return fmt.Errorf("spawn %s: %w", agentType, err)
 	}
 
-	// Mark agent as done when process exits successfully
-	// (unless agent already marked itself via otto complete)
-	agent, getErr := repo.GetAgent(db, agentID)
-	if getErr == nil && agent.Status == "working" {
-		_ = repo.UpdateAgentStatus(db, agentID, "done")
+	// Post exit message and delete agent on successful exit
+	// (unless agent already deleted itself via otto complete)
+	_, getErr := repo.GetAgent(db, agentID)
+	if getErr == nil {
+		msg := repo.Message{
+			ID:           uuid.New().String(),
+			FromID:       agentID,
+			Type:         "exit",
+			Content:      "EXITED: process completed successfully",
+			MentionsJSON: "[]",
+			ReadByJSON:   "[]",
+		}
+		_ = repo.CreateMessage(db, msg)
+		_ = repo.DeleteAgent(db, agentID)
 	}
 
 	return nil
@@ -151,7 +170,17 @@ func runCodexSpawn(db *sql.DB, runner ottoexec.Runner, agentID string, cmdArgs [
 
 	// Wait for process
 	if err := wait(); err != nil {
-		_ = repo.UpdateAgentStatus(db, agentID, "failed")
+		// Post failure message and delete agent
+		msg := repo.Message{
+			ID:           uuid.New().String(),
+			FromID:       agentID,
+			Type:         "exit",
+			Content:      fmt.Sprintf("EXITED: process failed: %v", err),
+			MentionsJSON: "[]",
+			ReadByJSON:   "[]",
+		}
+		_ = repo.CreateMessage(db, msg)
+		_ = repo.DeleteAgent(db, agentID)
 		return fmt.Errorf("spawn codex: %w", err)
 	}
 
@@ -163,11 +192,20 @@ func runCodexSpawn(db *sql.DB, runner ottoexec.Runner, agentID string, cmdArgs [
 		fmt.Fprintf(os.Stderr, "Warning: Could not capture thread_id for Codex agent %s\n", agentID)
 	}
 
-	// Mark agent as done when process exits successfully
-	// (unless agent already marked itself via otto complete)
-	agent, getErr := repo.GetAgent(db, agentID)
-	if getErr == nil && agent.Status == "working" {
-		_ = repo.UpdateAgentStatus(db, agentID, "done")
+	// Post exit message and delete agent on successful exit
+	// (unless agent already deleted itself via otto complete)
+	_, getErr := repo.GetAgent(db, agentID)
+	if getErr == nil {
+		msg := repo.Message{
+			ID:           uuid.New().String(),
+			FromID:       agentID,
+			Type:         "exit",
+			Content:      "EXITED: process completed successfully",
+			MentionsJSON: "[]",
+			ReadByJSON:   "[]",
+		}
+		_ = repo.CreateMessage(db, msg)
+		_ = repo.DeleteAgent(db, agentID)
 	}
 
 	return nil

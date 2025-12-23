@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"sync"
+	"time"
 )
 
 // Runner wraps os/exec for easier test stubbing
@@ -31,6 +32,7 @@ type TranscriptChunk struct {
 }
 
 const defaultTranscriptBufferSize = 4 * 1024
+const transcriptFlushInterval = 100 * time.Millisecond
 
 func (r *DefaultRunner) Run(name string, args ...string) error {
 	cmd := exec.Command(name, args...)
@@ -157,13 +159,19 @@ type transcriptCapture struct {
 	pending    []byte
 	stream     string
 	closed     bool
+	done       chan struct{}
+	wg         sync.WaitGroup
 }
 
 func newTranscriptCapture(bufferSize int) *transcriptCapture {
-	return &transcriptCapture{
+	capture := &transcriptCapture{
 		bufferSize: bufferSize,
-		out:        make(chan TranscriptChunk, 16),
+		out:        make(chan TranscriptChunk, 1000),
+		done:       make(chan struct{}),
 	}
+	capture.wg.Add(1)
+	go capture.flushLoop()
+	return capture
 }
 
 func (c *transcriptCapture) Output() <-chan TranscriptChunk {
@@ -179,12 +187,19 @@ func (c *transcriptCapture) StreamWriter(stream string) io.Writer {
 
 func (c *transcriptCapture) Close() {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	if c.closed {
+		c.mu.Unlock()
 		return
 	}
-	c.flushLocked()
 	c.closed = true
+	c.mu.Unlock()
+
+	close(c.done)
+	c.wg.Wait()
+
+	c.mu.Lock()
+	c.flushLocked()
+	c.mu.Unlock()
 	close(c.out)
 }
 
@@ -225,9 +240,12 @@ func (c *transcriptCapture) flushLocked() {
 }
 
 func (c *transcriptCapture) sendLocked(stream string, data []byte) {
-	c.out <- TranscriptChunk{
+	select {
+	case c.out <- TranscriptChunk{
 		Stream: stream,
 		Data:   string(data),
+	}:
+	default:
 	}
 }
 
@@ -239,4 +257,23 @@ type streamWriter struct {
 func (w *streamWriter) Write(p []byte) (int, error) {
 	w.capture.write(w.stream, p)
 	return len(p), nil
+}
+
+func (c *transcriptCapture) flushLoop() {
+	defer c.wg.Done()
+	ticker := time.NewTicker(transcriptFlushInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			c.mu.Lock()
+			if !c.closed {
+				c.flushLocked()
+			}
+			c.mu.Unlock()
+		case <-c.done:
+			return
+		}
+	}
 }

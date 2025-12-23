@@ -4,6 +4,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestStartWithTranscriptCaptureBuffersOutput(t *testing.T) {
@@ -80,6 +81,34 @@ func TestStartWithTranscriptCaptureOrdersStreams(t *testing.T) {
 		if chunk.Stream != expect[i].Stream || chunk.Data != expect[i].Data {
 			t.Fatalf("unexpected chunk[%d]: %+v", i, chunk)
 		}
+	}
+}
+
+func TestStartWithTranscriptCaptureFlushesOnInterval(t *testing.T) {
+	restore := redirectStdoutStderr(t)
+	defer restore()
+
+	runner := &DefaultRunner{TranscriptBufferSize: 1024}
+
+	_, chunksCh, wait, err := runner.StartWithTranscriptCapture("sh", "-c", "printf 'hi'; sleep 0.5")
+	if err != nil {
+		t.Fatalf("StartWithTranscriptCapture failed: %v", err)
+	}
+
+	select {
+	case chunk := <-chunksCh:
+		if chunk.Stream != "stdout" || chunk.Data != "hi" {
+			t.Fatalf("unexpected chunk: %+v", chunk)
+		}
+	case <-time.After(300 * time.Millisecond):
+		t.Fatal("expected chunk before process exit")
+	}
+
+	if waitErr := wait(); waitErr != nil {
+		t.Fatalf("wait failed: %v", waitErr)
+	}
+
+	for range chunksCh {
 	}
 }
 

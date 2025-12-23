@@ -292,24 +292,33 @@ Finalized through discussion with Codex agents:
 - **Task 1**: Schema + repo migrations (commits 1b5a97d, 75a7fa2)
   - Added completed_at, to_id, transcript_entries table
   - Fixed Message.ToID to use sql.NullString
-  - ⚠️ Needs fix: same-second pagination bug in SinceID filter
+  - ⚠️ Pending fix: same-second pagination bug in SinceID filter
 
-- **Task 2**: Transcript capture in exec/runner (commit 75a7fa2)
+- **Task 2**: Transcript capture in exec/runner (commits 75a7fa2, 132cd29)
   - Added StartWithTranscriptCapture methods
   - 4KB buffered stdout/stderr capture with stream tagging
-  - ⚠️ Needs fix: channel blocking if consumer slow, no timeout flush
+  - ✅ Fixed: channel blocking (buffer 16→1000, non-blocking send)
+  - ✅ Fixed: added 100ms periodic flush loop for live updates
 
-### In Progress
-- **Task 3**: Command changes (agent: commands-task)
-  - Updating spawn/prompt/complete to use new transcript capture
-  - Changing completion behavior (mark complete vs delete)
+- **Task 3**: Command changes (commit 69b1c13)
+  - spawn: stores prompt in messages+transcripts, uses transcript capture, SetAgentComplete/SetAgentFailed
+  - complete: calls SetAgentComplete instead of DeleteAgent
+  - prompt: stores prompts, resumes agents with transcript capture
+  - New transcript_capture.go: storePrompt, consumeTranscriptEntries helpers
 
 ### Pending
-- Task 4: TUI redesign with channel view
-- Task 5: Cleanup job (7-day retention on DB open)
+- **FIX**: Same-second pagination bug - SinceID uses `created_at >` which skips same-second records
+- **Task 4**: TUI redesign with channel view (left: channel list, right: content)
+- **Task 5**: Cleanup job (7-day retention, run opportunistically on DB open)
 
 ### Review Notes
 Using dual Claude+Codex reviews. Key findings:
 - Codex caught channel blocking bug Claude missed (Task 2)
 - Codex caught pagination timestamp bug Claude missed (Task 1)
 - Recommendation: escalate to deeper review if both find critical issues
+
+### Git Commits
+- 1b5a97d: Task 1 schema/repo
+- 75a7fa2: Task 1 ToID fix + Task 2 transcript capture
+- 132cd29: Task 2 blocking/flush fixes
+- 69b1c13: Task 3 command changes

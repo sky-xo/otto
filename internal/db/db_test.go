@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestEnsureSchema(t *testing.T) {
@@ -73,4 +74,126 @@ func columnExists(t *testing.T, conn *sql.DB, table, column string) bool {
 		t.Fatalf("rows table_info %s: %v", table, err)
 	}
 	return false
+}
+
+func TestCleanupOnOpen(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "otto.db")
+
+	conn, err := Open(path)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+
+	oldCompleted := sqliteTime(time.Now().Add(-8 * 24 * time.Hour))
+	recentCompleted := sqliteTime(time.Now().Add(-2 * 24 * time.Hour))
+
+	_, err = conn.Exec(
+		`INSERT INTO agents (id, type, task, status, completed_at) VALUES (?, ?, ?, ?, ?)`,
+		"agent-old", "codex", "old task", "complete", oldCompleted,
+	)
+	if err != nil {
+		t.Fatalf("insert old agent: %v", err)
+	}
+	_, err = conn.Exec(
+		`INSERT INTO agents (id, type, task, status, completed_at) VALUES (?, ?, ?, ?, ?)`,
+		"agent-recent", "codex", "recent task", "complete", recentCompleted,
+	)
+	if err != nil {
+		t.Fatalf("insert recent agent: %v", err)
+	}
+	_, err = conn.Exec(
+		`INSERT INTO agents (id, type, task, status) VALUES (?, ?, ?, ?)`,
+		"agent-active", "codex", "active task", "busy",
+	)
+	if err != nil {
+		t.Fatalf("insert active agent: %v", err)
+	}
+
+	_, err = conn.Exec(
+		`INSERT INTO transcript_entries (id, agent_id, direction, content) VALUES (?, ?, ?, ?)`,
+		"entry-old", "agent-old", "out", "old output",
+	)
+	if err != nil {
+		t.Fatalf("insert old transcript entry: %v", err)
+	}
+	_, err = conn.Exec(
+		`INSERT INTO transcript_entries (id, agent_id, direction, content) VALUES (?, ?, ?, ?)`,
+		"entry-recent", "agent-recent", "out", "recent output",
+	)
+	if err != nil {
+		t.Fatalf("insert recent transcript entry: %v", err)
+	}
+
+	_, err = conn.Exec(
+		`INSERT INTO messages (id, from_id, to_id, type, content) VALUES (?, ?, ?, ?, ?)`,
+		"msg-old", "orchestrator", "agent-old", "prompt", "old prompt",
+	)
+	if err != nil {
+		t.Fatalf("insert old message: %v", err)
+	}
+	_, err = conn.Exec(
+		`INSERT INTO messages (id, from_id, to_id, type, content) VALUES (?, ?, ?, ?, ?)`,
+		"msg-recent", "orchestrator", "agent-recent", "prompt", "recent prompt",
+	)
+	if err != nil {
+		t.Fatalf("insert recent message: %v", err)
+	}
+	_, err = conn.Exec(
+		`INSERT INTO messages (id, from_id, type, content) VALUES (?, ?, ?, ?)`,
+		"msg-main", "orchestrator", "note", "main channel",
+	)
+	if err != nil {
+		t.Fatalf("insert main message: %v", err)
+	}
+
+	if err := conn.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+
+	conn, err = Open(path)
+	if err != nil {
+		t.Fatalf("re-open: %v", err)
+	}
+	defer conn.Close()
+
+	if countRows(t, conn, "SELECT COUNT(*) FROM agents WHERE id='agent-old'") != 0 {
+		t.Fatalf("expected old agent to be deleted")
+	}
+	if countRows(t, conn, "SELECT COUNT(*) FROM agents WHERE id='agent-recent'") != 1 {
+		t.Fatalf("expected recent agent to remain")
+	}
+	if countRows(t, conn, "SELECT COUNT(*) FROM agents WHERE id='agent-active'") != 1 {
+		t.Fatalf("expected active agent to remain")
+	}
+
+	if countRows(t, conn, "SELECT COUNT(*) FROM transcript_entries WHERE id='entry-old'") != 0 {
+		t.Fatalf("expected old transcript entry to be deleted")
+	}
+	if countRows(t, conn, "SELECT COUNT(*) FROM transcript_entries WHERE id='entry-recent'") != 1 {
+		t.Fatalf("expected recent transcript entry to remain")
+	}
+
+	if countRows(t, conn, "SELECT COUNT(*) FROM messages WHERE id='msg-old'") != 0 {
+		t.Fatalf("expected old message to be deleted")
+	}
+	if countRows(t, conn, "SELECT COUNT(*) FROM messages WHERE id='msg-recent'") != 1 {
+		t.Fatalf("expected recent message to remain")
+	}
+	if countRows(t, conn, "SELECT COUNT(*) FROM messages WHERE id='msg-main'") != 1 {
+		t.Fatalf("expected main channel message to remain")
+	}
+}
+
+func sqliteTime(t time.Time) string {
+	return t.UTC().Format("2006-01-02 15:04:05")
+}
+
+func countRows(t *testing.T, conn *sql.DB, query string) int {
+	t.Helper()
+	var count int
+	if err := conn.QueryRow(query).Scan(&count); err != nil {
+		t.Fatalf("count rows: %v", err)
+	}
+	return count
 }

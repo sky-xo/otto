@@ -2,7 +2,11 @@ package db
 
 import (
 	"database/sql"
-	_ "modernc.org/sqlite"
+	"errors"
+	"log"
+
+	sqlite "modernc.org/sqlite"
+	sqlite3 "modernc.org/sqlite/lib"
 )
 
 const schemaSQL = `-- agents table
@@ -59,6 +63,7 @@ func Open(path string) (*sql.DB, error) {
 		_ = conn.Close()
 		return nil, err
 	}
+	cleanupOldData(conn)
 	return conn, nil
 }
 
@@ -73,4 +78,39 @@ func ensureSchema(conn *sql.DB) error {
 	// Migration: add to_id column if it doesn't exist
 	_, _ = conn.Exec(`ALTER TABLE messages ADD COLUMN to_id TEXT`)
 	return nil
+}
+
+func cleanupOldData(conn *sql.DB) {
+	statements := []string{
+		`DELETE FROM transcript_entries
+		WHERE agent_id IN (
+			SELECT id FROM agents
+			WHERE completed_at < datetime('now', '-7 days')
+		);`,
+		`DELETE FROM messages
+		WHERE to_id IN (
+			SELECT id FROM agents
+			WHERE completed_at < datetime('now', '-7 days')
+		);`,
+		`DELETE FROM agents
+		WHERE completed_at < datetime('now', '-7 days');`,
+	}
+
+	for _, stmt := range statements {
+		if _, err := conn.Exec(stmt); err != nil {
+			if isSQLiteBusy(err) {
+				return
+			}
+			log.Printf("db cleanup: %v", err)
+			return
+		}
+	}
+}
+
+func isSQLiteBusy(err error) bool {
+	var sqliteErr *sqlite.Error
+	if !errors.As(err, &sqliteErr) {
+		return false
+	}
+	return sqliteErr.Code() == sqlite3.SQLITE_BUSY
 }

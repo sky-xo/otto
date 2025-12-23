@@ -54,6 +54,7 @@ The polished multi-agent experience.
 
 Features being explored (not yet ready for implementation):
 
+- `docs/plans/2025-12-23-super-orchestrator-design.md` - Event bus + gate architecture for skill enforcement, attention routing, and inter-agent communication
 - `docs/plans/2025-12-22-orchestration-skill-design.md` - When to use Otto vs subagents
 - `docs/plans/2025-12-22-todos-design.md` - Hierarchical todos system
 

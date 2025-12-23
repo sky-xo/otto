@@ -35,6 +35,15 @@ func ListMessages(db *sql.DB, f MessageFilter) ([]Message, error) {
 	query := `SELECT id, from_id, to_id, type, content, mentions, requires_human, read_by FROM messages`
 	var args []interface{}
 	where := ""
+	var sinceCreatedAt string
+	if f.SinceID != "" {
+		if err := db.QueryRow(`SELECT strftime('%Y-%m-%d %H:%M:%S', created_at) FROM messages WHERE id = ?`, f.SinceID).Scan(&sinceCreatedAt); err != nil {
+			if err != sql.ErrNoRows {
+				return nil, err
+			}
+			sinceCreatedAt = ""
+		}
+	}
 	if f.Type != "" {
 		where = appendWhere(where, "type = ?")
 		args = append(args, f.Type)
@@ -47,14 +56,14 @@ func ListMessages(db *sql.DB, f MessageFilter) ([]Message, error) {
 		where = appendWhere(where, "to_id = ?")
 		args = append(args, f.ToID)
 	}
-	if f.SinceID != "" {
-		where = appendWhere(where, "created_at > COALESCE((SELECT created_at FROM messages WHERE id = ?), '1970-01-01')")
-		args = append(args, f.SinceID)
+	if sinceCreatedAt != "" {
+		where = appendWhere(where, "((created_at = ? AND id > ?) OR created_at > ?)")
+		args = append(args, sinceCreatedAt, f.SinceID, sinceCreatedAt)
 	}
 	if where != "" {
 		query += " WHERE " + where
 	}
-	query += " ORDER BY created_at ASC"
+	query += " ORDER BY created_at ASC, id ASC"
 	if f.Limit > 0 {
 		query += " LIMIT ?"
 		args = append(args, f.Limit)

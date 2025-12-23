@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"hash/fnv"
+	"sort"
 	"strings"
 	"time"
 
@@ -12,6 +13,11 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+)
+
+const (
+	mainChannelID    = "main"
+	channelListWidth = 16
 )
 
 // Styling
@@ -29,22 +35,29 @@ var (
 	messageStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("7"))
 
-	agentStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("10"))
+	mutedStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("8"))
 
-	statusActiveStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("10")).
+	channelStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("7"))
+
+	channelActiveStyle = lipgloss.NewStyle().
 				Bold(true)
 
-	statusPendingStyle = lipgloss.NewStyle().
+	statusBarStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("8"))
+
+	statusBusyStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("10"))
+
+	statusBlockedStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("11"))
 
 	statusCompleteStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("8"))
 
-	helpStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("8")).
-			Italic(true)
+	statusFailedStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("1"))
 )
 
 // usernameColor returns a consistent ANSI color for a given username
@@ -55,7 +68,7 @@ func usernameColor(name string) lipgloss.Color {
 
 	// Hash the name
 	h := fnv.New32a()
-	h.Write([]byte(name))
+	_, _ = h.Write([]byte(name))
 	hash := h.Sum32()
 
 	// Pick a color from the palette
@@ -66,22 +79,42 @@ type tickMsg time.Time
 type messagesMsg []repo.Message
 type agentsMsg []repo.Agent
 
+type transcriptsMsg struct {
+	agentID string
+	entries []repo.TranscriptEntry
+}
+
+type channel struct {
+	ID     string
+	Name   string
+	Kind   string
+	Status string
+}
+
 type model struct {
-	db           *sql.DB
-	messages     []repo.Message
-	agents       []repo.Agent
-	lastSeenID   string
-	scrollOffset int
-	width        int
-	height       int
-	err          error
+	db                *sql.DB
+	messages          []repo.Message
+	agents            []repo.Agent
+	transcripts       map[string][]repo.TranscriptEntry
+	lastMessageID     string
+	lastTranscriptIDs map[string]string
+	scrollOffsets     map[string]int
+	width             int
+	height            int
+	cursorIndex       int
+	activeChannelID   string
+	err               error
 }
 
 func NewModel(db *sql.DB) model {
 	return model{
-		db:       db,
-		messages: []repo.Message{},
-		agents:   []repo.Agent{},
+		db:                db,
+		messages:          []repo.Message{},
+		agents:            []repo.Agent{},
+		transcripts:       map[string][]repo.TranscriptEntry{},
+		lastTranscriptIDs: map[string]string{},
+		scrollOffsets:     map[string]int{},
+		activeChannelID:   mainChannelID,
 	}
 }
 
@@ -100,27 +133,22 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "q", "ctrl+c":
 			return m, tea.Quit
 		case "up", "k":
-			if m.scrollOffset > 0 {
-				m.scrollOffset--
-			}
+			m.moveCursor(-1)
 		case "down", "j":
-			maxScroll := len(m.messages) - (m.height - 10) // Leave room for UI chrome
-			if maxScroll < 0 {
-				maxScroll = 0
-			}
-			if m.scrollOffset < maxScroll {
-				m.scrollOffset++
-			}
+			m.moveCursor(1)
+		case "enter":
+			return m, m.activateSelection()
+		case "esc":
+			m.activeChannelID = mainChannelID
+			m.cursorIndex = 0
 		case "g":
-			// Go to top
-			m.scrollOffset = 0
+			m.scrollOffsets[m.activeChannelID] = 0
 		case "G":
-			// Go to bottom
-			maxScroll := len(m.messages) - (m.height - 10)
-			if maxScroll < 0 {
-				maxScroll = 0
-			}
-			m.scrollOffset = maxScroll
+			m.scrollOffsets[m.activeChannelID] = m.maxScroll(m.activeChannelID)
+		case "pgup", "ctrl+u":
+			m.scrollContent(-5)
+		case "pgdown", "ctrl+d":
+			m.scrollContent(5)
 		}
 
 	case tea.WindowSizeMsg:
@@ -128,29 +156,41 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 
 	case tickMsg:
-		return m, tea.Batch(
+		cmds := []tea.Cmd{
 			tickCmd(),
 			cleanupStaleAgentsCmd(m.db),
-			fetchMessagesCmd(m.db, m.lastSeenID),
+			fetchMessagesCmd(m.db, m.lastMessageID),
 			fetchAgentsCmd(m.db),
-		)
+		}
+		if m.activeChannelID != mainChannelID {
+			cmds = append(cmds, fetchTranscriptsCmd(m.db, m.activeChannelID, m.lastTranscriptIDs[m.activeChannelID]))
+		}
+		return m, tea.Batch(cmds...)
 
 	case messagesMsg:
-		// Append new messages
 		if len(msg) > 0 {
+			atBottom := m.scrollOffsets[mainChannelID] >= m.maxScroll(mainChannelID)
 			m.messages = append(m.messages, msg...)
-			// Update lastSeenID to the last message
-			m.lastSeenID = msg[len(msg)-1].ID
-			// Auto-scroll to bottom on new messages
-			maxScroll := len(m.messages) - (m.height - 10)
-			if maxScroll < 0 {
-				maxScroll = 0
+			m.lastMessageID = msg[len(msg)-1].ID
+			if atBottom {
+				m.scrollOffsets[mainChannelID] = m.maxScroll(mainChannelID)
 			}
-			m.scrollOffset = maxScroll
+		}
+
+	case transcriptsMsg:
+		if len(msg.entries) > 0 {
+			current := m.transcripts[msg.agentID]
+			atBottom := m.scrollOffsets[msg.agentID] >= m.maxScroll(msg.agentID)
+			m.transcripts[msg.agentID] = append(current, msg.entries...)
+			m.lastTranscriptIDs[msg.agentID] = msg.entries[len(msg.entries)-1].ID
+			if atBottom {
+				m.scrollOffsets[msg.agentID] = m.maxScroll(msg.agentID)
+			}
 		}
 
 	case agentsMsg:
 		m.agents = msg
+		m.ensureSelection()
 
 	case error:
 		m.err = msg
@@ -160,186 +200,425 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) View() string {
-	if m.width == 0 {
+	if m.width == 0 || m.height == 0 {
 		return "Initializing..."
 	}
 
+	leftWidth, rightWidth, panelHeight, contentHeight := m.layout()
+
 	// Title
-	title := titleStyle.Render("Otto Watch (TUI Mode)")
+	title := titleStyle.Render("Otto")
 
-	// Calculate dimensions for panels
-	leftWidth := m.width*2/3 - 2
-	rightWidth := m.width - leftWidth - 4
+	// Left panel: Channels
+	channelsTitle := panelTitleStyle.Width(leftWidth - 2).Render("Channels")
+	channelsContent := m.renderChannels(leftWidth-2, contentHeight)
 
-	// Left panel: Messages
-	messagesTitle := panelTitleStyle.Width(leftWidth).Render("Messages")
-	messagesContent := m.renderMessages(leftWidth, m.height-6)
-
-	// Right panel: Agents
-	agentsTitle := panelTitleStyle.Width(rightWidth).Render("Agents")
-	agentsContent := m.renderAgents(rightWidth, m.height-6)
-
-	// Create panel borders
 	leftPanel := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		Width(leftWidth).
-		Height(m.height - 4).
-		Render(messagesTitle + "\n" + messagesContent)
+		Height(panelHeight).
+		Render(channelsTitle + "\n" + channelsContent)
+
+	// Right panel: Content
+	activeLabel := m.activeChannelLabel()
+	rightTitle := panelTitleStyle.Width(rightWidth - 2).Render(activeLabel)
+	content := m.renderContent(rightWidth-2, contentHeight)
 
 	rightPanel := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		Width(rightWidth).
-		Height(m.height - 4).
-		Render(agentsTitle + "\n" + agentsContent)
+		Height(panelHeight).
+		Render(rightTitle + "\n" + content)
 
-	// Combine panels side by side
 	panels := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel)
 
-	// Help text
-	help := helpStyle.Render("q: quit | ↑/k: scroll up | ↓/j: scroll down | g: top | G: bottom")
+	status := statusBarStyle.Render("q: quit | j/k: navigate | Enter: select | Esc: back to Main | g/G: top/bottom")
 
-	// Combine everything
-	return lipgloss.JoinVertical(lipgloss.Left, title, panels, help)
+	return lipgloss.JoinVertical(lipgloss.Left, title, panels, status)
 }
 
-func (m model) renderMessages(width, height int) string {
-	if len(m.messages) == 0 {
-		return messageStyle.Render("Waiting for messages...")
+func (m model) renderChannels(width, height int) string {
+	channels := m.channels()
+	if len(channels) == 0 || height <= 0 {
+		return ""
 	}
 
-	var lines []string
-	visibleHeight := height - 2 // Account for title and padding
-
-	// Determine which messages to show based on scroll
-	start := m.scrollOffset
-	end := m.scrollOffset + visibleHeight
-	if end > len(m.messages) {
-		end = len(m.messages)
-	}
-	if start >= len(m.messages) {
-		start = len(m.messages) - 1
-		if start < 0 {
-			start = 0
-		}
-	}
-
-	for i := start; i < end; i++ {
-		msg := m.messages[i]
-
-		// Create username style with hash-based color and bold
-		usernameStyle := lipgloss.NewStyle().
-			Foreground(usernameColor(msg.FromID)).
-			Bold(true)
-
-		var content string
-		var contentStyle lipgloss.Style
-
-		// Format and style based on message type
-		switch msg.Type {
-		case "exit":
-			content = fmt.Sprintf("exited – %s", msg.Content)
-			contentStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
-		case "complete":
-			content = fmt.Sprintf("completed – %s", msg.Content)
-			contentStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
-		case "error":
-			content = msg.Content
-			contentStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
-		case "say", "ask":
-			content = msg.Content
-			contentStyle = messageStyle
-		default:
-			// For other types (task, etc.), show them normally
-			content = msg.Content
-			contentStyle = messageStyle
-		}
-
-		// Build the line: username + space + content
-		line := usernameStyle.Render(msg.FromID) + " " + contentStyle.Render(content)
-
-		// Truncate if too long (account for ANSI codes by using visual length approximation)
-		// We'll use a simple heuristic: username + content should fit
-		maxContentLen := width - len(msg.FromID) - 6 // Account for spacing and border
-		if len(content) > maxContentLen && maxContentLen > 3 {
-			content = content[:maxContentLen-3] + "..."
-			line = usernameStyle.Render(msg.FromID) + " " + contentStyle.Render(content)
-		}
-
+	lines := make([]string, 0, len(channels))
+	for i, ch := range channels {
+		line := m.renderChannelLine(ch, width, i == m.cursorIndex, ch.ID == m.activeChannelID)
 		lines = append(lines, line)
-	}
-
-	// Add scroll indicator if needed
-	if len(m.messages) > visibleHeight {
-		scrollInfo := fmt.Sprintf("(%d-%d of %d)", start+1, end, len(m.messages))
-		lines = append([]string{helpStyle.Render(scrollInfo)}, lines...)
-	}
-
-	return strings.Join(lines, "\n")
-}
-
-func (m model) renderAgents(width, height int) string {
-	if len(m.agents) == 0 {
-		return agentStyle.Render("No agents")
-	}
-
-	var lines []string
-
-	// Add summary counts
-	active, pending, complete := 0, 0, 0
-	for _, a := range m.agents {
-		switch a.Status {
-		case "active":
-			active++
-		case "pending":
-			pending++
-		case "complete":
-			complete++
-		}
-	}
-
-	summary := fmt.Sprintf("Total: %d | Active: %s | Pending: %s | Complete: %s",
-		len(m.agents),
-		statusActiveStyle.Render(fmt.Sprintf("%d", active)),
-		statusPendingStyle.Render(fmt.Sprintf("%d", pending)),
-		statusCompleteStyle.Render(fmt.Sprintf("%d", complete)),
-	)
-	lines = append(lines, summary, "")
-
-	// List agents
-	for _, agent := range m.agents {
-		// Format agent info
-		task := agent.Task
-		maxLen := width - 15 // Leave room for ID and status
-		if len(task) > maxLen {
-			task = task[:maxLen-3] + "..."
-		}
-
-		var statusStyled string
-		switch agent.Status {
-		case "active":
-			statusStyled = statusActiveStyle.Render(agent.Status)
-		case "pending":
-			statusStyled = statusPendingStyle.Render(agent.Status)
-		case "complete":
-			statusStyled = statusCompleteStyle.Render(agent.Status)
-		default:
-			statusStyled = agent.Status
-		}
-
-		line := fmt.Sprintf("%s [%s]", agentStyle.Render(agent.ID), statusStyled)
-		if agent.Task != "" {
-			line += "\n  " + task
-		}
-
-		lines = append(lines, line)
-
-		// Stop if we're running out of space
-		if len(lines) >= height-4 {
+		if len(lines) >= height {
 			break
 		}
 	}
-
 	return strings.Join(lines, "\n")
+}
+
+func (m model) renderContent(width, height int) string {
+	if m.activeChannelID == mainChannelID {
+		return m.renderMainContent(width, height)
+	}
+	return m.renderTranscriptContent(m.activeChannelID, width, height)
+}
+
+func (m model) renderMainContent(width, height int) string {
+	lines := m.mainContentLines(width)
+	return m.renderScrollable(lines, width, height, m.scrollOffsets[mainChannelID])
+}
+
+func (m model) renderTranscriptContent(agentID string, width, height int) string {
+	lines := m.transcriptContentLines(agentID, width)
+	return m.renderScrollable(lines, width, height, m.scrollOffsets[agentID])
+}
+
+func (m model) mainContentLines(width int) []string {
+	if len(m.messages) == 0 {
+		return []string{messageStyle.Render("Waiting for messages...")}
+	}
+
+	fromWidth := 12
+	if width < fromWidth+6 {
+		fromWidth = clamp(width/3, 6, fromWidth)
+	}
+	contentWidth := width - fromWidth - 1
+	if contentWidth < 1 {
+		contentWidth = 1
+	}
+
+	lines := make([]string, 0, len(m.messages))
+	for _, msg := range m.messages {
+		fromStyle := lipgloss.NewStyle().Foreground(usernameColor(msg.FromID)).Bold(true)
+		fromText := padRight(fromStyle.Render(msg.FromID), fromWidth)
+
+		content, style := formatMessage(msg)
+		content = truncateString(content, contentWidth)
+		contentText := style.Render(content)
+
+		lines = append(lines, fromText+" "+contentText)
+	}
+	return lines
+}
+
+func (m model) transcriptContentLines(agentID string, width int) []string {
+	entries := m.transcripts[agentID]
+	if len(entries) == 0 {
+		return []string{messageStyle.Render("No transcript entries yet.")}
+	}
+
+	prefixWidth := 3
+	contentWidth := width - prefixWidth - 1
+	if contentWidth < 1 {
+		contentWidth = 1
+	}
+
+	lines := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		prefix, style := transcriptPrefix(entry)
+		prefix = padRight(style.Render(prefix), prefixWidth)
+		content := truncateString(entry.Content, contentWidth)
+		lines = append(lines, prefix+" "+content)
+	}
+	return lines
+}
+
+func (m model) renderScrollable(lines []string, width, height, offset int) string {
+	if height <= 0 {
+		return ""
+	}
+	if len(lines) == 0 {
+		return ""
+	}
+
+	maxScroll := len(lines) - height
+	if maxScroll < 0 {
+		maxScroll = 0
+	}
+	if offset > maxScroll {
+		offset = maxScroll
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	start := offset
+	end := offset + height
+	if end > len(lines) {
+		end = len(lines)
+	}
+
+	return strings.Join(lines[start:end], "\n")
+}
+
+func (m model) channels() []channel {
+	channels := []channel{{ID: mainChannelID, Name: "Main", Kind: "main"}}
+	if len(m.agents) == 0 {
+		return channels
+	}
+
+	ordered := sortAgentsByStatus(m.agents)
+	for _, agent := range ordered {
+		channels = append(channels, channel{
+			ID:     agent.ID,
+			Name:   agent.ID,
+			Kind:   "agent",
+			Status: agent.Status,
+		})
+	}
+	return channels
+}
+
+func (m model) activeChannelLabel() string {
+	if m.activeChannelID == mainChannelID {
+		return "Main"
+	}
+	return m.activeChannelID
+}
+
+func (m model) renderChannelLine(ch channel, width int, cursor, active bool) string {
+	label := ch.Name
+	labelWidth := width
+	if ch.Kind != "main" {
+		labelWidth = width - 2
+		if labelWidth < 1 {
+			labelWidth = 1
+		}
+	}
+	label = truncateString(label, labelWidth)
+
+	labelStyle := channelStyle
+	if active {
+		labelStyle = channelActiveStyle
+	}
+
+	line := labelStyle.Render(label)
+	if ch.Kind != "main" {
+		indicator, indicatorStyle := channelIndicator(ch)
+		line = fmt.Sprintf("%s %s", indicatorStyle.Render(indicator), line)
+	}
+	line = padRight(line, width)
+
+	if cursor {
+		return lipgloss.NewStyle().Background(lipgloss.Color("8")).Render(line)
+	}
+
+	return line
+}
+
+func (m model) moveCursor(delta int) {
+	channels := m.channels()
+	if len(channels) == 0 {
+		m.cursorIndex = 0
+		return
+	}
+	m.cursorIndex += delta
+	if m.cursorIndex < 0 {
+		m.cursorIndex = 0
+	}
+	if m.cursorIndex >= len(channels) {
+		m.cursorIndex = len(channels) - 1
+	}
+}
+
+func (m *model) activateSelection() tea.Cmd {
+	channels := m.channels()
+	if len(channels) == 0 || m.cursorIndex >= len(channels) {
+		return nil
+	}
+	selected := channels[m.cursorIndex]
+	m.activeChannelID = selected.ID
+	if selected.Kind == "agent" {
+		return fetchTranscriptsCmd(m.db, selected.ID, m.lastTranscriptIDs[selected.ID])
+	}
+	return nil
+}
+
+func (m model) maxScroll(channelID string) int {
+	_, _, _, contentHeight := m.layout()
+	count := 0
+	switch channelID {
+	case mainChannelID:
+		count = len(m.mainContentLines(80))
+	default:
+		count = len(m.transcriptContentLines(channelID, 80))
+	}
+	maxScroll := count - contentHeight
+	if maxScroll < 0 {
+		maxScroll = 0
+	}
+	return maxScroll
+}
+
+func (m *model) scrollContent(delta int) {
+	current := m.scrollOffsets[m.activeChannelID]
+	current += delta
+	maxScroll := m.maxScroll(m.activeChannelID)
+	if current < 0 {
+		current = 0
+	}
+	if current > maxScroll {
+		current = maxScroll
+	}
+	m.scrollOffsets[m.activeChannelID] = current
+}
+
+func (m *model) ensureSelection() {
+	channels := m.channels()
+	if len(channels) == 0 {
+		m.cursorIndex = 0
+		m.activeChannelID = mainChannelID
+		return
+	}
+
+	if !channelExists(channels, m.activeChannelID) {
+		m.activeChannelID = mainChannelID
+		m.cursorIndex = 0
+	}
+	if m.cursorIndex >= len(channels) {
+		m.cursorIndex = len(channels) - 1
+	}
+}
+
+func (m model) layout() (leftWidth, rightWidth, panelHeight, contentHeight int) {
+	panelHeight = m.height - 2
+	if panelHeight < 3 {
+		panelHeight = 3
+	}
+	leftWidth = channelListWidth
+	minRight := 20
+	if m.width-leftWidth < minRight {
+		leftWidth = clamp(m.width-minRight, 12, leftWidth)
+	}
+	if leftWidth < 12 {
+		leftWidth = 12
+	}
+	rightWidth = m.width - leftWidth
+	if rightWidth < minRight {
+		rightWidth = minRight
+		leftWidth = m.width - rightWidth
+	}
+	contentHeight = panelHeight - 3
+	if contentHeight < 1 {
+		contentHeight = 1
+	}
+	return leftWidth, rightWidth, panelHeight, contentHeight
+}
+
+func channelIndicator(ch channel) (string, lipgloss.Style) {
+	if ch.Kind == "main" {
+		return "●", statusCompleteStyle
+	}
+	status := strings.ToLower(ch.Status)
+	switch status {
+	case "busy":
+		return "●", statusBusyStyle
+	case "blocked", "idle":
+		return "●", statusBlockedStyle
+	case "complete":
+		return "○", statusCompleteStyle
+	case "failed":
+		return "✗", statusFailedStyle
+	default:
+		return "○", statusCompleteStyle
+	}
+}
+
+func sortAgentsByStatus(agents []repo.Agent) []repo.Agent {
+	ordered := make([]repo.Agent, len(agents))
+	copy(ordered, agents)
+	order := map[string]int{
+		"busy":     0,
+		"blocked":  1,
+		"complete": 2,
+		"failed":   3,
+	}
+	sort.SliceStable(ordered, func(i, j int) bool {
+		iOrder, ok := order[strings.ToLower(ordered[i].Status)]
+		if !ok {
+			iOrder = 4
+		}
+		jOrder, ok := order[strings.ToLower(ordered[j].Status)]
+		if !ok {
+			jOrder = 4
+		}
+		if iOrder != jOrder {
+			return iOrder < jOrder
+		}
+		return ordered[i].ID < ordered[j].ID
+	})
+	return ordered
+}
+
+func channelExists(channels []channel, id string) bool {
+	for _, ch := range channels {
+		if ch.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
+func formatMessage(msg repo.Message) (string, lipgloss.Style) {
+	switch msg.Type {
+	case "exit":
+		return fmt.Sprintf("exited - %s", msg.Content), mutedStyle
+	case "complete":
+		return fmt.Sprintf("completed - %s", msg.Content), mutedStyle
+	case "error":
+		return msg.Content, statusFailedStyle
+	case "prompt":
+		if msg.ToID.Valid {
+			return fmt.Sprintf("@%s %s", msg.ToID.String, msg.Content), mutedStyle
+		}
+		return msg.Content, mutedStyle
+	default:
+		return msg.Content, messageStyle
+	}
+}
+
+func transcriptPrefix(entry repo.TranscriptEntry) (string, lipgloss.Style) {
+	switch entry.Direction {
+	case "in":
+		return "→", mutedStyle
+	case "out":
+		if entry.Stream.Valid && entry.Stream.String == "stderr" {
+			return "!", statusFailedStyle
+		}
+		return "←", messageStyle
+	default:
+		return "·", mutedStyle
+	}
+}
+
+func padRight(s string, width int) string {
+	pad := width - lipgloss.Width(s)
+	if pad <= 0 {
+		return s
+	}
+	return s + strings.Repeat(" ", pad)
+}
+
+func truncateString(s string, max int) string {
+	if max <= 0 {
+		return ""
+	}
+	runes := []rune(s)
+	if len(runes) <= max {
+		return s
+	}
+	if max <= 3 {
+		return string(runes[:max])
+	}
+	return string(runes[:max-3]) + "..."
+}
+
+func clamp(value, min, max int) int {
+	if value < min {
+		return min
+	}
+	if value > max {
+		return max
+	}
+	return value
 }
 
 func tickCmd() tea.Cmd {
@@ -372,6 +651,16 @@ func fetchAgentsCmd(db *sql.DB) tea.Cmd {
 	}
 }
 
+func fetchTranscriptsCmd(db *sql.DB, agentID, sinceID string) tea.Cmd {
+	return func() tea.Msg {
+		entries, err := repo.ListTranscriptEntries(db, agentID, sinceID)
+		if err != nil {
+			return err
+		}
+		return transcriptsMsg{agentID: agentID, entries: entries}
+	}
+}
+
 func cleanupStaleAgentsCmd(db *sql.DB) tea.Cmd {
 	return func() tea.Msg {
 		agents, err := repo.ListAgents(db)
@@ -379,9 +668,8 @@ func cleanupStaleAgentsCmd(db *sql.DB) tea.Cmd {
 			return nil
 		}
 		for _, a := range agents {
-			if a.Status == "working" && a.Pid.Valid {
+			if a.Status == "busy" && a.Pid.Valid {
 				if !process.IsProcessAlive(int(a.Pid.Int64)) {
-					// Post exit message and delete agent
 					msg := repo.Message{
 						ID:           fmt.Sprintf("%s-exit-%d", a.ID, time.Now().Unix()),
 						FromID:       a.ID,
@@ -391,7 +679,7 @@ func cleanupStaleAgentsCmd(db *sql.DB) tea.Cmd {
 						ReadByJSON:   "[]",
 					}
 					_ = repo.CreateMessage(db, msg)
-					_ = repo.DeleteAgent(db, a.ID)
+					_ = repo.SetAgentFailed(db, a.ID)
 				}
 			}
 		}

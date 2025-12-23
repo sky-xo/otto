@@ -67,3 +67,40 @@ func TestListTranscriptEntriesSince(t *testing.T) {
 		t.Fatalf("unexpected since entries: %#v", sinceEntries)
 	}
 }
+
+func TestListTranscriptEntriesSinceSameSecond(t *testing.T) {
+	db := openTestDB(t)
+
+	if err := CreateTranscriptEntry(db, "agent-1", "out", "stdout", "one"); err != nil {
+		t.Fatalf("create entry 1: %v", err)
+	}
+	if err := CreateTranscriptEntry(db, "agent-1", "out", "stdout", "two"); err != nil {
+		t.Fatalf("create entry 2: %v", err)
+	}
+	if err := CreateTranscriptEntry(db, "agent-1", "out", "stdout", "three"); err != nil {
+		t.Fatalf("create entry 3: %v", err)
+	}
+
+	entries, err := ListTranscriptEntries(db, "agent-1", "")
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(entries) != 3 {
+		t.Fatalf("unexpected entries: %#v", entries)
+	}
+
+	if _, err := db.Exec(`UPDATE transcript_entries SET created_at = ? WHERE id IN (?, ?)`, "2024-01-01 00:00:00", entries[0].ID, entries[1].ID); err != nil {
+		t.Fatalf("set created_at: %v", err)
+	}
+	if _, err := db.Exec(`UPDATE transcript_entries SET created_at = ? WHERE id = ?`, "2024-01-01 00:00:01", entries[2].ID); err != nil {
+		t.Fatalf("set created_at: %v", err)
+	}
+
+	sinceEntries, err := ListTranscriptEntries(db, "agent-1", entries[0].ID)
+	if err != nil {
+		t.Fatalf("list since: %v", err)
+	}
+	if len(sinceEntries) != 2 || sinceEntries[0].ID != entries[1].ID || sinceEntries[1].ID != entries[2].ID {
+		t.Fatalf("unexpected since entries: %#v", sinceEntries)
+	}
+}

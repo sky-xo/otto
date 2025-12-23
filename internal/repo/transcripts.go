@@ -34,11 +34,20 @@ func CreateTranscriptEntry(db *sql.DB, agentID, direction, stream, content strin
 func ListTranscriptEntries(db *sql.DB, agentID, sinceID string) ([]TranscriptEntry, error) {
 	query := `SELECT id, agent_id, direction, stream, content, created_at FROM transcript_entries WHERE agent_id = ?`
 	args := []interface{}{agentID}
+	var sinceCreatedAt string
 	if sinceID != "" {
-		query += " AND created_at > COALESCE((SELECT created_at FROM transcript_entries WHERE id = ?), '1970-01-01')"
-		args = append(args, sinceID)
+		if err := db.QueryRow(`SELECT strftime('%Y-%m-%d %H:%M:%S', created_at) FROM transcript_entries WHERE id = ?`, sinceID).Scan(&sinceCreatedAt); err != nil {
+			if err != sql.ErrNoRows {
+				return nil, err
+			}
+			sinceCreatedAt = ""
+		}
 	}
-	query += " ORDER BY created_at ASC"
+	if sinceCreatedAt != "" {
+		query += " AND ((created_at = ? AND id > ?) OR created_at > ?)"
+		args = append(args, sinceCreatedAt, sinceID, sinceCreatedAt)
+	}
+	query += " ORDER BY created_at ASC, id ASC"
 
 	rows, err := db.Query(query, args...)
 	if err != nil {

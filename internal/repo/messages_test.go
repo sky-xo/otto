@@ -167,6 +167,37 @@ func TestListMessagesSinceAndLimit(t *testing.T) {
 	}
 }
 
+func TestListMessagesSinceSameSecond(t *testing.T) {
+	db := openTestDB(t)
+
+	messages := []Message{
+		{ID: "m1", FromID: "agent-1", ToID: nullStr("agent-2"), Type: "say", Content: "one", MentionsJSON: `[]`, ReadByJSON: `[]`},
+		{ID: "m2", FromID: "agent-1", ToID: nullStr("agent-2"), Type: "say", Content: "two", MentionsJSON: `[]`, ReadByJSON: `[]`},
+		{ID: "m3", FromID: "agent-1", ToID: nullStr("agent-2"), Type: "say", Content: "three", MentionsJSON: `[]`, ReadByJSON: `[]`},
+	}
+
+	for _, msg := range messages {
+		if err := CreateMessage(db, msg); err != nil {
+			t.Fatalf("create: %v", err)
+		}
+	}
+
+	if _, err := db.Exec(`UPDATE messages SET created_at = ? WHERE id IN (?, ?)`, "2024-01-01 00:00:00", "m1", "m2"); err != nil {
+		t.Fatalf("set created_at: %v", err)
+	}
+	if _, err := db.Exec(`UPDATE messages SET created_at = ? WHERE id = ?`, "2024-01-01 00:00:01", "m3"); err != nil {
+		t.Fatalf("set created_at: %v", err)
+	}
+
+	msgs, err := ListMessages(db, MessageFilter{SinceID: "m1"})
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(msgs) != 2 || msgs[0].ID != "m2" || msgs[1].ID != "m3" {
+		t.Fatalf("unexpected messages: %#v", msgs)
+	}
+}
+
 func TestMarkMessagesRead(t *testing.T) {
 	db := openTestDB(t)
 

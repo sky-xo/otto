@@ -98,3 +98,68 @@ func TestDeleteAgent(t *testing.T) {
 		t.Fatalf("expected ErrNoRows, got %v", err)
 	}
 }
+
+func TestAgentCompletionLifecycle(t *testing.T) {
+	conn := openTestDB(t)
+	defer conn.Close()
+
+	agent := Agent{ID: "complete-me", Type: "claude", Task: "test task", Status: "busy"}
+	if err := CreateAgent(conn, agent); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	if err := SetAgentComplete(conn, agent.ID); err != nil {
+		t.Fatalf("set complete: %v", err)
+	}
+
+	updated, err := GetAgent(conn, agent.ID)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if updated.Status != "complete" {
+		t.Fatalf("expected status complete, got %q", updated.Status)
+	}
+	if !updated.CompletedAt.Valid {
+		t.Fatalf("expected completed_at to be set")
+	}
+
+	if err := ResumeAgent(conn, agent.ID); err != nil {
+		t.Fatalf("resume: %v", err)
+	}
+
+	resumed, err := GetAgent(conn, agent.ID)
+	if err != nil {
+		t.Fatalf("get resumed: %v", err)
+	}
+	if resumed.Status != "busy" {
+		t.Fatalf("expected status busy, got %q", resumed.Status)
+	}
+	if resumed.CompletedAt.Valid {
+		t.Fatalf("expected completed_at to be cleared")
+	}
+}
+
+func TestAgentFailure(t *testing.T) {
+	conn := openTestDB(t)
+	defer conn.Close()
+
+	agent := Agent{ID: "fail-me", Type: "claude", Task: "test task", Status: "busy"}
+	if err := CreateAgent(conn, agent); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	if err := SetAgentFailed(conn, agent.ID); err != nil {
+		t.Fatalf("set failed: %v", err)
+	}
+
+	updated, err := GetAgent(conn, agent.ID)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if updated.Status != "failed" {
+		t.Fatalf("expected status failed, got %q", updated.Status)
+	}
+	if !updated.CompletedAt.Valid {
+		t.Fatalf("expected completed_at to be set")
+	}
+}

@@ -194,9 +194,11 @@ func TestBuildSpawnPromptWithFilesAndContext(t *testing.T) {
 
 // mockRunner for testing
 type mockRunner struct {
-	startWithCaptureFunc    func(name string, args ...string) (int, <-chan string, func() error, error)
-	startWithCaptureEnvFunc func(name string, env []string, args ...string) (int, <-chan string, func() error, error)
-	startFunc               func(name string, args ...string) (int, func() error, error)
+	startWithCaptureFunc           func(name string, args ...string) (int, <-chan string, func() error, error)
+	startWithCaptureEnvFunc        func(name string, env []string, args ...string) (int, <-chan string, func() error, error)
+	startWithTranscriptCaptureFunc func(name string, args ...string) (int, <-chan ottoexec.TranscriptChunk, func() error, error)
+	startWithTranscriptCaptureEnv  func(name string, env []string, args ...string) (int, <-chan ottoexec.TranscriptChunk, func() error, error)
+	startFunc                      func(name string, args ...string) (int, func() error, error)
 }
 
 // Ensure mockRunner implements ottoexec.Runner
@@ -233,6 +235,24 @@ func (m *mockRunner) StartWithCaptureEnv(name string, env []string, args ...stri
 	lines := make(chan string)
 	close(lines)
 	return 1234, lines, func() error { return nil }, nil
+}
+
+func (m *mockRunner) StartWithTranscriptCapture(name string, args ...string) (int, <-chan ottoexec.TranscriptChunk, func() error, error) {
+	if m.startWithTranscriptCaptureFunc != nil {
+		return m.startWithTranscriptCaptureFunc(name, args...)
+	}
+	chunks := make(chan ottoexec.TranscriptChunk)
+	close(chunks)
+	return 1234, chunks, func() error { return nil }, nil
+}
+
+func (m *mockRunner) StartWithTranscriptCaptureEnv(name string, env []string, args ...string) (int, <-chan ottoexec.TranscriptChunk, func() error, error) {
+	if m.startWithTranscriptCaptureEnv != nil {
+		return m.startWithTranscriptCaptureEnv(name, env, args...)
+	}
+	chunks := make(chan ottoexec.TranscriptChunk)
+	close(chunks)
+	return 1234, chunks, func() error { return nil }, nil
 }
 
 func TestCodexSpawnCapturesThreadID(t *testing.T) {

@@ -5,23 +5,24 @@ import (
 )
 
 type Agent struct {
-	ID        string
-	Type      string
-	Task      string
-	Status    string
-	SessionID sql.NullString
-	Pid       sql.NullInt64
+	ID          string
+	Type        string
+	Task        string
+	Status      string
+	SessionID   sql.NullString
+	Pid         sql.NullInt64
+	CompletedAt sql.NullTime
 }
 
 func CreateAgent(db *sql.DB, a Agent) error {
-	_, err := db.Exec(`INSERT INTO agents (id, type, task, status, session_id, pid) VALUES (?, ?, ?, ?, ?, ?)`, a.ID, a.Type, a.Task, a.Status, a.SessionID, a.Pid)
+	_, err := db.Exec(`INSERT INTO agents (id, type, task, status, session_id, pid, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?)`, a.ID, a.Type, a.Task, a.Status, a.SessionID, a.Pid, a.CompletedAt)
 	return err
 }
 
 func GetAgent(db *sql.DB, id string) (Agent, error) {
 	var a Agent
-	err := db.QueryRow(`SELECT id, type, task, status, session_id, pid FROM agents WHERE id = ?`, id).
-		Scan(&a.ID, &a.Type, &a.Task, &a.Status, &a.SessionID, &a.Pid)
+	err := db.QueryRow(`SELECT id, type, task, status, session_id, pid, completed_at FROM agents WHERE id = ?`, id).
+		Scan(&a.ID, &a.Type, &a.Task, &a.Status, &a.SessionID, &a.Pid, &a.CompletedAt)
 	return a, err
 }
 
@@ -41,7 +42,7 @@ func UpdateAgentSessionID(db *sql.DB, id string, sessionID string) error {
 }
 
 func ListAgents(db *sql.DB) ([]Agent, error) {
-	rows, err := db.Query(`SELECT id, type, task, status, session_id, pid FROM agents ORDER BY created_at ASC`)
+	rows, err := db.Query(`SELECT id, type, task, status, session_id, pid, completed_at FROM agents ORDER BY created_at ASC`)
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +51,7 @@ func ListAgents(db *sql.DB) ([]Agent, error) {
 	var out []Agent
 	for rows.Next() {
 		var a Agent
-		if err := rows.Scan(&a.ID, &a.Type, &a.Task, &a.Status, &a.SessionID, &a.Pid); err != nil {
+		if err := rows.Scan(&a.ID, &a.Type, &a.Task, &a.Status, &a.SessionID, &a.Pid, &a.CompletedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, a)
@@ -60,5 +61,20 @@ func ListAgents(db *sql.DB) ([]Agent, error) {
 
 func DeleteAgent(db *sql.DB, id string) error {
 	_, err := db.Exec(`DELETE FROM agents WHERE id = ?`, id)
+	return err
+}
+
+func SetAgentComplete(db *sql.DB, id string) error {
+	_, err := db.Exec(`UPDATE agents SET status = 'complete', completed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, id)
+	return err
+}
+
+func SetAgentFailed(db *sql.DB, id string) error {
+	_, err := db.Exec(`UPDATE agents SET status = 'failed', completed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, id)
+	return err
+}
+
+func ResumeAgent(db *sql.DB, id string) error {
+	_, err := db.Exec(`UPDATE agents SET status = 'busy', completed_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, id)
 	return err
 }

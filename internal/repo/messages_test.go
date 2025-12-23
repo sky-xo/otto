@@ -11,6 +11,7 @@ func TestCreateMessage(t *testing.T) {
 	msg := Message{
 		ID:            "m1",
 		FromID:        "agent-1",
+		ToID:          "agent-2",
 		Type:          "say",
 		Content:       "hello",
 		MentionsJSON:  `["agent-2"]`,
@@ -39,10 +40,10 @@ func TestListMessagesFilters(t *testing.T) {
 	db := openTestDB(t)
 
 	messages := []Message{
-		{ID: "m1", FromID: "agent-1", Type: "say", Content: "hello", MentionsJSON: `["agent-1","agent-2"]`, ReadByJSON: `[]`},
-		{ID: "m2", FromID: "agent-1", Type: "question", Content: "help", MentionsJSON: `["agent-2"]`, ReadByJSON: `["reader-1"]`},
-		{ID: "m3", FromID: "agent-2", Type: "say", Content: "later", MentionsJSON: `["agent-3"]`, ReadByJSON: `[]`},
-		{ID: "m4", FromID: "agent-2", Type: "say", Content: "bad json", MentionsJSON: `not-json`, ReadByJSON: `[]`},
+		{ID: "m1", FromID: "agent-1", ToID: "agent-2", Type: "say", Content: "hello", MentionsJSON: `["agent-1","agent-2"]`, ReadByJSON: `[]`},
+		{ID: "m2", FromID: "agent-1", ToID: "agent-3", Type: "question", Content: "help", MentionsJSON: `["agent-2"]`, ReadByJSON: `["reader-1"]`},
+		{ID: "m3", FromID: "agent-2", ToID: "", Type: "say", Content: "later", MentionsJSON: `["agent-3"]`, ReadByJSON: `[]`},
+		{ID: "m4", FromID: "agent-2", ToID: "agent-3", Type: "say", Content: "bad json", MentionsJSON: `not-json`, ReadByJSON: `[]`},
 	}
 
 	for _, msg := range messages {
@@ -80,6 +81,15 @@ func TestListMessagesFilters(t *testing.T) {
 			t.Fatalf("unexpected messages: %#v", msgs)
 		}
 	})
+	t.Run("filter by to_id", func(t *testing.T) {
+		msgs, err := ListMessages(db, MessageFilter{ToID: "agent-3"})
+		if err != nil {
+			t.Fatalf("list: %v", err)
+		}
+		if len(msgs) != 2 || msgs[0].ToID != "agent-3" || msgs[1].ToID != "agent-3" {
+			t.Fatalf("unexpected messages: %#v", msgs)
+		}
+	})
 
 	t.Run("filter unread by reader", func(t *testing.T) {
 		msgs, err := ListMessages(db, MessageFilter{ReaderID: "reader-1"})
@@ -101,9 +111,9 @@ func TestListMessagesSinceAndLimit(t *testing.T) {
 	db := openTestDB(t)
 
 	messages := []Message{
-		{ID: "m1", FromID: "agent-1", Type: "say", Content: "one", MentionsJSON: `[]`, ReadByJSON: `[]`},
-		{ID: "m2", FromID: "agent-1", Type: "say", Content: "two", MentionsJSON: `[]`, ReadByJSON: `[]`},
-		{ID: "m3", FromID: "agent-1", Type: "say", Content: "three", MentionsJSON: `[]`, ReadByJSON: `[]`},
+		{ID: "m1", FromID: "agent-1", ToID: "agent-2", Type: "say", Content: "one", MentionsJSON: `[]`, ReadByJSON: `[]`},
+		{ID: "m2", FromID: "agent-1", ToID: "agent-2", Type: "say", Content: "two", MentionsJSON: `[]`, ReadByJSON: `[]`},
+		{ID: "m3", FromID: "agent-1", ToID: "agent-2", Type: "say", Content: "three", MentionsJSON: `[]`, ReadByJSON: `[]`},
 	}
 
 	for _, msg := range messages {

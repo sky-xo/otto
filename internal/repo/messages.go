@@ -8,6 +8,7 @@ import (
 type Message struct {
 	ID            string
 	FromID        string
+	ToID          string
 	Type          string
 	Content       string
 	MentionsJSON  string
@@ -18,6 +19,7 @@ type Message struct {
 type MessageFilter struct {
 	Type     string
 	FromID   string
+	ToID     string
 	Limit    int
 	Mention  string
 	ReaderID string
@@ -25,12 +27,12 @@ type MessageFilter struct {
 }
 
 func CreateMessage(db *sql.DB, m Message) error {
-	_, err := db.Exec(`INSERT INTO messages (id, from_id, type, content, mentions, requires_human, read_by) VALUES (?, ?, ?, ?, ?, ?, ?)`, m.ID, m.FromID, m.Type, m.Content, m.MentionsJSON, m.RequiresHuman, m.ReadByJSON)
+	_, err := db.Exec(`INSERT INTO messages (id, from_id, to_id, type, content, mentions, requires_human, read_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, m.ID, m.FromID, m.ToID, m.Type, m.Content, m.MentionsJSON, m.RequiresHuman, m.ReadByJSON)
 	return err
 }
 
 func ListMessages(db *sql.DB, f MessageFilter) ([]Message, error) {
-	query := `SELECT id, from_id, type, content, mentions, requires_human, read_by FROM messages`
+	query := `SELECT id, from_id, to_id, type, content, mentions, requires_human, read_by FROM messages`
 	var args []interface{}
 	where := ""
 	if f.Type != "" {
@@ -40,6 +42,10 @@ func ListMessages(db *sql.DB, f MessageFilter) ([]Message, error) {
 	if f.FromID != "" {
 		where = appendWhere(where, "from_id = ?")
 		args = append(args, f.FromID)
+	}
+	if f.ToID != "" {
+		where = appendWhere(where, "to_id = ?")
+		args = append(args, f.ToID)
 	}
 	if f.SinceID != "" {
 		where = appendWhere(where, "created_at > COALESCE((SELECT created_at FROM messages WHERE id = ?), '1970-01-01')")
@@ -63,7 +69,7 @@ func ListMessages(db *sql.DB, f MessageFilter) ([]Message, error) {
 	var out []Message
 	for rows.Next() {
 		var m Message
-		if err := rows.Scan(&m.ID, &m.FromID, &m.Type, &m.Content, &m.MentionsJSON, &m.RequiresHuman, &m.ReadByJSON); err != nil {
+		if err := rows.Scan(&m.ID, &m.FromID, &m.ToID, &m.Type, &m.Content, &m.MentionsJSON, &m.RequiresHuman, &m.ReadByJSON); err != nil {
 			return nil, err
 		}
 		if f.Mention != "" && !mentionsContain(m.MentionsJSON, f.Mention) {

@@ -386,7 +386,7 @@ func cleanupStaleAgentsCmd(db *sql.DB) tea.Cmd {
 						ID:           fmt.Sprintf("%s-exit-%d", a.ID, time.Now().Unix()),
 						FromID:       a.ID,
 						Type:         "exit",
-						Content:      "EXITED: process died unexpectedly",
+						Content:      "process died unexpectedly",
 						MentionsJSON: "[]",
 						ReadByJSON:   "[]",
 					}

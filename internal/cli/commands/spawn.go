@@ -90,6 +90,10 @@ func runSpawn(db *sql.DB, runner ottoexec.Runner, agentType, task, files, contex
 	// Build spawn prompt
 	prompt := buildSpawnPrompt(agentID, task, files, context, ottoBin)
 
+	if err := storePrompt(db, agentID, prompt); err != nil {
+		return fmt.Errorf("store prompt: %w", err)
+	}
+
 	// Build and run command
 	cmdArgs := buildSpawnCommand(agentType, prompt, sessionID)
 
@@ -98,8 +102,8 @@ func runSpawn(db *sql.DB, runner ottoexec.Runner, agentType, task, files, contex
 		return runCodexSpawn(db, runner, agentID, cmdArgs)
 	}
 
-	// For Claude agents, use normal Start
-	pid, wait, err := runner.Start(cmdArgs[0], cmdArgs[1:]...)
+	// For Claude agents, use transcript capture
+	pid, output, wait, err := runner.StartWithTranscriptCapture(cmdArgs[0], cmdArgs[1:]...)
 	if err != nil {
 		return fmt.Errorf("spawn %s: %w", agentType, err)
 	}
@@ -107,9 +111,14 @@ func runSpawn(db *sql.DB, runner ottoexec.Runner, agentType, task, files, contex
 	// Update agent with PID
 	_ = repo.UpdateAgentPid(db, agentID, pid)
 
+	transcriptDone := consumeTranscriptEntries(db, agentID, output, nil)
+
 	// Wait for process
 	if err := wait(); err != nil {
-		// Post failure message and delete agent
+		if consumeErr := <-transcriptDone; consumeErr != nil {
+			return fmt.Errorf("spawn %s: %w", agentType, consumeErr)
+		}
+		// Post failure message and mark agent failed
 		msg := repo.Message{
 			ID:           uuid.New().String(),
 			FromID:       agentID,
@@ -119,25 +128,24 @@ func runSpawn(db *sql.DB, runner ottoexec.Runner, agentType, task, files, contex
 			ReadByJSON:   "[]",
 		}
 		_ = repo.CreateMessage(db, msg)
-		_ = repo.DeleteAgent(db, agentID)
+		_ = repo.SetAgentFailed(db, agentID)
 		return fmt.Errorf("spawn %s: %w", agentType, err)
 	}
 
-	// Post exit message and delete agent on successful exit
-	// (unless agent already deleted itself via otto complete)
-	_, getErr := repo.GetAgent(db, agentID)
-	if getErr == nil {
-		msg := repo.Message{
-			ID:           uuid.New().String(),
-			FromID:       agentID,
-			Type:         "exit",
-			Content:      "process completed successfully",
-			MentionsJSON: "[]",
-			ReadByJSON:   "[]",
-		}
-		_ = repo.CreateMessage(db, msg)
-		_ = repo.DeleteAgent(db, agentID)
+	if consumeErr := <-transcriptDone; consumeErr != nil {
+		return fmt.Errorf("spawn %s: %w", agentType, consumeErr)
 	}
+
+	msg := repo.Message{
+		ID:           uuid.New().String(),
+		FromID:       agentID,
+		Type:         "exit",
+		Content:      "process completed successfully",
+		MentionsJSON: "[]",
+		ReadByJSON:   "[]",
+	}
+	_ = repo.CreateMessage(db, msg)
+	_ = repo.SetAgentComplete(db, agentID)
 
 	return nil
 }
@@ -164,8 +172,8 @@ func runCodexSpawn(db *sql.DB, runner ottoexec.Runner, agentID string, cmdArgs [
 	// Set CODEX_HOME to temp dir to bypass ~/.codex/AGENTS.md
 	env := append(os.Environ(), fmt.Sprintf("CODEX_HOME=%s", tempDir))
 
-	// Start with capture to parse JSON output
-	pid, lines, wait, err := runner.StartWithCaptureEnv(cmdArgs[0], env, cmdArgs[1:]...)
+	// Start with transcript capture to parse JSON output
+	pid, output, wait, err := runner.StartWithTranscriptCaptureEnv(cmdArgs[0], env, cmdArgs[1:]...)
 	if err != nil {
 		os.RemoveAll(tempDir) // Cleanup temp dir on spawn failure
 		return fmt.Errorf("spawn codex: %w", err)
@@ -175,32 +183,31 @@ func runCodexSpawn(db *sql.DB, runner ottoexec.Runner, agentID string, cmdArgs [
 	_ = repo.UpdateAgentPid(db, agentID, pid)
 
 	// Parse output stream for thread_id in background
-	done := make(chan bool, 1)
 	threadIDCaptured := false
-	go func() {
-		defer func() { done <- threadIDCaptured }()
-		for line := range lines {
-			// Try to parse as JSON
-			var event map[string]interface{}
-			if err := json.Unmarshal([]byte(line), &event); err != nil {
-				continue // not JSON, skip
-			}
-
-			// Check for thread.started event
-			if eventType, ok := event["type"].(string); ok && eventType == "thread.started" {
-				if threadID, ok := event["thread_id"].(string); ok && threadID != "" {
-					// Update session_id in database
-					_ = repo.UpdateAgentSessionID(db, agentID, threadID)
-					threadIDCaptured = true
-					return
-				}
+	threadIDParser := func(line string) {
+		if threadIDCaptured {
+			return
+		}
+		var event map[string]interface{}
+		if err := json.Unmarshal([]byte(line), &event); err != nil {
+			return
+		}
+		if eventType, ok := event["type"].(string); ok && eventType == "thread.started" {
+			if threadID, ok := event["thread_id"].(string); ok && threadID != "" {
+				_ = repo.UpdateAgentSessionID(db, agentID, threadID)
+				threadIDCaptured = true
 			}
 		}
-	}()
+	}
+
+	transcriptDone := consumeTranscriptEntries(db, agentID, output, threadIDParser)
 
 	// Wait for process
 	if err := wait(); err != nil {
-		// Post failure message and delete agent
+		if consumeErr := <-transcriptDone; consumeErr != nil {
+			return fmt.Errorf("spawn codex: %w", consumeErr)
+		}
+		// Post failure message and mark agent failed
 		msg := repo.Message{
 			ID:           uuid.New().String(),
 			FromID:       agentID,
@@ -210,33 +217,29 @@ func runCodexSpawn(db *sql.DB, runner ottoexec.Runner, agentID string, cmdArgs [
 			ReadByJSON:   "[]",
 		}
 		_ = repo.CreateMessage(db, msg)
-		_ = repo.DeleteAgent(db, agentID)
+		_ = repo.SetAgentFailed(db, agentID)
 		return fmt.Errorf("spawn codex: %w", err)
 	}
 
-	// Wait for goroutine to finish processing
-	threadIDCaptured = <-done
+	if consumeErr := <-transcriptDone; consumeErr != nil {
+		return fmt.Errorf("spawn codex: %w", consumeErr)
+	}
 
 	// If we didn't capture thread_id, log a warning (but don't fail)
 	if !threadIDCaptured {
 		fmt.Fprintf(os.Stderr, "Warning: Could not capture thread_id for Codex agent %s\n", agentID)
 	}
 
-	// Post exit message and delete agent on successful exit
-	// (unless agent already deleted itself via otto complete)
-	_, getErr := repo.GetAgent(db, agentID)
-	if getErr == nil {
-		msg := repo.Message{
-			ID:           uuid.New().String(),
-			FromID:       agentID,
-			Type:         "exit",
-			Content:      "process completed successfully",
-			MentionsJSON: "[]",
-			ReadByJSON:   "[]",
-		}
-		_ = repo.CreateMessage(db, msg)
-		_ = repo.DeleteAgent(db, agentID)
+	msg := repo.Message{
+		ID:           uuid.New().String(),
+		FromID:       agentID,
+		Type:         "exit",
+		Content:      "process completed successfully",
+		MentionsJSON: "[]",
+		ReadByJSON:   "[]",
 	}
+	_ = repo.CreateMessage(db, msg)
+	_ = repo.SetAgentComplete(db, agentID)
 
 	return nil
 }

@@ -67,26 +67,50 @@ func runPrompt(db *sql.DB, runner ottoexec.Runner, agentID, message string) erro
 		return fmt.Errorf("unsupported agent type %q", agent.Type)
 	}
 
-	// For Codex agents, set up temp CODEX_HOME to bypass superpowers
+	if err := storePrompt(db, agentID, message); err != nil {
+		return fmt.Errorf("store prompt: %w", err)
+	}
+
+	if err := repo.ResumeAgent(db, agentID); err != nil {
+		return fmt.Errorf("resume agent: %w", err)
+	}
+
 	if agent.Type == "codex" {
-		return runCodexPrompt(runner, cmdArgs)
+		return runCodexPrompt(db, runner, agentID, cmdArgs)
 	}
 
 	// Run command for Claude agents
-	if err := runner.Run(cmdArgs[0], cmdArgs[1:]...); err != nil {
+	pid, output, wait, err := runner.StartWithTranscriptCapture(cmdArgs[0], cmdArgs[1:]...)
+	if err != nil {
 		return fmt.Errorf("prompt %s: %w", agent.Type, err)
 	}
+
+	_ = repo.UpdateAgentPid(db, agentID, pid)
+
+	transcriptDone := consumeTranscriptEntries(db, agentID, output, nil)
+
+	if err := wait(); err != nil {
+		if consumeErr := <-transcriptDone; consumeErr != nil {
+			return fmt.Errorf("prompt %s: %w", agent.Type, consumeErr)
+		}
+		_ = repo.SetAgentFailed(db, agentID)
+		return fmt.Errorf("prompt %s: %w", agent.Type, err)
+	}
+
+	if consumeErr := <-transcriptDone; consumeErr != nil {
+		return fmt.Errorf("prompt %s: %w", agent.Type, consumeErr)
+	}
+	_ = repo.SetAgentComplete(db, agentID)
 
 	return nil
 }
 
-func runCodexPrompt(runner ottoexec.Runner, cmdArgs []string) error {
+func runCodexPrompt(db *sql.DB, runner ottoexec.Runner, agentID string, cmdArgs []string) error {
 	// Create temp directory for CODEX_HOME to bypass superpowers
 	tempDir, err := os.MkdirTemp("", "otto-codex-*")
 	if err != nil {
 		return fmt.Errorf("create temp CODEX_HOME: %w", err)
 	}
-	defer os.RemoveAll(tempDir)
 
 	// Copy auth.json from real CODEX_HOME to preserve credentials
 	realCodexHome := os.Getenv("CODEX_HOME")
@@ -102,10 +126,30 @@ func runCodexPrompt(runner ottoexec.Runner, cmdArgs []string) error {
 	// Set CODEX_HOME to temp dir to bypass ~/.codex/AGENTS.md
 	env := append(os.Environ(), fmt.Sprintf("CODEX_HOME=%s", tempDir))
 
-	// Run command with modified environment
-	if err := runner.RunWithEnv(cmdArgs[0], env, cmdArgs[1:]...); err != nil {
+	pid, output, wait, err := runner.StartWithTranscriptCaptureEnv(cmdArgs[0], env, cmdArgs[1:]...)
+	if err != nil {
+		os.RemoveAll(tempDir)
 		return fmt.Errorf("prompt codex: %w", err)
 	}
+
+	_ = repo.UpdateAgentPid(db, agentID, pid)
+
+	transcriptDone := consumeTranscriptEntries(db, agentID, output, nil)
+
+	err = wait()
+	os.RemoveAll(tempDir)
+	if err != nil {
+		if consumeErr := <-transcriptDone; consumeErr != nil {
+			return fmt.Errorf("prompt codex: %w", consumeErr)
+		}
+		_ = repo.SetAgentFailed(db, agentID)
+		return fmt.Errorf("prompt codex: %w", err)
+	}
+
+	if consumeErr := <-transcriptDone; consumeErr != nil {
+		return fmt.Errorf("prompt codex: %w", consumeErr)
+	}
+	_ = repo.SetAgentComplete(db, agentID)
 
 	return nil
 }

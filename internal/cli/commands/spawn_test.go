@@ -76,10 +76,10 @@ func TestGenerateAgentIDUnique(t *testing.T) {
 
 	// Create first agent
 	_ = repo.CreateAgent(db, repo.Agent{
-		ID:     "authbackend",
-		Type:   "claude",
-		Task:   "task",
-		Status: "busy",
+		ID:        "authbackend",
+		Type:      "claude",
+		Task:      "task",
+		Status:    "busy",
 		SessionID: sql.NullString{String: "session-1", Valid: true},
 	})
 
@@ -91,10 +91,10 @@ func TestGenerateAgentIDUnique(t *testing.T) {
 
 	// Create second agent
 	_ = repo.CreateAgent(db, repo.Agent{
-		ID:     "authbackend-2",
-		Type:   "claude",
-		Task:   "task",
-		Status: "busy",
+		ID:        "authbackend-2",
+		Type:      "claude",
+		Task:      "task",
+		Status:    "busy",
 		SessionID: sql.NullString{String: "session-2", Valid: true},
 	})
 
@@ -138,10 +138,10 @@ func TestResolveAgentNameUnique(t *testing.T) {
 
 	// Create first agent with name "researcher"
 	_ = repo.CreateAgent(db, repo.Agent{
-		ID:     "researcher",
-		Type:   "claude",
-		Task:   "task",
-		Status: "busy",
+		ID:        "researcher",
+		Type:      "claude",
+		Task:      "task",
+		Status:    "busy",
 		SessionID: sql.NullString{String: "session-1", Valid: true},
 	})
 
@@ -153,10 +153,10 @@ func TestResolveAgentNameUnique(t *testing.T) {
 
 	// Create second agent
 	_ = repo.CreateAgent(db, repo.Agent{
-		ID:     "researcher-2",
-		Type:   "claude",
-		Task:   "task",
-		Status: "busy",
+		ID:        "researcher-2",
+		Type:      "claude",
+		Task:      "task",
+		Status:    "busy",
 		SessionID: sql.NullString{String: "session-2", Valid: true},
 	})
 
@@ -189,6 +189,69 @@ func TestBuildSpawnPromptWithFilesAndContext(t *testing.T) {
 	}
 	if !strings.Contains(prompt, "use JWT tokens") {
 		t.Fatal("prompt should contain context")
+	}
+}
+
+func TestSpawnStoresPromptAndTranscript(t *testing.T) {
+	db := openTestDB(t)
+
+	chunks := make(chan ottoexec.TranscriptChunk, 2)
+	chunks <- ottoexec.TranscriptChunk{Stream: "stdout", Data: "hello\n"}
+	chunks <- ottoexec.TranscriptChunk{Stream: "stderr", Data: "oops\n"}
+	close(chunks)
+
+	runner := &mockRunner{
+		startWithTranscriptCaptureFunc: func(name string, args ...string) (int, <-chan ottoexec.TranscriptChunk, func() error, error) {
+			return 1234, chunks, func() error { return nil }, nil
+		},
+	}
+
+	err := runSpawn(db, runner, "claude", "test task", "", "", "")
+	if err != nil {
+		t.Fatalf("runSpawn failed: %v", err)
+	}
+
+	msgs, err := repo.ListMessages(db, repo.MessageFilter{Type: "prompt", ToID: "testtask"})
+	if err != nil {
+		t.Fatalf("list messages: %v", err)
+	}
+	if len(msgs) != 1 {
+		t.Fatalf("expected 1 prompt message, got %d", len(msgs))
+	}
+	if !strings.Contains(msgs[0].Content, "test task") {
+		t.Fatalf("expected prompt to contain task, got %q", msgs[0].Content)
+	}
+
+	entries, err := repo.ListTranscriptEntries(db, "testtask", "")
+	if err != nil {
+		t.Fatalf("list transcript entries: %v", err)
+	}
+
+	var inCount, outCount int
+	var streams []string
+	for _, entry := range entries {
+		switch entry.Direction {
+		case "in":
+			inCount++
+			if entry.Content != msgs[0].Content {
+				t.Fatalf("expected prompt transcript to match message, got %q", entry.Content)
+			}
+		case "out":
+			outCount++
+			if entry.Stream.Valid {
+				streams = append(streams, entry.Stream.String)
+			}
+		}
+	}
+
+	if inCount != 1 {
+		t.Fatalf("expected 1 input transcript entry, got %d", inCount)
+	}
+	if outCount != 2 {
+		t.Fatalf("expected 2 output transcript entries, got %d", outCount)
+	}
+	if len(streams) != 2 {
+		t.Fatalf("expected 2 streams, got %d", len(streams))
 	}
 }
 
@@ -259,15 +322,15 @@ func TestCodexSpawnCapturesThreadID(t *testing.T) {
 	db := openTestDB(t)
 
 	// Create mock runner that simulates Codex JSON output
-	lines := make(chan string, 5)
-	lines <- `{"type":"other_event","data":"something"}`
-	lines <- `{"type":"thread.started","thread_id":"thread_abc123"}`
-	lines <- `{"type":"message","content":"hello"}`
-	close(lines)
+	chunks := make(chan ottoexec.TranscriptChunk, 5)
+	chunks <- ottoexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"other_event","data":"something"}` + "\n"}
+	chunks <- ottoexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"thread.started","thread_id":"thread_abc123"}` + "\n"}
+	chunks <- ottoexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"message","content":"hello"}` + "\n"}
+	close(chunks)
 
 	runner := &mockRunner{
-		startWithCaptureEnvFunc: func(name string, env []string, args ...string) (int, <-chan string, func() error, error) {
-			return 5678, lines, func() error { return nil }, nil
+		startWithTranscriptCaptureEnv: func(name string, env []string, args ...string) (int, <-chan ottoexec.TranscriptChunk, func() error, error) {
+			return 5678, chunks, func() error { return nil }, nil
 		},
 	}
 
@@ -277,10 +340,18 @@ func TestCodexSpawnCapturesThreadID(t *testing.T) {
 		t.Fatalf("runSpawn failed: %v", err)
 	}
 
-	// Agent should be deleted after process exits
-	_, err = repo.GetAgent(db, "testtask")
-	if err != sql.ErrNoRows {
-		t.Fatalf("expected agent to be deleted, got err=%v", err)
+	agent, err := repo.GetAgent(db, "testtask")
+	if err != nil {
+		t.Fatalf("expected agent to exist, got err=%v", err)
+	}
+	if agent.SessionID.String != "thread_abc123" {
+		t.Fatalf("expected session_id to be thread_abc123, got %q", agent.SessionID.String)
+	}
+	if agent.Status != "complete" {
+		t.Fatalf("expected status complete, got %q", agent.Status)
+	}
+	if !agent.CompletedAt.Valid {
+		t.Fatal("expected completed_at to be set")
 	}
 }
 
@@ -288,14 +359,14 @@ func TestCodexSpawnWithoutThreadID(t *testing.T) {
 	db := openTestDB(t)
 
 	// Create mock runner with no thread.started event
-	lines := make(chan string, 3)
-	lines <- `{"type":"message","content":"hello"}`
-	lines <- `{"type":"other_event","data":"something"}`
-	close(lines)
+	chunks := make(chan ottoexec.TranscriptChunk, 3)
+	chunks <- ottoexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"message","content":"hello"}` + "\n"}
+	chunks <- ottoexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"other_event","data":"something"}` + "\n"}
+	close(chunks)
 
 	runner := &mockRunner{
-		startWithCaptureEnvFunc: func(name string, env []string, args ...string) (int, <-chan string, func() error, error) {
-			return 5678, lines, func() error { return nil }, nil
+		startWithTranscriptCaptureEnv: func(name string, env []string, args ...string) (int, <-chan ottoexec.TranscriptChunk, func() error, error) {
+			return 5678, chunks, func() error { return nil }, nil
 		},
 	}
 
@@ -305,10 +376,15 @@ func TestCodexSpawnWithoutThreadID(t *testing.T) {
 		t.Fatalf("runSpawn failed: %v", err)
 	}
 
-	// Agent should be deleted after process exits
-	_, err = repo.GetAgent(db, "testtask")
-	if err != sql.ErrNoRows {
-		t.Fatalf("expected agent to be deleted, got err=%v", err)
+	agent, err := repo.GetAgent(db, "testtask")
+	if err != nil {
+		t.Fatalf("expected agent to exist, got err=%v", err)
+	}
+	if agent.Status != "complete" {
+		t.Fatalf("expected status complete, got %q", agent.Status)
+	}
+	if !agent.CompletedAt.Valid {
+		t.Fatal("expected completed_at to be set")
 	}
 }
 
@@ -317,13 +393,15 @@ func TestClaudeSpawnUsesNormalStart(t *testing.T) {
 
 	called := false
 	runner := &mockRunner{
-		startFunc: func(name string, args ...string) (int, func() error, error) {
+		startWithTranscriptCaptureFunc: func(name string, args ...string) (int, <-chan ottoexec.TranscriptChunk, func() error, error) {
 			called = true
 			// Verify it's a Claude command
 			if name != "claude" {
 				t.Fatalf("expected 'claude', got %q", name)
 			}
-			return 1234, func() error { return nil }, nil
+			chunks := make(chan ottoexec.TranscriptChunk)
+			close(chunks)
+			return 1234, chunks, func() error { return nil }, nil
 		},
 	}
 
@@ -334,7 +412,7 @@ func TestClaudeSpawnUsesNormalStart(t *testing.T) {
 	}
 
 	if !called {
-		t.Fatal("Start() should have been called for Claude")
+		t.Fatal("StartWithTranscriptCapture() should have been called for Claude")
 	}
 }
 
@@ -342,13 +420,13 @@ func TestCodexSpawnSetsCodexHome(t *testing.T) {
 	db := openTestDB(t)
 
 	var capturedEnv []string
-	lines := make(chan string)
-	close(lines)
+	chunks := make(chan ottoexec.TranscriptChunk)
+	close(chunks)
 
 	runner := &mockRunner{
-		startWithCaptureEnvFunc: func(name string, env []string, args ...string) (int, <-chan string, func() error, error) {
+		startWithTranscriptCaptureEnv: func(name string, env []string, args ...string) (int, <-chan ottoexec.TranscriptChunk, func() error, error) {
 			capturedEnv = env
-			return 5678, lines, func() error { return nil }, nil
+			return 5678, chunks, func() error { return nil }, nil
 		},
 	}
 
@@ -384,7 +462,7 @@ func TestSpawnWithCustomName(t *testing.T) {
 	agentVerified := make(chan bool)
 
 	runner := &mockRunner{
-		startFunc: func(name string, args ...string) (int, func() error, error) {
+		startWithTranscriptCaptureFunc: func(name string, args ...string) (int, <-chan ottoexec.TranscriptChunk, func() error, error) {
 			// Check agent exists with custom name while process is "running"
 			_, err := repo.GetAgent(db, "researcher")
 			if err != nil {
@@ -400,8 +478,9 @@ func TestSpawnWithCustomName(t *testing.T) {
 			// Signal verification complete
 			close(agentVerified)
 
-			// Return wait function
-			return 1234, func() error {
+			chunks := make(chan ottoexec.TranscriptChunk)
+			close(chunks)
+			return 1234, chunks, func() error {
 				<-agentVerified // Wait for verification
 				return nil
 			}, nil
@@ -414,10 +493,12 @@ func TestSpawnWithCustomName(t *testing.T) {
 		t.Fatalf("runSpawn failed: %v", err)
 	}
 
-	// Agent should be deleted after process exits
-	_, err = repo.GetAgent(db, "researcher")
-	if err != sql.ErrNoRows {
-		t.Fatalf("expected agent to be deleted after completion, got err=%v", err)
+	agent, err := repo.GetAgent(db, "researcher")
+	if err != nil {
+		t.Fatalf("expected agent to exist after completion, got err=%v", err)
+	}
+	if agent.Status != "complete" {
+		t.Fatalf("expected status complete, got %q", agent.Status)
 	}
 }
 
@@ -426,10 +507,10 @@ func TestSpawnWithCustomNameCollision(t *testing.T) {
 
 	// Create first agent with name "researcher"
 	_ = repo.CreateAgent(db, repo.Agent{
-		ID:     "researcher",
-		Type:   "claude",
-		Task:   "task 1",
-		Status: "busy",
+		ID:        "researcher",
+		Type:      "claude",
+		Task:      "task 1",
+		Status:    "busy",
 		SessionID: sql.NullString{String: "session-1", Valid: true},
 	})
 
@@ -437,7 +518,7 @@ func TestSpawnWithCustomNameCollision(t *testing.T) {
 	agentVerified := make(chan bool)
 
 	runner := &mockRunner{
-		startFunc: func(name string, args ...string) (int, func() error, error) {
+		startWithTranscriptCaptureFunc: func(name string, args ...string) (int, <-chan ottoexec.TranscriptChunk, func() error, error) {
 			// Verify second agent got -2 suffix while process is "running"
 			_, err := repo.GetAgent(db, "researcher-2")
 			if err != nil {
@@ -447,8 +528,9 @@ func TestSpawnWithCustomNameCollision(t *testing.T) {
 			// Signal verification complete
 			close(agentVerified)
 
-			// Return wait function
-			return 1234, func() error {
+			chunks := make(chan ottoexec.TranscriptChunk)
+			close(chunks)
+			return 1234, chunks, func() error {
 				<-agentVerified // Wait for verification
 				return nil
 			}, nil
@@ -461,10 +543,12 @@ func TestSpawnWithCustomNameCollision(t *testing.T) {
 		t.Fatalf("runSpawn failed: %v", err)
 	}
 
-	// Second agent should be deleted after process exits
-	_, err = repo.GetAgent(db, "researcher-2")
-	if err != sql.ErrNoRows {
-		t.Fatalf("expected agent to be deleted after completion, got err=%v", err)
+	agent, err := repo.GetAgent(db, "researcher-2")
+	if err != nil {
+		t.Fatalf("expected agent to exist after completion, got err=%v", err)
+	}
+	if agent.Status != "complete" {
+		t.Fatalf("expected status complete, got %q", agent.Status)
 	}
 
 	// First agent should still exist

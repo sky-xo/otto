@@ -285,3 +285,31 @@ Finalized through discussion with Codex agents:
 
 - Claude Code `--resume`: https://docs.claude.com/en/docs/claude-code/cli-usage
 - Codex `resume`: https://developers.openai.com/codex/cli/features
+
+## Implementation Progress (2025-12-23)
+
+### Completed
+- **Task 1**: Schema + repo migrations (commits 1b5a97d, 75a7fa2)
+  - Added completed_at, to_id, transcript_entries table
+  - Fixed Message.ToID to use sql.NullString
+  - ⚠️ Needs fix: same-second pagination bug in SinceID filter
+
+- **Task 2**: Transcript capture in exec/runner (commit 75a7fa2)
+  - Added StartWithTranscriptCapture methods
+  - 4KB buffered stdout/stderr capture with stream tagging
+  - ⚠️ Needs fix: channel blocking if consumer slow, no timeout flush
+
+### In Progress
+- **Task 3**: Command changes (agent: commands-task)
+  - Updating spawn/prompt/complete to use new transcript capture
+  - Changing completion behavior (mark complete vs delete)
+
+### Pending
+- Task 4: TUI redesign with channel view
+- Task 5: Cleanup job (7-day retention on DB open)
+
+### Review Notes
+Using dual Claude+Codex reviews. Key findings:
+- Codex caught channel blocking bug Claude missed (Task 2)
+- Codex caught pagination timestamp bug Claude missed (Task 1)
+- Recommendation: escalate to deeper review if both find critical issues

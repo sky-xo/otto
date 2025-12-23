@@ -60,8 +60,8 @@ func runComplete(db *sql.DB, fromID, content string) error {
 		return fmt.Errorf("create message: %w", err)
 	}
 
-	if err := repo.DeleteAgent(db, fromID); err != nil {
-		return fmt.Errorf("delete agent: %w", err)
+	if err := repo.SetAgentComplete(db, fromID); err != nil {
+		return fmt.Errorf("set agent complete: %w", err)
 	}
 
 	return nil

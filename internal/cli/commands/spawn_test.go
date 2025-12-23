@@ -33,7 +33,7 @@ func TestSpawnBuildsClaudeCommand(t *testing.T) {
 
 func TestSpawnBuildsCodexCommand(t *testing.T) {
 	cmd := buildSpawnCommand("codex", "test prompt", "session-123")
-	expected := []string{"codex", "exec", "--json", "--skip-git-repo-check", "test prompt"}
+	expected := []string{"codex", "exec", "--json", "--skip-git-repo-check", "-s", "danger-full-access", "test prompt"}
 
 	if len(cmd) != len(expected) {
 		t.Fatalf("expected %d args, got %d", len(expected), len(cmd))

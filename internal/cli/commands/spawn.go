@@ -305,6 +305,9 @@ func buildSpawnCommand(agentType, prompt, sessionID string) []string {
 	if agentType == "claude" {
 		return []string{"claude", "-p", prompt, "--session-id", sessionID}
 	}
-	// codex - use --json to capture thread_id, --skip-git-repo-check to allow non-repo dirs
-	return []string{"codex", "exec", "--json", "--skip-git-repo-check", prompt}
+	// codex flags:
+	// --json: capture thread_id from output
+	// --skip-git-repo-check: allow non-repo dirs
+	// -s danger-full-access: full filesystem access (needed for otto db writes)
+	return []string{"codex", "exec", "--json", "--skip-git-repo-check", "-s", "danger-full-access", prompt}
 }

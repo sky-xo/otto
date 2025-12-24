@@ -1,104 +1,61 @@
 # Otto Roadmap
 
-Quick overview of features and their status. For detailed design, see individual plan files in `docs/plans/`.
+Quick overview of features and status. For detailed design, see `docs/plans/`.
 
-## V0 - Core Loop (Complete)
+## Current Focus
 
-The minimal viable orchestration system.
-
-- [x] SQLite database (agents, messages tables)
-- [x] `otto spawn` - spawn Claude Code and Codex agents
-- [x] `otto status` - list agents and states
-- [x] `otto messages` - check pending messages
-- [x] `otto prompt` - wake up agent with instructions
-- [x] `otto say` / `otto ask` / `otto complete` - agent messaging
-- [x] `otto attach` - print resume command
-- [x] `otto watch` - real-time message stream (TUI when terminal, plain text when piped)
-- [x] Auto-detect project/branch scoping
-- [x] Agent prompt templates with communication instructions
-
-Plan: `docs/plans/2025-12-22-otto-v0.md`
-
-## V1 - Friction Reducers
-
-Features that reduce friction once core loop is validated.
-
-- [x] Orchestration skill (`otto install-skills`, otto-orchestrate skill)
-- [x] Auto-detect agent process exit (PID tracking + cleanup in watch)
-- [x] Codex session resume (capture real thread_id from JSON)
-- [x] Agent lifecycle: auto-delete on completion/exit (messages table is history)
-- [x] `otto kill` - stop an agent (SIGTERM, deletes agent)
-- [x] `otto interrupt` - pause an agent (SIGINT, preserves session for resume)
-- [x] Agent statuses: busy/idle/blocked (replace working/waiting)
-- [x] CODEX_HOME bypass for Codex agents (skip superpowers loading)
-- [x] Add `--skip-git-repo-check` to Codex invocation
-- [x] otto should also work with codex being the orchestrator
-- [x] TUI: agents panel on left side
-- [ ] Permissions model: align Codex/Claude sandbox/permissions behavior and document skill bypass
-- [ ] `otto status` should list most recent agents first
-- [ ] Improve otto agent failure diagnostics (capture exit codes, propagate stderr on agent exit, persist failure reason)
-- [ ] Allow archiving idle agents (still block busy/blocked from archiving)
-- [ ] Follow-up polish: `otto status --all --archive` should show newly archived entries with `(archived)` in the same output
-- [ ] Follow-up polish: `otto status --archive` should attempt to archive all eligible agents and report combined errors
-
-## V2 - Full Experience
-
-The polished multi-agent experience.
-
-- [ ] Clickable TUI - click agent to view conversation history
-- [ ] Hierarchical todos in SQLite (orchestrator + agent level)
-- [ ] Daemon with auto-wakeup on @mentions
-- [ ] Super-orchestrator: attention router across multiple orchestrators
-- [ ] Auto-open terminal for attach
-- [ ] Web dashboard for visualization
-- [ ] `--in` flag for custom orchestrator names
-- [ ] `--worktree` flag for parallel agent isolation
-
-## Design Drafts
-
-Features being explored (not yet ready for implementation):
-
-- `docs/plans/2025-12-24-super-orchestrator-design.md` - Event-driven orchestration with @mention wake-ups, unified TUI
-- `docs/plans/2025-12-24-tasks-design.md` - Tasks table with derived state, TODO.md vs tasks distinction
-- `docs/plans/2025-12-24-skill-injection-design.md` - Re-injecting skills on wake-up after compaction
-- `docs/plans/2025-12-22-orchestration-skill-design.md` - When to use Otto vs subagents
-
-## Recently Implemented
-
-Design docs for recently completed work:
-
-- `docs/plans/2025-12-23-agent-lifecycle-design.md` - Agent lifecycle, statuses, kill/interrupt (APPROVED)
-- `docs/plans/2025-12-23-interrupt-command-plan.md` - Interrupt command implementation
-
-## Reference Docs
-
-- `docs/ARCHITECTURE.md` - How Otto works
-- `docs/SCENARIOS.md` - Usage scenarios / test cases
-
-## Next Up
-
-Priority items for next session:
+The one list of what we're working on now.
 
 ### Super Orchestrator - Phase 1: Event Bus + Wake-up
 
-See design docs:
-- `docs/plans/2025-12-24-super-orchestrator-design.md`
-- `docs/plans/2025-12-24-tasks-design.md`
-- `docs/plans/2025-12-24-skill-injection-design.md`
+Design: `docs/plans/2025-12-24-super-orchestrator-design.md`
 
-Key deliverables:
 - [ ] Event logging on message posting
 - [ ] @mention detection and parsing
 - [ ] Wake-up mechanism via `otto prompt` with context injection
 - [ ] Wire into `say`, `ask`, `complete` commands
-- [ ] `kill` command for forcible termination
 
-### TUI Channel View Follow-ups (from code review)
-- [ ] Display errors in UI (m.err stored but never shown)
-- [ ] Add composite indexes for pagination performance
+Related design docs:
+- `docs/plans/2025-12-24-tasks-design.md` - Tasks table with derived state
+- `docs/plans/2025-12-24-skill-injection-design.md` - Re-injecting skills on wake-up
 
-### Other
-1. **Codex flag** - Add `--skip-git-repo-check` to reduce startup time
-2. **Test interrupt with Codex** - Verify interrupt/resume flow works end-to-end
-3. **TUI improvements** - 3-line task descriptions
-4. **Worktree scope** - Use git common dir to keep DB under `~/.otto/orchestrators/<repo>/<branch>` even in worktrees
+## Up Next
+
+Queued after current focus. Will become "Current Focus" when ready.
+
+### Agent Reliability
+- Improve agent failure diagnostics (exit codes, stderr, failure reason)
+- Permissions model: currently all subagents are fully permissive (bad). Look at codex-subagents package for inspiration
+
+### CLI Polish
+- `otto status` should list most recent agents first
+- Archive polish: `--all --archive` and `--archive` batch operations
+
+### TUI
+- Display errors in UI (m.err stored but never shown)
+- Composite indexes for pagination performance
+
+## Completed
+
+### V1 - Friction Reducers
+Agent lifecycle, kill/interrupt, TUI agents panel, Codex as orchestrator, PID tracking, session resume.
+
+### V0 - Core Loop
+SQLite database, spawn, status, messages, prompt, say/ask/complete, attach, watch, project/branch scoping.
+
+## Docs
+
+**Design (current):**
+- `docs/plans/2025-12-24-super-orchestrator-design.md` - Event-driven orchestration
+- `docs/plans/2025-12-24-tasks-design.md` - Tasks table design
+- `docs/plans/2025-12-24-skill-injection-design.md` - Skill re-injection
+- `docs/plans/2025-12-22-orchestration-skill-design.md` - Otto vs subagents
+
+**Design (implemented):**
+- `docs/plans/2025-12-23-agent-lifecycle-design.md` - Agent lifecycle
+- `docs/plans/2025-12-23-interrupt-command-plan.md` - Interrupt command
+- `docs/plans/2025-12-22-otto-v0.md` - Original V0 plan
+
+**Reference:**
+- `docs/ARCHITECTURE.md` - How Otto works
+- `docs/SCENARIOS.md` - Usage scenarios / test cases

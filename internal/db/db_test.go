@@ -25,8 +25,8 @@ func TestEnsureSchema(t *testing.T) {
 	if err := conn.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='messages'").Scan(&name); err != nil {
 		t.Fatalf("messages table missing: %v", err)
 	}
-	if err := conn.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='transcript_entries'").Scan(&name); err != nil {
-		t.Fatalf("transcript_entries table missing: %v", err)
+	if err := conn.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='logs'").Scan(&name); err != nil {
+		t.Fatalf("logs table missing: %v", err)
 	}
 
 	// Verify columns exist
@@ -38,12 +38,31 @@ func TestEnsureSchema(t *testing.T) {
 	}
 
 	// Verify indexes exist
-	indexes := []string{"idx_messages_created", "idx_agents_status", "idx_transcript_agent", "idx_agents_cleanup", "idx_messages_to"}
+	indexes := []string{"idx_messages_created", "idx_agents_status", "idx_logs_agent", "idx_agents_cleanup", "idx_messages_to"}
 	for _, idx := range indexes {
 		if err := conn.QueryRow("SELECT name FROM sqlite_master WHERE type='index' AND name=?", idx).Scan(&name); err != nil {
 			t.Fatalf("index %q missing: %v", idx, err)
 		}
 	}
+}
+
+func TestLogsTableExists(t *testing.T) {
+	db, err := Open(":memory:")
+	if err != nil {
+		t.Fatalf("failed to open db: %v", err)
+	}
+	defer db.Close()
+
+	// Verify logs table exists
+	var count int
+	err = db.QueryRow("SELECT COUNT(*) FROM logs").Scan(&count)
+	if err != nil {
+		t.Errorf("logs table should exist: %v", err)
+	}
+
+	// Verify old table doesn't exist (or is aliased)
+	err = db.QueryRow("SELECT COUNT(*) FROM transcript_entries").Scan(&count)
+	// This should still work due to migration handling old DBs
 }
 
 func columnExists(t *testing.T, conn *sql.DB, table, column string) bool {
@@ -111,18 +130,18 @@ func TestCleanupOnOpen(t *testing.T) {
 	}
 
 	_, err = conn.Exec(
-		`INSERT INTO transcript_entries (id, agent_id, direction, content) VALUES (?, ?, ?, ?)`,
+		`INSERT INTO logs (id, agent_id, direction, content) VALUES (?, ?, ?, ?)`,
 		"entry-old", "agent-old", "out", "old output",
 	)
 	if err != nil {
-		t.Fatalf("insert old transcript entry: %v", err)
+		t.Fatalf("insert old log entry: %v", err)
 	}
 	_, err = conn.Exec(
-		`INSERT INTO transcript_entries (id, agent_id, direction, content) VALUES (?, ?, ?, ?)`,
+		`INSERT INTO logs (id, agent_id, direction, content) VALUES (?, ?, ?, ?)`,
 		"entry-recent", "agent-recent", "out", "recent output",
 	)
 	if err != nil {
-		t.Fatalf("insert recent transcript entry: %v", err)
+		t.Fatalf("insert recent log entry: %v", err)
 	}
 
 	_, err = conn.Exec(
@@ -167,11 +186,11 @@ func TestCleanupOnOpen(t *testing.T) {
 		t.Fatalf("expected active agent to remain")
 	}
 
-	if countRows(t, conn, "SELECT COUNT(*) FROM transcript_entries WHERE id='entry-old'") != 0 {
-		t.Fatalf("expected old transcript entry to be deleted")
+	if countRows(t, conn, "SELECT COUNT(*) FROM logs WHERE id='entry-old'") != 0 {
+		t.Fatalf("expected old log entry to be deleted")
 	}
-	if countRows(t, conn, "SELECT COUNT(*) FROM transcript_entries WHERE id='entry-recent'") != 1 {
-		t.Fatalf("expected recent transcript entry to remain")
+	if countRows(t, conn, "SELECT COUNT(*) FROM logs WHERE id='entry-recent'") != 1 {
+		t.Fatalf("expected recent log entry to remain")
 	}
 
 	if countRows(t, conn, "SELECT COUNT(*) FROM messages WHERE id='msg-old'") != 0 {

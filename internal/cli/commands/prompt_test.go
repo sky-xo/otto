@@ -125,3 +125,88 @@ func TestPromptCapturesOutput(t *testing.T) {
 		t.Fatalf("expected 1 output transcript entry, got %d", outCount)
 	}
 }
+
+func TestPromptUnarchivesAgent(t *testing.T) {
+	db := openTestDB(t)
+
+	agent := repo.Agent{
+		ID:        "archived",
+		Type:      "claude",
+		Task:      "task",
+		Status:    "complete",
+		SessionID: sql.NullString{String: "session-3", Valid: true},
+	}
+	if err := repo.CreateAgent(db, agent); err != nil {
+		t.Fatalf("create agent: %v", err)
+	}
+	if err := repo.ArchiveAgent(db, agent.ID); err != nil {
+		t.Fatalf("archive agent: %v", err)
+	}
+
+	chunks := make(chan ottoexec.TranscriptChunk)
+	close(chunks)
+
+	runner := &mockRunner{
+		startWithTranscriptCaptureFunc: func(name string, args ...string) (int, <-chan ottoexec.TranscriptChunk, func() error, error) {
+			return 1234, chunks, func() error { return nil }, nil
+		},
+	}
+
+	if err := runPrompt(db, runner, "archived", "Continue"); err != nil {
+		t.Fatalf("runPrompt failed: %v", err)
+	}
+
+	updated, err := repo.GetAgent(db, "archived")
+	if err != nil {
+		t.Fatalf("get agent: %v", err)
+	}
+	if updated.ArchivedAt.Valid {
+		t.Fatal("expected archived_at to be cleared")
+	}
+}
+
+func TestPromptCodexUsesDangerFullAccess(t *testing.T) {
+	db := openTestDB(t)
+
+	agent := repo.Agent{
+		ID:        "codexer",
+		Type:      "codex",
+		Task:      "task",
+		Status:    "complete",
+		SessionID: sql.NullString{String: "thread-1", Valid: true},
+	}
+	if err := repo.CreateAgent(db, agent); err != nil {
+		t.Fatalf("create agent: %v", err)
+	}
+
+	chunks := make(chan ottoexec.TranscriptChunk)
+	close(chunks)
+
+	var gotArgs []string
+	runner := &mockRunner{
+		startWithTranscriptCaptureEnv: func(name string, env []string, args ...string) (int, <-chan ottoexec.TranscriptChunk, func() error, error) {
+			if name != "codex" {
+				t.Fatalf("expected codex, got %q", name)
+			}
+			gotArgs = append([]string{}, args...)
+			return 1234, chunks, func() error { return nil }, nil
+		},
+	}
+
+	if err := runPrompt(db, runner, "codexer", "Continue"); err != nil {
+		t.Fatalf("runPrompt failed: %v", err)
+	}
+
+	hasArg := func(arg string) bool {
+		for _, got := range gotArgs {
+			if got == arg {
+				return true
+			}
+		}
+		return false
+	}
+
+	if !hasArg("-s") || !hasArg("danger-full-access") {
+		t.Fatalf("expected danger-full-access args, got %v", gotArgs)
+	}
+}

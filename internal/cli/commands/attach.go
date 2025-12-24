@@ -50,6 +50,12 @@ func runAttach(db *sql.DB, agentID string) error {
 		return fmt.Errorf("agent %q has no session ID", agentID)
 	}
 
+	if agent.ArchivedAt.Valid {
+		if err := repo.UnarchiveAgent(db, agentID); err != nil {
+			return fmt.Errorf("unarchive agent: %w", err)
+		}
+	}
+
 	sessionID := agent.SessionID.String
 
 	// Print resume command (don't execute it)
@@ -57,7 +63,7 @@ func runAttach(db *sql.DB, agentID string) error {
 		fmt.Printf("claude --resume %s\n", sessionID)
 	} else if agent.Type == "codex" {
 		// Note if not supported
-		fmt.Printf("codex resume %s\n", sessionID)
+		fmt.Printf("codex exec --skip-git-repo-check -s danger-full-access resume %s\n", sessionID)
 		fmt.Println("(Note: Codex resume support may be limited)")
 	} else {
 		return fmt.Errorf("unsupported agent type %q", agent.Type)

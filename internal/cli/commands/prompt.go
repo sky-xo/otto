@@ -54,6 +54,12 @@ func runPrompt(db *sql.DB, runner ottoexec.Runner, agentID, message string) erro
 		return fmt.Errorf("agent %q has no session ID", agentID)
 	}
 
+	if agent.ArchivedAt.Valid {
+		if err := repo.UnarchiveAgent(db, agentID); err != nil {
+			return fmt.Errorf("unarchive agent: %w", err)
+		}
+	}
+
 	sessionID := agent.SessionID.String
 
 	// Build command based on agent type
@@ -62,7 +68,7 @@ func runPrompt(db *sql.DB, runner ottoexec.Runner, agentID, message string) erro
 		cmdArgs = []string{"claude", "--resume", sessionID, "-p", message}
 	} else if agent.Type == "codex" {
 		// Attempt Codex resume (support may be limited)
-		cmdArgs = []string{"codex", "exec", "resume", sessionID, message}
+		cmdArgs = []string{"codex", "exec", "--skip-git-repo-check", "-s", "danger-full-access", "resume", sessionID, message}
 	} else {
 		return fmt.Errorf("unsupported agent type %q", agent.Type)
 	}

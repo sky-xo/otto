@@ -35,8 +35,9 @@ func ListLogs(db *sql.DB, agentID, sinceID string) ([]LogEntry, error) {
 	query := `SELECT id, agent_id, direction, stream, content, created_at FROM logs WHERE agent_id = ?`
 	args := []interface{}{agentID}
 	var sinceCreatedAt string
+	var sinceRowID int64
 	if sinceID != "" {
-		if err := db.QueryRow(`SELECT strftime('%Y-%m-%d %H:%M:%S', created_at) FROM logs WHERE id = ?`, sinceID).Scan(&sinceCreatedAt); err != nil {
+		if err := db.QueryRow(`SELECT strftime('%Y-%m-%d %H:%M:%S', created_at), rowid FROM logs WHERE id = ?`, sinceID).Scan(&sinceCreatedAt, &sinceRowID); err != nil {
 			if err != sql.ErrNoRows {
 				return nil, err
 			}
@@ -44,10 +45,10 @@ func ListLogs(db *sql.DB, agentID, sinceID string) ([]LogEntry, error) {
 		}
 	}
 	if sinceCreatedAt != "" {
-		query += " AND ((created_at = ? AND id > ?) OR created_at > ?)"
-		args = append(args, sinceCreatedAt, sinceID, sinceCreatedAt)
+		query += " AND ((created_at = ? AND rowid > ?) OR created_at > ?)"
+		args = append(args, sinceCreatedAt, sinceRowID, sinceCreatedAt)
 	}
-	query += " ORDER BY created_at ASC, id ASC"
+	query += " ORDER BY created_at ASC, rowid ASC"
 
 	rows, err := db.Query(query, args...)
 	if err != nil {

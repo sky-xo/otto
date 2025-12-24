@@ -81,7 +81,7 @@ type agentsMsg []repo.Agent
 
 type transcriptsMsg struct {
 	agentID string
-	entries []repo.TranscriptEntry
+	entries []repo.LogEntry
 }
 
 type channel struct {
@@ -95,7 +95,7 @@ type model struct {
 	db                *sql.DB
 	messages          []repo.Message
 	agents            []repo.Agent
-	transcripts       map[string][]repo.TranscriptEntry
+	transcripts       map[string][]repo.LogEntry
 	lastMessageID     string
 	lastTranscriptIDs map[string]string
 	scrollOffsets     map[string]int
@@ -111,7 +111,7 @@ func NewModel(db *sql.DB) model {
 		db:                db,
 		messages:          []repo.Message{},
 		agents:            []repo.Agent{},
-		transcripts:       map[string][]repo.TranscriptEntry{},
+		transcripts:       map[string][]repo.LogEntry{},
 		lastTranscriptIDs: map[string]string{},
 		scrollOffsets:     map[string]int{},
 		activeChannelID:   mainChannelID,
@@ -575,7 +575,7 @@ func formatMessage(msg repo.Message) (string, lipgloss.Style) {
 	}
 }
 
-func transcriptPrefix(entry repo.TranscriptEntry) (string, lipgloss.Style) {
+func transcriptPrefix(entry repo.LogEntry) (string, lipgloss.Style) {
 	switch entry.Direction {
 	case "in":
 		return "→", mutedStyle
@@ -653,7 +653,7 @@ func fetchAgentsCmd(db *sql.DB) tea.Cmd {
 
 func fetchTranscriptsCmd(db *sql.DB, agentID, sinceID string) tea.Cmd {
 	return func() tea.Msg {
-		entries, err := repo.ListTranscriptEntries(db, agentID, sinceID)
+		entries, err := repo.ListLogs(db, agentID, sinceID)
 		if err != nil {
 			return err
 		}

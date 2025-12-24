@@ -2,20 +2,20 @@ package repo
 
 import "testing"
 
-func TestCreateAndListTranscriptEntries(t *testing.T) {
+func TestCreateAndListLogs(t *testing.T) {
 	db := openTestDB(t)
 
-	if err := CreateTranscriptEntry(db, "agent-1", "in", "", "prompt"); err != nil {
+	if err := CreateLogEntry(db, "agent-1", "in", "", "prompt"); err != nil {
 		t.Fatalf("create entry 1: %v", err)
 	}
-	if err := CreateTranscriptEntry(db, "agent-1", "out", "stdout", "response"); err != nil {
+	if err := CreateLogEntry(db, "agent-1", "out", "stdout", "response"); err != nil {
 		t.Fatalf("create entry 2: %v", err)
 	}
-	if err := CreateTranscriptEntry(db, "agent-2", "out", "stdout", "other"); err != nil {
+	if err := CreateLogEntry(db, "agent-2", "out", "stdout", "other"); err != nil {
 		t.Fatalf("create entry 3: %v", err)
 	}
 
-	entries, err := ListTranscriptEntries(db, "agent-1", "")
+	entries, err := ListLogs(db, "agent-1", "")
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -27,20 +27,20 @@ func TestCreateAndListTranscriptEntries(t *testing.T) {
 	}
 }
 
-func TestListTranscriptEntriesSince(t *testing.T) {
+func TestListLogsSince(t *testing.T) {
 	db := openTestDB(t)
 
-	if err := CreateTranscriptEntry(db, "agent-1", "out", "stdout", "one"); err != nil {
+	if err := CreateLogEntry(db, "agent-1", "out", "stdout", "one"); err != nil {
 		t.Fatalf("create entry 1: %v", err)
 	}
-	if err := CreateTranscriptEntry(db, "agent-1", "out", "stdout", "two"); err != nil {
+	if err := CreateLogEntry(db, "agent-1", "out", "stdout", "two"); err != nil {
 		t.Fatalf("create entry 2: %v", err)
 	}
-	if err := CreateTranscriptEntry(db, "agent-1", "out", "stdout", "three"); err != nil {
+	if err := CreateLogEntry(db, "agent-1", "out", "stdout", "three"); err != nil {
 		t.Fatalf("create entry 3: %v", err)
 	}
 
-	entries, err := ListTranscriptEntries(db, "agent-1", "")
+	entries, err := ListLogs(db, "agent-1", "")
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -54,12 +54,12 @@ func TestListTranscriptEntriesSince(t *testing.T) {
 		entries[2].ID: "2024-01-03 00:00:00",
 	}
 	for id, ts := range timestamps {
-		if _, err := db.Exec(`UPDATE transcript_entries SET created_at = ? WHERE id = ?`, ts, id); err != nil {
+		if _, err := db.Exec(`UPDATE logs SET created_at = ? WHERE id = ?`, ts, id); err != nil {
 			t.Fatalf("set created_at: %v", err)
 		}
 	}
 
-	sinceEntries, err := ListTranscriptEntries(db, "agent-1", entries[0].ID)
+	sinceEntries, err := ListLogs(db, "agent-1", entries[0].ID)
 	if err != nil {
 		t.Fatalf("list since: %v", err)
 	}
@@ -68,20 +68,20 @@ func TestListTranscriptEntriesSince(t *testing.T) {
 	}
 }
 
-func TestListTranscriptEntriesSinceSameSecond(t *testing.T) {
+func TestListLogsSinceSameSecond(t *testing.T) {
 	db := openTestDB(t)
 
-	if err := CreateTranscriptEntry(db, "agent-1", "out", "stdout", "one"); err != nil {
+	if err := CreateLogEntry(db, "agent-1", "out", "stdout", "one"); err != nil {
 		t.Fatalf("create entry 1: %v", err)
 	}
-	if err := CreateTranscriptEntry(db, "agent-1", "out", "stdout", "two"); err != nil {
+	if err := CreateLogEntry(db, "agent-1", "out", "stdout", "two"); err != nil {
 		t.Fatalf("create entry 2: %v", err)
 	}
-	if err := CreateTranscriptEntry(db, "agent-1", "out", "stdout", "three"); err != nil {
+	if err := CreateLogEntry(db, "agent-1", "out", "stdout", "three"); err != nil {
 		t.Fatalf("create entry 3: %v", err)
 	}
 
-	entries, err := ListTranscriptEntries(db, "agent-1", "")
+	entries, err := ListLogs(db, "agent-1", "")
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -89,14 +89,14 @@ func TestListTranscriptEntriesSinceSameSecond(t *testing.T) {
 		t.Fatalf("unexpected entries: %#v", entries)
 	}
 
-	if _, err := db.Exec(`UPDATE transcript_entries SET created_at = ? WHERE id IN (?, ?)`, "2024-01-01 00:00:00", entries[0].ID, entries[1].ID); err != nil {
+	if _, err := db.Exec(`UPDATE logs SET created_at = ? WHERE id IN (?, ?)`, "2024-01-01 00:00:00", entries[0].ID, entries[1].ID); err != nil {
 		t.Fatalf("set created_at: %v", err)
 	}
-	if _, err := db.Exec(`UPDATE transcript_entries SET created_at = ? WHERE id = ?`, "2024-01-01 00:00:01", entries[2].ID); err != nil {
+	if _, err := db.Exec(`UPDATE logs SET created_at = ? WHERE id = ?`, "2024-01-01 00:00:01", entries[2].ID); err != nil {
 		t.Fatalf("set created_at: %v", err)
 	}
 
-	sinceEntries, err := ListTranscriptEntries(db, "agent-1", entries[0].ID)
+	sinceEntries, err := ListLogs(db, "agent-1", entries[0].ID)
 	if err != nil {
 		t.Fatalf("list since: %v", err)
 	}

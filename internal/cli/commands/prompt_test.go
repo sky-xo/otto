@@ -60,7 +60,7 @@ func TestPromptStoresPromptAndResumesAgent(t *testing.T) {
 		t.Fatalf("expected prompt message content, got %q", msgs[0].Content)
 	}
 
-	entries, err := repo.ListTranscriptEntries(db, "researcher", "")
+	entries, err := repo.ListLogs(db, "researcher", "")
 	if err != nil {
 		t.Fatalf("list transcript entries: %v", err)
 	}
@@ -109,7 +109,7 @@ func TestPromptCapturesOutput(t *testing.T) {
 		t.Fatalf("runPrompt failed: %v", err)
 	}
 
-	entries, err := repo.ListTranscriptEntries(db, "writer", "")
+	entries, err := repo.ListLogs(db, "writer", "")
 	if err != nil {
 		t.Fatalf("list transcript entries: %v", err)
 	}

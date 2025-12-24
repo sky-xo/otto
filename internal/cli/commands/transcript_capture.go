@@ -23,7 +23,7 @@ func storePrompt(db *sql.DB, agentID, prompt string) error {
 	if err := repo.CreateMessage(db, msg); err != nil {
 		return err
 	}
-	return repo.CreateTranscriptEntry(db, agentID, "in", "", prompt)
+	return repo.CreateLogEntry(db, agentID, "in", "", prompt)
 }
 
 func consumeTranscriptEntries(db *sql.DB, agentID string, output <-chan ottoexec.TranscriptChunk, onStdoutLine func(string)) <-chan error {
@@ -31,7 +31,7 @@ func consumeTranscriptEntries(db *sql.DB, agentID string, output <-chan ottoexec
 	go func() {
 		var stdoutBuffer string
 		for chunk := range output {
-			if err := repo.CreateTranscriptEntry(db, agentID, "out", chunk.Stream, chunk.Data); err != nil {
+			if err := repo.CreateLogEntry(db, agentID, "out", chunk.Stream, chunk.Data); err != nil {
 				done <- err
 				return
 			}

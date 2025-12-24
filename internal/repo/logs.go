@@ -6,7 +6,7 @@ import (
 	"github.com/google/uuid"
 )
 
-type TranscriptEntry struct {
+type LogEntry struct {
 	ID        string
 	AgentID   string
 	Direction string
@@ -15,13 +15,13 @@ type TranscriptEntry struct {
 	CreatedAt string
 }
 
-func CreateTranscriptEntry(db *sql.DB, agentID, direction, stream, content string) error {
+func CreateLogEntry(db *sql.DB, agentID, direction, stream, content string) error {
 	var streamValue sql.NullString
 	if stream != "" {
 		streamValue = sql.NullString{String: stream, Valid: true}
 	}
 	_, err := db.Exec(
-		`INSERT INTO transcript_entries (id, agent_id, direction, stream, content) VALUES (?, ?, ?, ?, ?)`,
+		`INSERT INTO logs (id, agent_id, direction, stream, content) VALUES (?, ?, ?, ?, ?)`,
 		uuid.NewString(),
 		agentID,
 		direction,
@@ -31,12 +31,12 @@ func CreateTranscriptEntry(db *sql.DB, agentID, direction, stream, content strin
 	return err
 }
 
-func ListTranscriptEntries(db *sql.DB, agentID, sinceID string) ([]TranscriptEntry, error) {
-	query := `SELECT id, agent_id, direction, stream, content, created_at FROM transcript_entries WHERE agent_id = ?`
+func ListLogs(db *sql.DB, agentID, sinceID string) ([]LogEntry, error) {
+	query := `SELECT id, agent_id, direction, stream, content, created_at FROM logs WHERE agent_id = ?`
 	args := []interface{}{agentID}
 	var sinceCreatedAt string
 	if sinceID != "" {
-		if err := db.QueryRow(`SELECT strftime('%Y-%m-%d %H:%M:%S', created_at) FROM transcript_entries WHERE id = ?`, sinceID).Scan(&sinceCreatedAt); err != nil {
+		if err := db.QueryRow(`SELECT strftime('%Y-%m-%d %H:%M:%S', created_at) FROM logs WHERE id = ?`, sinceID).Scan(&sinceCreatedAt); err != nil {
 			if err != sql.ErrNoRows {
 				return nil, err
 			}
@@ -55,9 +55,9 @@ func ListTranscriptEntries(db *sql.DB, agentID, sinceID string) ([]TranscriptEnt
 	}
 	defer rows.Close()
 
-	var out []TranscriptEntry
+	var out []LogEntry
 	for rows.Next() {
-		var entry TranscriptEntry
+		var entry LogEntry
 		if err := rows.Scan(&entry.ID, &entry.AgentID, &entry.Direction, &entry.Stream, &entry.Content, &entry.CreatedAt); err != nil {
 			return nil, err
 		}

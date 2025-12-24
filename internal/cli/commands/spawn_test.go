@@ -222,7 +222,7 @@ func TestSpawnStoresPromptAndTranscript(t *testing.T) {
 		t.Fatalf("expected prompt to contain task, got %q", msgs[0].Content)
 	}
 
-	entries, err := repo.ListTranscriptEntries(db, "testtask", "")
+	entries, err := repo.ListLogs(db, "testtask", "")
 	if err != nil {
 		t.Fatalf("list transcript entries: %v", err)
 	}

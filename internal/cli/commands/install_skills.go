@@ -16,7 +16,7 @@ import (
 func NewInstallSkillsCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "install-skills",
-		Short: "Install bundled Otto skills into ~/.claude/skills",
+		Short: "Install bundled Otto skills into ~/.claude/skills and ~/.codex/skills",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			sourceRoot := scope.RepoRoot()
 			if sourceRoot == "" {
@@ -26,25 +26,48 @@ func NewInstallSkillsCmd() *cobra.Command {
 				}
 				sourceRoot = cwd
 			}
-			source := filepath.Join(sourceRoot, "skills")
 
 			home, err := os.UserHomeDir()
 			if err != nil {
 				return err
 			}
-			dest := filepath.Join(home, ".claude", "skills")
 
-			installed, err := runInstallSkills(source, dest)
-			if err != nil {
-				return err
+			var allInstalled []string
+
+			// Install Claude skills if ~/.claude exists
+			claudeHome := filepath.Join(home, ".claude")
+			if _, err := os.Stat(claudeHome); err == nil {
+				claudeSource := filepath.Join(sourceRoot, ".claude", "skills")
+				claudeDest := filepath.Join(claudeHome, "skills")
+				installed, err := runInstallSkills(claudeSource, claudeDest)
+				if err != nil {
+					return fmt.Errorf("installing claude skills: %w", err)
+				}
+				for _, s := range installed {
+					allInstalled = append(allInstalled, s+" (claude)")
+				}
 			}
 
-			if len(installed) == 0 {
-				fmt.Fprintln(cmd.OutOrStdout(), "No skills installed")
+			// Install Codex skills if ~/.codex exists
+			codexHome := filepath.Join(home, ".codex")
+			if _, err := os.Stat(codexHome); err == nil {
+				codexSource := filepath.Join(sourceRoot, ".codex", "skills")
+				codexDest := filepath.Join(codexHome, "skills")
+				installed, err := runInstallSkills(codexSource, codexDest)
+				if err != nil {
+					return fmt.Errorf("installing codex skills: %w", err)
+				}
+				for _, s := range installed {
+					allInstalled = append(allInstalled, s+" (codex)")
+				}
+			}
+
+			if len(allInstalled) == 0 {
+				fmt.Fprintln(cmd.OutOrStdout(), "No skills installed (neither ~/.claude nor ~/.codex found)")
 				return nil
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Installed skills (%d): %s\n", len(installed), strings.Join(installed, ", "))
+			fmt.Fprintf(cmd.OutOrStdout(), "Installed skills (%d): %s\n", len(allInstalled), strings.Join(allInstalled, ", "))
 			return nil
 		},
 	}

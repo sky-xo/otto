@@ -66,6 +66,30 @@ func ListAgents(db *sql.DB) ([]Agent, error) {
 	return out, rows.Err()
 }
 
+func ListAgentsFiltered(db *sql.DB, includeArchived bool) ([]Agent, error) {
+	query := `SELECT id, type, task, status, session_id, pid, completed_at, archived_at, last_read_log_id FROM agents`
+	if !includeArchived {
+		query += " WHERE archived_at IS NULL"
+	}
+	query += " ORDER BY created_at ASC"
+
+	rows, err := db.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []Agent
+	for rows.Next() {
+		var a Agent
+		if err := rows.Scan(&a.ID, &a.Type, &a.Task, &a.Status, &a.SessionID, &a.Pid, &a.CompletedAt, &a.ArchivedAt, &a.LastReadLogID); err != nil {
+			return nil, err
+		}
+		out = append(out, a)
+	}
+	return out, rows.Err()
+}
+
 func DeleteAgent(db *sql.DB, id string) error {
 	_, err := db.Exec(`DELETE FROM agents WHERE id = ?`, id)
 	return err

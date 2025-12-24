@@ -9,6 +9,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var (
+	statusAll     bool
+	statusArchive bool
+)
+
 func NewStatusCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "status",
@@ -20,20 +25,40 @@ func NewStatusCmd() *cobra.Command {
 			}
 			defer conn.Close()
 
-			return runStatus(conn)
+			return runStatus(conn, statusAll, statusArchive)
 		},
 	}
+	cmd.Flags().BoolVar(&statusAll, "all", false, "Include archived agents")
+	cmd.Flags().BoolVar(&statusArchive, "archive", false, "Archive complete/failed agents shown")
 	return cmd
 }
 
-func runStatus(db *sql.DB) error {
-	agents, err := repo.ListAgents(db)
+func runStatus(db *sql.DB, includeArchived, archive bool) error {
+	agents, err := repo.ListAgentsFiltered(db, includeArchived)
 	if err != nil {
 		return err
 	}
 
 	for _, a := range agents {
-		fmt.Printf("%s [%s]: %s - %s\n", a.ID, a.Type, a.Status, a.Task)
+		suffix := ""
+		if includeArchived && a.ArchivedAt.Valid {
+			suffix = " (archived)"
+		}
+		fmt.Printf("%s [%s]: %s - %s%s\n", a.ID, a.Type, a.Status, a.Task, suffix)
+	}
+
+	if archive {
+		for _, a := range agents {
+			if a.ArchivedAt.Valid {
+				continue
+			}
+			if a.Status != "complete" && a.Status != "failed" {
+				continue
+			}
+			if err := repo.ArchiveAgent(db, a.ID); err != nil {
+				return fmt.Errorf("archive agent %q: %w", a.ID, err)
+			}
+		}
 	}
 
 	return nil

@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"otto/internal/config"
 	"otto/internal/db"
@@ -158,5 +160,134 @@ func TestOpenDBCreatesDirectory(t *testing.T) {
 
 	if _, err := os.Stat(dbDir); err != nil {
 		t.Fatalf("expected db dir to exist, got err=%v", err)
+	}
+}
+
+func TestArchiveArchivesCompleteAgent(t *testing.T) {
+	db := openTestDB(t)
+	_ = repo.CreateAgent(db, repo.Agent{ID: "archiver", Type: "claude", Task: "task", Status: "complete"})
+
+	if err := runArchive(db, "archiver"); err != nil {
+		t.Fatalf("archive: %v", err)
+	}
+
+	agent, err := repo.GetAgent(db, "archiver")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if !agent.ArchivedAt.Valid {
+		t.Fatal("expected archived_at to be set")
+	}
+}
+
+func TestArchiveRejectsBusyAgent(t *testing.T) {
+	db := openTestDB(t)
+	_ = repo.CreateAgent(db, repo.Agent{ID: "busy-agent", Type: "claude", Task: "task", Status: "busy"})
+
+	if err := runArchive(db, "busy-agent"); err == nil {
+		t.Fatal("expected error for busy agent")
+	}
+}
+
+func TestStatusExcludesArchivedByDefault(t *testing.T) {
+	db := openTestDB(t)
+	_ = repo.CreateAgent(db, repo.Agent{ID: "active-agent", Type: "claude", Task: "task", Status: "busy"})
+	_ = repo.CreateAgent(db, repo.Agent{
+		ID:         "archived-agent",
+		Type:       "claude",
+		Task:       "task",
+		Status:     "complete",
+		ArchivedAt: sql.NullTime{Time: time.Now(), Valid: true},
+	})
+
+	output := captureStdout(t, func() {
+		if err := runStatus(db, false, false); err != nil {
+			t.Fatalf("runStatus: %v", err)
+		}
+	})
+
+	if !strings.Contains(output, "active-agent") {
+		t.Fatalf("expected active agent in output, got %q", output)
+	}
+	if strings.Contains(output, "archived-agent") {
+		t.Fatalf("did not expect archived agent in output, got %q", output)
+	}
+}
+
+func TestStatusIncludesArchivedWithAll(t *testing.T) {
+	db := openTestDB(t)
+	_ = repo.CreateAgent(db, repo.Agent{ID: "active-agent", Type: "claude", Task: "task", Status: "busy"})
+	_ = repo.CreateAgent(db, repo.Agent{
+		ID:         "archived-agent",
+		Type:       "claude",
+		Task:       "task",
+		Status:     "complete",
+		ArchivedAt: sql.NullTime{Time: time.Now(), Valid: true},
+	})
+
+	output := captureStdout(t, func() {
+		if err := runStatus(db, true, false); err != nil {
+			t.Fatalf("runStatus: %v", err)
+		}
+	})
+
+	if !strings.Contains(output, "active-agent") {
+		t.Fatalf("expected active agent in output, got %q", output)
+	}
+	if !strings.Contains(output, "archived-agent") {
+		t.Fatalf("expected archived agent in output, got %q", output)
+	}
+	if !strings.Contains(output, "archived-agent") || !strings.Contains(output, "(archived)") {
+		t.Fatalf("expected archived suffix in output, got %q", output)
+	}
+}
+
+func TestStatusArchiveArchivesCompleteAndFailed(t *testing.T) {
+	db := openTestDB(t)
+	_ = repo.CreateAgent(db, repo.Agent{ID: "complete-agent", Type: "claude", Task: "task", Status: "complete"})
+	_ = repo.CreateAgent(db, repo.Agent{ID: "failed-agent", Type: "claude", Task: "task", Status: "failed"})
+	_ = repo.CreateAgent(db, repo.Agent{ID: "busy-agent", Type: "claude", Task: "task", Status: "busy"})
+	_ = repo.CreateAgent(db, repo.Agent{
+		ID:         "archived-agent",
+		Type:       "claude",
+		Task:       "task",
+		Status:     "complete",
+		ArchivedAt: sql.NullTime{Time: time.Now(), Valid: true},
+	})
+
+	if err := runStatus(db, true, true); err != nil {
+		t.Fatalf("runStatus: %v", err)
+	}
+
+	completeAgent, err := repo.GetAgent(db, "complete-agent")
+	if err != nil {
+		t.Fatalf("get complete: %v", err)
+	}
+	if !completeAgent.ArchivedAt.Valid {
+		t.Fatal("expected complete agent to be archived")
+	}
+
+	failedAgent, err := repo.GetAgent(db, "failed-agent")
+	if err != nil {
+		t.Fatalf("get failed: %v", err)
+	}
+	if !failedAgent.ArchivedAt.Valid {
+		t.Fatal("expected failed agent to be archived")
+	}
+
+	busyAgent, err := repo.GetAgent(db, "busy-agent")
+	if err != nil {
+		t.Fatalf("get busy: %v", err)
+	}
+	if busyAgent.ArchivedAt.Valid {
+		t.Fatal("did not expect busy agent to be archived")
+	}
+
+	archivedAgent, err := repo.GetAgent(db, "archived-agent")
+	if err != nil {
+		t.Fatalf("get archived: %v", err)
+	}
+	if !archivedAgent.ArchivedAt.Valid {
+		t.Fatal("expected archived agent to remain archived")
 	}
 }

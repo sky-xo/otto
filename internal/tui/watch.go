@@ -316,7 +316,6 @@ func (m model) View() string {
 	rightPanel := rightBorderStyle.
 		Width(rightWidth).
 		Height(panelHeight).
-		MaxWidth(rightWidth).
 		Render(rightTitle + "\n" + content)
 
 	panels := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel)

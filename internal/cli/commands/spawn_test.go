@@ -3,6 +3,7 @@ package commands
 import (
 	"bytes"
 	"database/sql"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -600,5 +601,96 @@ func TestSpawnWithCustomNameCollision(t *testing.T) {
 	_, err = repo.GetAgent(db, "researcher")
 	if err != nil {
 		t.Fatalf("expected first agent to still exist, got error: %v", err)
+	}
+}
+
+func TestSpawnDetachLaunchesWorker(t *testing.T) {
+	db := openTestDB(t)
+
+	var capturedCmd string
+	var capturedArgs []string
+
+	runner := &mockRunner{
+		startDetachedFunc: func(name string, args ...string) (int, error) {
+			capturedCmd = name
+			capturedArgs = args
+			return 12345, nil
+		},
+	}
+
+	var buf bytes.Buffer
+	err := runSpawnWithOptions(db, runner, "claude", "test task", "", "", "", true, &buf)
+	if err != nil {
+		t.Fatalf("spawn detach failed: %v", err)
+	}
+
+	// Should launch otto worker-spawn <agent-id>
+	// capturedCmd should be the path to otto binary (or test binary during tests)
+	// Just verify it's not launching claude/codex directly
+	if capturedCmd == "claude" || capturedCmd == "codex" {
+		t.Errorf("expected command to be otto binary, not %q", capturedCmd)
+	}
+
+	// Args should be: worker-spawn <agent-id>
+	if len(capturedArgs) != 2 {
+		t.Fatalf("expected 2 args (worker-spawn <agent-id>), got %d: %v", len(capturedArgs), capturedArgs)
+	}
+	if capturedArgs[0] != "worker-spawn" {
+		t.Errorf("expected first arg to be 'worker-spawn', got %q", capturedArgs[0])
+	}
+	// Second arg should be the agent ID (generated from task "test task")
+	if !strings.HasPrefix(capturedArgs[1], "test") {
+		t.Errorf("expected agent ID to start with 'test', got %q", capturedArgs[1])
+	}
+
+	// Verify agent was created
+	agentID := capturedArgs[1]
+	agent, err := repo.GetAgent(db, agentID)
+	if err != nil {
+		t.Fatalf("expected agent to exist, got error: %v", err)
+	}
+	if agent.Status != "busy" {
+		t.Errorf("expected status busy, got %q", agent.Status)
+	}
+	if !agent.Pid.Valid || agent.Pid.Int64 != 12345 {
+		t.Errorf("expected PID 12345, got %v", agent.Pid)
+	}
+}
+
+func TestSpawnDetachHandlesWorkerLaunchFailure(t *testing.T) {
+	db := openTestDB(t)
+
+	runner := &mockRunner{
+		startDetachedFunc: func(name string, args ...string) (int, error) {
+			return 0, fmt.Errorf("failed to start worker")
+		},
+	}
+
+	var buf bytes.Buffer
+	err := runSpawnWithOptions(db, runner, "claude", "test task", "", "", "", true, &buf)
+	if err == nil {
+		t.Fatal("expected error when worker launch fails")
+	}
+
+	if !strings.Contains(err.Error(), "failed to start worker") {
+		t.Errorf("expected error to mention worker launch failure, got: %v", err)
+	}
+
+	// Agent should exist but marked as failed
+	agents, _ := repo.ListAgents(db)
+	if len(agents) != 1 {
+		t.Fatalf("expected 1 agent, got %d", len(agents))
+	}
+	if agents[0].Status != "failed" {
+		t.Errorf("expected status failed, got %q", agents[0].Status)
+	}
+
+	// Should have exit message
+	msgs, _ := repo.ListMessages(db, repo.MessageFilter{Type: "exit"})
+	if len(msgs) != 1 {
+		t.Fatalf("expected 1 exit message, got %d", len(msgs))
+	}
+	if !strings.Contains(msgs[0].Content, "failed to start worker") {
+		t.Errorf("expected exit message to mention failure, got: %q", msgs[0].Content)
 	}
 }

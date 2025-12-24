@@ -102,20 +102,41 @@ func runSpawnWithOptions(db *sql.DB, runner ottoexec.Runner, agentType, task, fi
 	}
 
 	// Build and run command
-	cmdArgs := buildSpawnCommand(agentType, prompt, sessionID)
-
 	if detach {
+		// Launch otto worker-spawn instead of agent directly
 		if w == nil {
 			w = io.Discard
 		}
-		pid, err := runner.StartDetached(cmdArgs[0], cmdArgs[1:]...)
+
+		// Get current executable path for otto binary
+		ottoBin, err := os.Executable()
 		if err != nil {
-			return fmt.Errorf("spawn %s: %w", agentType, err)
+			ottoBin = "otto" // fallback to PATH
 		}
+
+		// Launch worker-spawn in detached mode
+		pid, err := runner.StartDetached(ottoBin, "worker-spawn", agentID)
+		if err != nil {
+			// On failure: mark agent as failed and create exit message
+			msg := repo.Message{
+				ID:           uuid.New().String(),
+				FromID:       agentID,
+				Type:         "exit",
+				Content:      fmt.Sprintf("failed to start worker: %v", err),
+				MentionsJSON: "[]",
+				ReadByJSON:   "[]",
+			}
+			_ = repo.CreateMessage(db, msg)
+			_ = repo.SetAgentFailed(db, agentID)
+			return fmt.Errorf("spawn worker: %w", err)
+		}
+
 		_ = repo.UpdateAgentPid(db, agentID, pid)
 		fmt.Fprintln(w, agentID)
 		return nil
 	}
+
+	cmdArgs := buildSpawnCommand(agentType, prompt, sessionID)
 
 	// For Codex agents, we need to capture the thread_id from JSON output
 	if agentType == "codex" {

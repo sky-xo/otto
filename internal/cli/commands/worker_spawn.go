@@ -9,6 +9,7 @@ import (
 
 	ottoexec "otto/internal/exec"
 	"otto/internal/repo"
+	"otto/internal/scope"
 
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
@@ -79,12 +80,22 @@ func runWorkerSpawn(db *sql.DB, runner ottoexec.Runner, agentID string) error {
 		if consumeErr := <-transcriptDone; consumeErr != nil {
 			return fmt.Errorf("spawn %s: %w", agent.Type, consumeErr)
 		}
+		// Record launch error
+		repoRoot := scope.RepoRoot()
+		branch := scope.BranchName()
+		if branch == "" {
+			branch = "main"
+		}
+		scopePath := scope.Scope(repoRoot, branch)
+		errorText := fmt.Sprintf("process failed: %v", err)
+		_ = repo.RecordLaunchError(scopePath, agentID, errorText)
+
 		// Post failure message and mark agent failed
 		msg := repo.Message{
 			ID:           uuid.New().String(),
 			FromID:       agentID,
 			Type:         "exit",
-			Content:      fmt.Sprintf("process failed: %v", err),
+			Content:      errorText,
 			MentionsJSON: "[]",
 			ReadByJSON:   "[]",
 		}
@@ -169,12 +180,22 @@ func runWorkerCodexSpawn(db *sql.DB, runner ottoexec.Runner, agentID string, cmd
 		if consumeErr := <-transcriptDone; consumeErr != nil {
 			return fmt.Errorf("spawn codex: %w", consumeErr)
 		}
+		// Record launch error
+		repoRoot := scope.RepoRoot()
+		branch := scope.BranchName()
+		if branch == "" {
+			branch = "main"
+		}
+		scopePath := scope.Scope(repoRoot, branch)
+		errorText := fmt.Sprintf("process failed: %v", err)
+		_ = repo.RecordLaunchError(scopePath, agentID, errorText)
+
 		// Post failure message and mark agent failed
 		msg := repo.Message{
 			ID:           uuid.New().String(),
 			FromID:       agentID,
 			Type:         "exit",
-			Content:      fmt.Sprintf("process failed: %v", err),
+			Content:      errorText,
 			MentionsJSON: "[]",
 			ReadByJSON:   "[]",
 		}

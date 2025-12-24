@@ -13,6 +13,7 @@ import (
 
 	ottoexec "otto/internal/exec"
 	"otto/internal/repo"
+	"otto/internal/scope"
 
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
@@ -111,12 +112,21 @@ func runSpawnWithOptions(db *sql.DB, runner ottoexec.Runner, agentType, task, fi
 		// Launch worker-spawn in detached mode
 		pid, err := runner.StartDetached(ottoBin, "worker-spawn", agentID)
 		if err != nil {
-			// On failure: mark agent as failed and create exit message
+			// On failure: record launch error, mark agent as failed, and create exit message
+			repoRoot := scope.RepoRoot()
+			branch := scope.BranchName()
+			if branch == "" {
+				branch = "main"
+			}
+			scopePath := scope.Scope(repoRoot, branch)
+			errorText := fmt.Sprintf("failed to start worker: %v", err)
+			_ = repo.RecordLaunchError(scopePath, agentID, errorText)
+
 			msg := repo.Message{
 				ID:           uuid.New().String(),
 				FromID:       agentID,
 				Type:         "exit",
-				Content:      fmt.Sprintf("failed to start worker: %v", err),
+				Content:      errorText,
 				MentionsJSON: "[]",
 				ReadByJSON:   "[]",
 			}

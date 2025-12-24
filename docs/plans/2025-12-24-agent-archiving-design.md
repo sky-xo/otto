@@ -80,9 +80,8 @@ No key commands specifically for archiving in the UI.
 
 ## Retention
 
-Keep the current cleanup behavior: delete agents (and their logs/messages) with
-`completed_at < now - 7 days`, regardless of archive status. Archive only
-affects visibility, not retention.
+Delete agents (and their logs/messages) only after they have been archived for
+7 days. Do not delete completed agents that are not archived yet.
 
 ## Implementation Notes
 

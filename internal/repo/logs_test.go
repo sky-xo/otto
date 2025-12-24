@@ -1,6 +1,9 @@
 package repo
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
 func TestCreateAndListLogs(t *testing.T) {
 	db := openTestDB(t)
@@ -102,5 +105,27 @@ func TestListLogsSinceSameSecond(t *testing.T) {
 	}
 	if len(sinceEntries) != 2 || sinceEntries[0].ID != entries[1].ID || sinceEntries[1].ID != entries[2].ID {
 		t.Fatalf("unexpected since entries: %#v", sinceEntries)
+	}
+}
+
+func TestListLogsWithTail(t *testing.T) {
+	db := openTestDB(t)
+	defer db.Close()
+
+	for i := 0; i < 10; i++ {
+		if err := CreateLogEntry(db, "agent-1", "out", "stdout", fmt.Sprintf("line %d", i)); err != nil {
+			t.Fatalf("create log: %v", err)
+		}
+	}
+
+	logs, err := ListLogsWithTail(db, "agent-1", 3)
+	if err != nil {
+		t.Fatalf("list logs: %v", err)
+	}
+	if len(logs) != 3 {
+		t.Errorf("expected 3 logs, got %d", len(logs))
+	}
+	if logs[0].Content != "line 7" {
+		t.Errorf("expected first to be 'line 7', got %q", logs[0].Content)
 	}
 }

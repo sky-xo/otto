@@ -65,3 +65,32 @@ func ListLogs(db *sql.DB, agentID, sinceID string) ([]LogEntry, error) {
 	}
 	return out, rows.Err()
 }
+
+func ListLogsWithTail(db *sql.DB, agentID string, n int) ([]LogEntry, error) {
+	query := `SELECT id, agent_id, direction, stream, content, created_at
+		FROM logs WHERE agent_id = ?
+		ORDER BY created_at DESC, rowid DESC LIMIT ?`
+
+	rows, err := db.Query(query, agentID, n)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []LogEntry
+	for rows.Next() {
+		var entry LogEntry
+		if err := rows.Scan(&entry.ID, &entry.AgentID, &entry.Direction, &entry.Stream, &entry.Content, &entry.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, entry)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	for i, j := 0, len(out)-1; i < j; i, j = i+1, j-1 {
+		out[i], out[j] = out[j], out[i]
+	}
+	return out, nil
+}

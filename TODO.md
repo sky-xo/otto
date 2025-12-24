@@ -32,17 +32,16 @@ Features that reduce friction once core loop is validated.
 - [x] Agent statuses: busy/idle/blocked (replace working/waiting)
 - [x] CODEX_HOME bypass for Codex agents (skip superpowers loading)
 - [x] Add `--skip-git-repo-check` to Codex invocation
+- [x] otto should also work with codex being the orchestrator
+- [x] TUI: agents panel on left side
 - [ ] Permissions model: align Codex/Claude sandbox/permissions behavior and document skill bypass
 - [ ] TUI: 3-line task descriptions (less truncation)
-- [ ] TUI: agents panel on left side
-- [ ] otto should also work with codex being the orchestrator
 
 ## V2 - Full Experience
 
 The polished multi-agent experience.
 
 - [ ] Clickable TUI - click agent to view conversation history
-- [ ] Mouse support (scroll, select, expand/collapse)
 - [ ] Hierarchical todos in SQLite (orchestrator + agent level)
 - [ ] Daemon with auto-wakeup on @mentions
 - [ ] Super-orchestrator: attention router across multiple orchestrators
@@ -80,9 +79,7 @@ Priority items for next session:
 - [x] **BUG: Scrolling not working** - Verified working: scrollContent already had pointer receiver
 
 ### TUI Channel View Follow-ups (from code review)
-- [ ] Fix `maxScroll()` to use actual content width instead of hardcoded 80
 - [ ] Display errors in UI (m.err stored but never shown)
-- [ ] Add test coverage (~15% → 60%+ target)
 - [ ] Add composite indexes for pagination performance
 
 ### Other

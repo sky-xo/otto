@@ -19,6 +19,11 @@ import (
 const (
 	mainChannelID    = "main"
 	channelListWidth = 16
+
+	// Panel focus indices (future-proof for 3-panel layout)
+	panelAgents   = 0  // Left: channel/agent list
+	panelMessages = 1  // Right: content/messages
+	// panelTodos = 2  // Future: todo list
 )
 
 // Styling
@@ -103,6 +108,7 @@ type model struct {
 	height            int
 	cursorIndex       int
 	activeChannelID   string
+	focusedPanel      int // Panel index (panelAgents, panelMessages, etc.)
 	err               error
 	viewport          viewport.Model
 }
@@ -116,6 +122,7 @@ func NewModel(db *sql.DB) model {
 		transcripts:       map[string][]repo.LogEntry{},
 		lastTranscriptIDs: map[string]string{},
 		activeChannelID:   mainChannelID,
+		focusedPanel:      panelMessages, // Default to content panel
 		viewport:          vp,
 	}
 }
@@ -136,34 +143,71 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return m, tea.Quit
+		case "tab":
+			// Toggle focus between panels
+			if m.focusedPanel == panelAgents {
+				m.focusedPanel = panelMessages
+			} else {
+				m.focusedPanel = panelAgents
+			}
 		case "up", "k":
-			// Navigate channel list only
-			m.moveCursor(-1)
+			if m.focusedPanel == panelAgents {
+				m.moveCursor(-1)
+			} else {
+				m.viewport.LineUp(1)
+			}
 		case "down", "j":
-			// Navigate channel list only
-			m.moveCursor(1)
+			if m.focusedPanel == panelAgents {
+				m.moveCursor(1)
+			} else {
+				m.viewport.LineDown(1)
+			}
 		case "enter":
 			return m, m.activateSelection()
 		case "esc":
 			m.activeChannelID = mainChannelID
 			m.cursorIndex = 0
+			m.focusedPanel = panelMessages
 			m.updateViewportContent()
 		case "g":
-			// Scroll content to top
-			m.viewport.GotoTop()
+			if m.focusedPanel == panelMessages {
+				m.viewport.GotoTop()
+			}
 		case "G":
-			// Scroll content to bottom
-			m.viewport.GotoBottom()
+			if m.focusedPanel == panelMessages {
+				m.viewport.GotoBottom()
+			}
 		default:
 			// Pass other keys to viewport for scrolling (pgup, pgdn, etc)
-			m.viewport, cmd = m.viewport.Update(msg)
-			return m, cmd
+			if m.focusedPanel == panelMessages {
+				m.viewport, cmd = m.viewport.Update(msg)
+				return m, cmd
+			}
 		}
 
 	case tea.MouseMsg:
-		// Only pass mouse events to viewport for scrolling the right panel
-		m.viewport, cmd = m.viewport.Update(msg)
-		return m, cmd
+		leftWidth, _, _, _ := m.layout()
+		// Check if click is in left or right panel
+		if msg.Action == tea.MouseActionPress && (msg.Button == tea.MouseButtonLeft || msg.Button == tea.MouseButtonRight) {
+			if msg.X < leftWidth+2 { // +2 for border
+				m.focusedPanel = panelAgents
+			} else {
+				m.focusedPanel = panelMessages
+			}
+		}
+		// Route mouse wheel to focused panel
+		if msg.Button == tea.MouseButtonWheelUp || msg.Button == tea.MouseButtonWheelDown {
+			if m.focusedPanel == panelMessages {
+				m.viewport, cmd = m.viewport.Update(msg)
+				return m, cmd
+			}
+			// Left panel scroll - move cursor
+			if msg.Button == tea.MouseButtonWheelUp {
+				m.moveCursor(-1)
+			} else {
+				m.moveCursor(1)
+			}
+		}
 
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -264,7 +308,7 @@ func (m model) View() string {
 	panels := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel)
 
 	// Status bar with error display
-	statusText := "q: quit | j/k: navigate channels | Enter: select | Esc: back to Main | g/G: scroll content"
+	statusText := "Tab: switch panel | j/k: navigate/scroll | Enter: select | Esc: Main | g/G: top/bottom | q: quit"
 	if m.err != nil {
 		statusText = statusFailedStyle.Render(fmt.Sprintf("Error: %v", m.err))
 	}
@@ -754,7 +798,7 @@ func cleanupStaleAgentsCmd(db *sql.DB) tea.Cmd {
 // Run starts the TUI
 func Run(db *sql.DB) error {
 	m := NewModel(db)
-	p := tea.NewProgram(m, tea.WithAltScreen())
+	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())
 	_, err := p.Run()
 	return err
 }

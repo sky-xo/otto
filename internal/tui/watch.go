@@ -198,17 +198,24 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Action == tea.MouseActionPress && (msg.Button == tea.MouseButtonLeft || msg.Button == tea.MouseButtonRight) {
 			if msg.X < leftWidth+2 { // +2 for border
 				m.focusedPanel = panelAgents
+				// Calculate which channel was clicked (Y=0 is border, Y=1 is title, Y=2+ is content)
+				clickedIndex := msg.Y - 2
+				channels := m.channels()
+				if clickedIndex >= 0 && clickedIndex < len(channels) {
+					m.cursorIndex = clickedIndex
+					cmd = m.activateSelection()
+				}
 			} else {
 				m.focusedPanel = panelMessages
 			}
 		}
-		// Route mouse wheel to focused panel
+		// Route mouse wheel based on cursor position (not focused panel)
 		if msg.Button == tea.MouseButtonWheelUp || msg.Button == tea.MouseButtonWheelDown {
-			if m.focusedPanel == panelMessages {
+			if msg.X >= leftWidth+2 { // Mouse is over right panel
 				m.viewport, cmd = m.viewport.Update(msg)
 				return m, cmd
 			}
-			// Left panel scroll - move cursor
+			// Mouse is over left panel - move cursor
 			if msg.Button == tea.MouseButtonWheelUp {
 				m.moveCursor(-1)
 			} else {

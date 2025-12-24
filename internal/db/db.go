@@ -9,7 +9,8 @@ import (
 	sqlite3 "modernc.org/sqlite/lib"
 )
 
-const schemaSQL = `-- agents table
+// schemaTablesSQL creates tables only - indexes created after migrations
+const schemaTablesSQL = `-- agents table
 CREATE TABLE IF NOT EXISTS agents (
   id TEXT PRIMARY KEY,
   type TEXT NOT NULL,
@@ -48,7 +49,10 @@ CREATE TABLE IF NOT EXISTS logs (
   content TEXT NOT NULL,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+`
 
+// schemaIndexesSQL creates indexes - must run AFTER migrations add columns
+const schemaIndexesSQL = `
 CREATE INDEX IF NOT EXISTS idx_messages_created ON messages(created_at);
 CREATE INDEX IF NOT EXISTS idx_agents_status ON agents(status);
 CREATE INDEX IF NOT EXISTS idx_logs_agent ON logs(agent_id, created_at);
@@ -71,21 +75,24 @@ func Open(path string) (*sql.DB, error) {
 }
 
 func ensureSchema(conn *sql.DB) error {
-	if _, err := conn.Exec(schemaSQL); err != nil {
+	// Step 1: Create tables (for new databases)
+	if _, err := conn.Exec(schemaTablesSQL); err != nil {
 		return err
 	}
-	// Migration: add pid column if it doesn't exist
+
+	// Step 2: Run migrations (for existing databases missing columns)
+	// These use _, _ to ignore "duplicate column" errors
 	_, _ = conn.Exec(`ALTER TABLE agents ADD COLUMN pid INTEGER`)
-	// Migration: add completed_at column if it doesn't exist
 	_, _ = conn.Exec(`ALTER TABLE agents ADD COLUMN completed_at DATETIME`)
-	// Migration: add archived_at column if it doesn't exist
 	_, _ = conn.Exec(`ALTER TABLE agents ADD COLUMN archived_at DATETIME`)
-	// Migration: add to_id column if it doesn't exist
-	_, _ = conn.Exec(`ALTER TABLE messages ADD COLUMN to_id TEXT`)
-	// Migration: rename transcript_entries to logs
-	_, _ = conn.Exec(`ALTER TABLE transcript_entries RENAME TO logs`)
-	// Migration: add last_read_log_id column if it doesn't exist
 	_, _ = conn.Exec(`ALTER TABLE agents ADD COLUMN last_read_log_id TEXT`)
+	_, _ = conn.Exec(`ALTER TABLE messages ADD COLUMN to_id TEXT`)
+	_, _ = conn.Exec(`ALTER TABLE transcript_entries RENAME TO logs`)
+
+	// Step 3: Create indexes (after migrations ensure columns exist)
+	if _, err := conn.Exec(schemaIndexesSQL); err != nil {
+		return err
+	}
 	return nil
 }
 

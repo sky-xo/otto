@@ -361,13 +361,20 @@ func (m model) mainContentLines(width int) []string {
 
 		content, style := formatMessage(msg)
 
+		// For prompts with a target agent, prepend styled @mention
+		var mentionPrefix string
+		if msg.Type == "prompt" && msg.ToID.Valid {
+			mentionStyle := lipgloss.NewStyle().Foreground(usernameColor(msg.ToID.String)).Bold(true)
+			mentionPrefix = mentionStyle.Render("@"+msg.ToID.String) + " "
+		}
+
 		// Wrap long lines to prevent overflow
 		contentLines := wrapText(content, contentWidth)
 		for i, line := range contentLines {
 			var displayLine string
 			if i == 0 {
-				// First line: show "from" prefix
-				displayLine = fromText + " " + style.Render(line)
+				// First line: show "from" prefix and optional @mention
+				displayLine = fromText + " " + mentionPrefix + style.Render(line)
 			} else {
 				// Continuation lines: indent to align with content
 				displayLine = strings.Repeat(" ", fromWidth+1) + style.Render(line)
@@ -628,10 +635,8 @@ func formatMessage(msg repo.Message) (string, lipgloss.Style) {
 	case "error":
 		return msg.Content, statusFailedStyle
 	case "prompt":
-		if msg.ToID.Valid {
-			return fmt.Sprintf("@%s %s", msg.ToID.String, msg.Content), mutedStyle
-		}
-		return msg.Content, mutedStyle
+		// Content only - @mention is styled separately in mainContentLines
+		return msg.Content, messageStyle
 	default:
 		return msg.Content, messageStyle
 	}

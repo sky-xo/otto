@@ -10,20 +10,22 @@ import (
 	"github.com/google/uuid"
 )
 
-func storePrompt(db *sql.DB, agentID, prompt string) error {
+// storePrompt stores a prompt message and log entry.
+// summary is displayed in the main channel, fullPrompt is stored in the agent's transcript.
+func storePrompt(db *sql.DB, agentID, summary, fullPrompt string) error {
 	msg := repo.Message{
 		ID:           uuid.NewString(),
 		FromID:       "orchestrator",
 		ToID:         sql.NullString{String: agentID, Valid: true},
 		Type:         "prompt",
-		Content:      prompt,
+		Content:      summary,
 		MentionsJSON: "[]",
 		ReadByJSON:   "[]",
 	}
 	if err := repo.CreateMessage(db, msg); err != nil {
 		return err
 	}
-	return repo.CreateLogEntry(db, agentID, "in", "", prompt)
+	return repo.CreateLogEntry(db, agentID, "in", "", fullPrompt)
 }
 
 func consumeTranscriptEntries(db *sql.DB, agentID string, output <-chan ottoexec.TranscriptChunk, onStdoutLine func(string)) <-chan error {

@@ -67,7 +67,7 @@ func runPrompt(db *sql.DB, runner ottoexec.Runner, agentID, message string) erro
 		return fmt.Errorf("unsupported agent type %q", agent.Type)
 	}
 
-	if err := storePrompt(db, agentID, message); err != nil {
+	if err := storePrompt(db, agentID, message, message); err != nil {
 		return fmt.Errorf("store prompt: %w", err)
 	}
 

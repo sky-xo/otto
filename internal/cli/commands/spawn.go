@@ -104,7 +104,9 @@ func runSpawnWithOptions(db *sql.DB, runner ottoexec.Runner, agentType, task, fi
 	// Build spawn prompt
 	prompt := buildSpawnPrompt(agentID, task, files, context, ottoBin)
 
-	if err := storePrompt(db, agentID, prompt); err != nil {
+	// Store short summary in messages, full prompt in logs
+	summary := fmt.Sprintf("spawned %s - %s", agentID, task)
+	if err := storePrompt(db, agentID, summary, prompt); err != nil {
 		return fmt.Errorf("store prompt: %w", err)
 	}
 

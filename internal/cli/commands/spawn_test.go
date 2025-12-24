@@ -221,8 +221,9 @@ func TestSpawnStoresPromptAndTranscript(t *testing.T) {
 	if len(msgs) != 1 {
 		t.Fatalf("expected 1 prompt message, got %d", len(msgs))
 	}
-	if !strings.Contains(msgs[0].Content, "test task") {
-		t.Fatalf("expected prompt to contain task, got %q", msgs[0].Content)
+	// Message should contain short summary
+	if !strings.Contains(msgs[0].Content, "spawned") || !strings.Contains(msgs[0].Content, "test task") {
+		t.Fatalf("expected message to be short summary, got %q", msgs[0].Content)
 	}
 
 	entries, err := repo.ListLogs(db, "testtask", "")
@@ -236,8 +237,9 @@ func TestSpawnStoresPromptAndTranscript(t *testing.T) {
 		switch entry.Direction {
 		case "in":
 			inCount++
-			if entry.Content != msgs[0].Content {
-				t.Fatalf("expected prompt transcript to match message, got %q", entry.Content)
+			// Log should contain full prompt (different from summary message)
+			if !strings.Contains(entry.Content, "test task") || !strings.Contains(entry.Content, "CRITICAL RULES") {
+				t.Fatalf("expected full prompt in transcript, got %q", entry.Content)
 			}
 		case "out":
 			outCount++

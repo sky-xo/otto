@@ -2,9 +2,10 @@
 
 **Status:** Draft (Updated)
 **Created:** 2025-12-23
-**Updated:** 2025-12-24
+**Updated:** 2025-12-25
 
 **Related docs:**
+- [Flow Engine Design](./2025-12-25-otto-flow-engine-design.md) - Harness-driven flow, skill resolution, config
 - [Tasks Design](./2025-12-24-tasks-design.md) - Task tracking and state
 - [Skill Injection Design](./2025-12-24-skill-injection-design.md) - Re-injecting skills on wake-up
 

@@ -27,9 +27,22 @@ Queued after current focus. Will become "Current Focus" when ready.
 - Improve agent failure diagnostics (exit codes, stderr, failure reason)
 - Permissions model: currently all subagents are fully permissive (bad). Look at codex-subagents package for inspiration
 
+### Bugs to Investigate
+
+- **Codex resume loses context**: `otto prompt` on Codex agent starts fresh session instead of resuming
+  - Likely cause: `thread_id` never captured during spawn (known Codex bug - GitHub #3817)
+  - Spawn looks for `thread.started` event but Codex may not emit it reliably
+  - If thread_id not captured, DB has UUID placeholder instead of real thread_id
+  - Also: resume command missing `--json` flag (can't capture new thread_id)
+  - See: `internal/cli/commands/spawn.go:240-254`, `prompt.go:71`
+
 ### CLI Polish
 - `otto status` should list most recent agents first
 - Archive polish: `--all --archive` and `--archive` batch operations
+- **Messages filtering UX**: `otto messages` dumps all historical messages, making it hard to find recent/relevant ones
+  - Problem: Spawned agent, wanted to check its response, got 100+ old messages, had to grep to find it
+  - Potential fixes: `--agent <id>`, `--last N`, `--since 5m`, or better defaults (only recent by default)
+  - Also consider: `otto log <agent-id>` as shorthand for agent-specific messages/transcript
 
 ### TUI
 - Format Codex logs so they look nice (instead of like unreadable JSON)

@@ -25,15 +25,22 @@ func openTestDB(t *testing.T) *sql.DB {
 	return conn
 }
 
+// testCtx returns the scope context that commands will use during tests.
+// Tests must create agents with this project/branch for commands to find them.
+func testCtx() scope.Context {
+	return scope.CurrentContext()
+}
+
 func TestAskSetsBlocked(t *testing.T) {
 	db := openTestDB(t)
-	_ = repo.CreateAgent(db, repo.Agent{Project: "test-project", Branch: "main", Name: "authbackend", Type: "claude", Task: "task", Status: "busy"})
+	ctx := testCtx()
+	_ = repo.CreateAgent(db, repo.Agent{Project: ctx.Project, Branch: ctx.Branch, Name: "authbackend", Type: "claude", Task: "task", Status: "busy"})
 	err := runAsk(db, "authbackend", "Question?")
 	if err != nil {
 		t.Fatalf("ask: %v", err)
 	}
 
-	agents, _ := repo.ListAgents(db, repo.AgentFilter{})
+	agents, _ := repo.ListAgents(db, repo.AgentFilter{Project: ctx.Project, Branch: ctx.Branch})
 	if agents[0].Status != "blocked" {
 		t.Fatalf("expected blocked, got %q", agents[0].Status)
 	}
@@ -41,13 +48,14 @@ func TestAskSetsBlocked(t *testing.T) {
 
 func TestCompleteSetsAgentComplete(t *testing.T) {
 	db := openTestDB(t)
-	_ = repo.CreateAgent(db, repo.Agent{Project: "test-project", Branch: "main", Name: "authbackend", Type: "claude", Task: "task", Status: "busy"})
+	ctx := testCtx()
+	_ = repo.CreateAgent(db, repo.Agent{Project: ctx.Project, Branch: ctx.Branch, Name: "authbackend", Type: "claude", Task: "task", Status: "busy"})
 	err := runComplete(db, "authbackend", "All done!")
 	if err != nil {
 		t.Fatalf("complete: %v", err)
 	}
 
-	agent, err := repo.GetAgent(db, "test-project", "main", "authbackend")
+	agent, err := repo.GetAgent(db, ctx.Project, ctx.Branch, "authbackend")
 	if err != nil {
 		t.Fatalf("expected agent to exist, got err=%v", err)
 	}
@@ -173,6 +181,7 @@ func TestParseMentionsWithScope(t *testing.T) {
 
 func TestMessagesMentionsStoredAsJSON(t *testing.T) {
 	db := openTestDB(t)
+	ctx := testCtx()
 	err := runSay(db, "orchestrator", "Hello @alice and @bob!")
 	if err != nil {
 		t.Fatalf("say: %v", err)
@@ -188,27 +197,19 @@ func TestMessagesMentionsStoredAsJSON(t *testing.T) {
 		t.Fatalf("failed to unmarshal mentions: %v", err)
 	}
 
-	if len(mentions) != 2 || mentions[0] != "alice" || mentions[1] != "bob" {
-		t.Fatalf("expected mentions [alice, bob], got %v", mentions)
+	// Mentions are now fully-qualified: project:branch:agent
+	expected := []string{ctx.Project + ":" + ctx.Branch + ":alice", ctx.Project + ":" + ctx.Branch + ":bob"}
+	if len(mentions) != 2 || mentions[0] != expected[0] || mentions[1] != expected[1] {
+		t.Fatalf("expected mentions %v, got %v", expected, mentions)
 	}
 }
 
 func TestOpenDBCreatesDirectory(t *testing.T) {
-	repoRoot := scope.RepoRoot()
-	if repoRoot == "" {
-		t.Skip("not in a git repository")
-	}
-
 	tempHome := t.TempDir()
 	t.Setenv("HOME", tempHome)
 
-	branch := scope.BranchName()
-	if branch == "" {
-		branch = "main"
-	}
-
-	scopePath := scope.Scope(repoRoot, branch)
-	dbPath := filepath.Join(config.DataDir(), "orchestrators", scopePath, "otto.db")
+	// Global DB path is now ~/.otto/otto.db
+	dbPath := filepath.Join(config.DataDir(), "otto.db")
 	dbDir := filepath.Dir(dbPath)
 
 	if _, err := os.Stat(dbDir); !os.IsNotExist(err) {
@@ -228,13 +229,14 @@ func TestOpenDBCreatesDirectory(t *testing.T) {
 
 func TestArchiveArchivesCompleteAgent(t *testing.T) {
 	db := openTestDB(t)
-	_ = repo.CreateAgent(db, repo.Agent{Project: "test-project", Branch: "main", Name: "archiver", Type: "claude", Task: "task", Status: "complete"})
+	ctx := testCtx()
+	_ = repo.CreateAgent(db, repo.Agent{Project: ctx.Project, Branch: ctx.Branch, Name: "archiver", Type: "claude", Task: "task", Status: "complete"})
 
 	if err := runArchive(db, "archiver"); err != nil {
 		t.Fatalf("archive: %v", err)
 	}
 
-	agent, err := repo.GetAgent(db, "test-project", "main", "archiver")
+	agent, err := repo.GetAgent(db, ctx.Project, ctx.Branch, "archiver")
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
@@ -245,7 +247,8 @@ func TestArchiveArchivesCompleteAgent(t *testing.T) {
 
 func TestArchiveRejectsBusyAgent(t *testing.T) {
 	db := openTestDB(t)
-	_ = repo.CreateAgent(db, repo.Agent{Project: "test-project", Branch: "main", Name: "busy-agent", Type: "claude", Task: "task", Status: "busy"})
+	ctx := testCtx()
+	_ = repo.CreateAgent(db, repo.Agent{Project: ctx.Project, Branch: ctx.Branch, Name: "busy-agent", Type: "claude", Task: "task", Status: "busy"})
 
 	if err := runArchive(db, "busy-agent"); err == nil {
 		t.Fatal("expected error for busy agent")
@@ -254,10 +257,11 @@ func TestArchiveRejectsBusyAgent(t *testing.T) {
 
 func TestStatusExcludesArchivedByDefault(t *testing.T) {
 	db := openTestDB(t)
-	_ = repo.CreateAgent(db, repo.Agent{Project: "test-project", Branch: "main", Name: "active-agent", Type: "claude", Task: "task", Status: "busy"})
+	ctx := testCtx()
+	_ = repo.CreateAgent(db, repo.Agent{Project: ctx.Project, Branch: ctx.Branch, Name: "active-agent", Type: "claude", Task: "task", Status: "busy"})
 	_ = repo.CreateAgent(db, repo.Agent{
-		Project:    "test-project",
-		Branch:     "main",
+		Project:    ctx.Project,
+		Branch:     ctx.Branch,
 		Name:       "archived-agent",
 		Type:       "claude",
 		Task:       "task",
@@ -281,10 +285,11 @@ func TestStatusExcludesArchivedByDefault(t *testing.T) {
 
 func TestStatusIncludesArchivedWithAll(t *testing.T) {
 	db := openTestDB(t)
-	_ = repo.CreateAgent(db, repo.Agent{Project: "test-project", Branch: "main", Name: "active-agent", Type: "claude", Task: "task", Status: "busy"})
+	ctx := testCtx()
+	_ = repo.CreateAgent(db, repo.Agent{Project: ctx.Project, Branch: ctx.Branch, Name: "active-agent", Type: "claude", Task: "task", Status: "busy"})
 	_ = repo.CreateAgent(db, repo.Agent{
-		Project:    "test-project",
-		Branch:     "main",
+		Project:    ctx.Project,
+		Branch:     ctx.Branch,
 		Name:       "archived-agent",
 		Type:       "claude",
 		Task:       "task",
@@ -311,12 +316,13 @@ func TestStatusIncludesArchivedWithAll(t *testing.T) {
 
 func TestStatusArchiveArchivesCompleteAndFailed(t *testing.T) {
 	db := openTestDB(t)
-	_ = repo.CreateAgent(db, repo.Agent{Project: "test-project", Branch: "main", Name: "complete-agent", Type: "claude", Task: "task", Status: "complete"})
-	_ = repo.CreateAgent(db, repo.Agent{Project: "test-project", Branch: "main", Name: "failed-agent", Type: "claude", Task: "task", Status: "failed"})
-	_ = repo.CreateAgent(db, repo.Agent{Project: "test-project", Branch: "main", Name: "busy-agent", Type: "claude", Task: "task", Status: "busy"})
+	ctx := testCtx()
+	_ = repo.CreateAgent(db, repo.Agent{Project: ctx.Project, Branch: ctx.Branch, Name: "complete-agent", Type: "claude", Task: "task", Status: "complete"})
+	_ = repo.CreateAgent(db, repo.Agent{Project: ctx.Project, Branch: ctx.Branch, Name: "failed-agent", Type: "claude", Task: "task", Status: "failed"})
+	_ = repo.CreateAgent(db, repo.Agent{Project: ctx.Project, Branch: ctx.Branch, Name: "busy-agent", Type: "claude", Task: "task", Status: "busy"})
 	_ = repo.CreateAgent(db, repo.Agent{
-		Project:    "test-project",
-		Branch:     "main",
+		Project:    ctx.Project,
+		Branch:     ctx.Branch,
 		Name:       "archived-agent",
 		Type:       "claude",
 		Task:       "task",
@@ -328,7 +334,7 @@ func TestStatusArchiveArchivesCompleteAndFailed(t *testing.T) {
 		t.Fatalf("runStatus: %v", err)
 	}
 
-	completeAgent, err := repo.GetAgent(db, "test-project", "main", "complete-agent")
+	completeAgent, err := repo.GetAgent(db, ctx.Project, ctx.Branch, "complete-agent")
 	if err != nil {
 		t.Fatalf("get complete: %v", err)
 	}
@@ -336,7 +342,7 @@ func TestStatusArchiveArchivesCompleteAndFailed(t *testing.T) {
 		t.Fatal("expected complete agent to be archived")
 	}
 
-	failedAgent, err := repo.GetAgent(db, "test-project", "main", "failed-agent")
+	failedAgent, err := repo.GetAgent(db, ctx.Project, ctx.Branch, "failed-agent")
 	if err != nil {
 		t.Fatalf("get failed: %v", err)
 	}
@@ -344,7 +350,7 @@ func TestStatusArchiveArchivesCompleteAndFailed(t *testing.T) {
 		t.Fatal("expected failed agent to be archived")
 	}
 
-	busyAgent, err := repo.GetAgent(db, "test-project", "main", "busy-agent")
+	busyAgent, err := repo.GetAgent(db, ctx.Project, ctx.Branch, "busy-agent")
 	if err != nil {
 		t.Fatalf("get busy: %v", err)
 	}
@@ -352,7 +358,7 @@ func TestStatusArchiveArchivesCompleteAndFailed(t *testing.T) {
 		t.Fatal("did not expect busy agent to be archived")
 	}
 
-	archivedAgent, err := repo.GetAgent(db, "test-project", "main", "archived-agent")
+	archivedAgent, err := repo.GetAgent(db, ctx.Project, ctx.Branch, "archived-agent")
 	if err != nil {
 		t.Fatalf("get archived: %v", err)
 	}

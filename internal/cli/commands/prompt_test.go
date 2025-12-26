@@ -10,10 +10,11 @@ import (
 
 func TestPromptStoresPromptAndResumesAgent(t *testing.T) {
 	db := openTestDB(t)
+	ctx := testCtx()
 
 	agent := repo.Agent{
-		Project:   "test-project",
-		Branch:    "main",
+		Project:   ctx.Project,
+		Branch:    ctx.Branch,
 		Name:      "researcher",
 		Type:      "claude",
 		Task:      "task",
@@ -40,7 +41,7 @@ func TestPromptStoresPromptAndResumesAgent(t *testing.T) {
 		t.Fatalf("runPrompt failed: %v", err)
 	}
 
-	updated, err := repo.GetAgent(db, "test-project", "main", "researcher")
+	updated, err := repo.GetAgent(db, ctx.Project, ctx.Branch, "researcher")
 	if err != nil {
 		t.Fatalf("get agent: %v", err)
 	}
@@ -62,7 +63,7 @@ func TestPromptStoresPromptAndResumesAgent(t *testing.T) {
 		t.Fatalf("expected prompt message content, got %q", msgs[0].Content)
 	}
 
-	entries, err := repo.ListLogs(db, "test-project", "main", "researcher", "")
+	entries, err := repo.ListLogs(db, ctx.Project, ctx.Branch, "researcher", "")
 	if err != nil {
 		t.Fatalf("list transcript entries: %v", err)
 	}
@@ -86,10 +87,11 @@ func TestPromptStoresPromptAndResumesAgent(t *testing.T) {
 
 func TestPromptCapturesOutput(t *testing.T) {
 	db := openTestDB(t)
+	ctx := testCtx()
 
 	agent := repo.Agent{
-		Project:   "test-project",
-		Branch:    "main",
+		Project:   ctx.Project,
+		Branch:    ctx.Branch,
 		Name:      "writer",
 		Type:      "claude",
 		Task:      "task",
@@ -114,7 +116,7 @@ func TestPromptCapturesOutput(t *testing.T) {
 		t.Fatalf("runPrompt failed: %v", err)
 	}
 
-	entries, err := repo.ListLogs(db, "test-project", "main", "writer", "")
+	entries, err := repo.ListLogs(db, ctx.Project, ctx.Branch, "writer", "")
 	if err != nil {
 		t.Fatalf("list transcript entries: %v", err)
 	}
@@ -135,10 +137,11 @@ func TestPromptCapturesOutput(t *testing.T) {
 
 func TestPromptUnarchivesAgent(t *testing.T) {
 	db := openTestDB(t)
+	ctx := testCtx()
 
 	agent := repo.Agent{
-		Project:   "test-project",
-		Branch:    "main",
+		Project:   ctx.Project,
+		Branch:    ctx.Branch,
 		Name:      "archived",
 		Type:      "claude",
 		Task:      "task",
@@ -165,7 +168,7 @@ func TestPromptUnarchivesAgent(t *testing.T) {
 		t.Fatalf("runPrompt failed: %v", err)
 	}
 
-	updated, err := repo.GetAgent(db, "test-project", "main", "archived")
+	updated, err := repo.GetAgent(db, ctx.Project, ctx.Branch, "archived")
 	if err != nil {
 		t.Fatalf("get agent: %v", err)
 	}
@@ -176,10 +179,11 @@ func TestPromptUnarchivesAgent(t *testing.T) {
 
 func TestPromptCodexUsesDangerFullAccess(t *testing.T) {
 	db := openTestDB(t)
+	ctx := testCtx()
 
 	agent := repo.Agent{
-		Project:   "test-project",
-		Branch:    "main",
+		Project:   ctx.Project,
+		Branch:    ctx.Branch,
 		Name:      "codexer",
 		Type:      "codex",
 		Task:      "task",

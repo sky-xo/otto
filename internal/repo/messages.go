@@ -31,8 +31,9 @@ type MessageFilter struct {
 }
 
 func CreateMessage(db *sql.DB, m Message) error {
-	_, err := db.Exec(`INSERT INTO messages (id, project, branch, from_agent, to_agent, type, content, mentions, requires_human, read_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		m.ID, m.Project, m.Branch, m.FromAgent, m.ToAgent, m.Type, m.Content, m.MentionsJSON, m.RequiresHuman, m.ReadByJSON)
+	// Also set from_id for backwards compatibility with old schema (from_id NOT NULL)
+	_, err := db.Exec(`INSERT INTO messages (id, project, branch, from_agent, to_agent, type, content, mentions, requires_human, read_by, from_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		m.ID, m.Project, m.Branch, m.FromAgent, m.ToAgent, m.Type, m.Content, m.MentionsJSON, m.RequiresHuman, m.ReadByJSON, m.FromAgent)
 	return err
 }
 

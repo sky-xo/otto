@@ -47,18 +47,18 @@ func runPeek(db *sql.DB, agentID string, w io.Writer) error {
 		return err
 	}
 
-	// For peek, we want to show logs, not messages
-	// We'll just show all logs for now since there's no LastReadLogID anymore
-	// (In the future, we could use agent.LastSeenMsgID to track the last message
-	// and correlate it with logs, but for now we just show all logs)
-	_ = agent // Suppress unused warning
-	logs, err := repo.ListLogs(db, ctx.Project, ctx.Branch, agentID, "")
+	// Get logs since the last peek cursor
+	sinceID := ""
+	if agent.PeekCursor.Valid {
+		sinceID = agent.PeekCursor.String
+	}
+	logs, err := repo.ListLogs(db, ctx.Project, ctx.Branch, agentID, sinceID)
 	if err != nil {
 		return err
 	}
 
 	if len(logs) == 0 {
-		fmt.Fprintf(w, "No log entries for %s\n", agentID)
+		fmt.Fprintf(w, "No new log entries for %s\n", agentID)
 		return nil
 	}
 
@@ -70,6 +70,12 @@ func runPeek(db *sql.DB, agentID string, w io.Writer) error {
 		if entry.Content.Valid {
 			fmt.Fprintf(w, "%s%s\n", stream, entry.Content.String)
 		}
+	}
+
+	// Update the peek cursor to the last log entry ID
+	lastLogID := logs[len(logs)-1].ID
+	if err := repo.UpdateAgentPeekCursor(db, ctx.Project, ctx.Branch, agentID, lastLogID); err != nil {
+		return err
 	}
 
 	return nil

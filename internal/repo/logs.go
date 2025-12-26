@@ -27,8 +27,13 @@ func CreateLogEntry(db *sql.DB, entry LogEntry) error {
 	if entry.ID == "" {
 		entry.ID = uuid.NewString()
 	}
+	// Backwards compat: old schema has agent_id/direction/content as NOT NULL
+	contentStr := ""
+	if entry.Content.Valid {
+		contentStr = entry.Content.String
+	}
 	_, err := db.Exec(
-		`INSERT INTO logs (id, project, branch, agent_name, agent_type, event_type, tool_name, content, raw_json, command, exit_code, status, tool_use_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO logs (id, project, branch, agent_name, agent_type, event_type, tool_name, content, raw_json, command, exit_code, status, tool_use_id, agent_id, direction) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		entry.ID,
 		entry.Project,
 		entry.Branch,
@@ -36,12 +41,14 @@ func CreateLogEntry(db *sql.DB, entry LogEntry) error {
 		entry.AgentType,
 		entry.EventType,
 		entry.ToolName,
-		entry.Content,
+		contentStr, // content as string for old schema NOT NULL
 		entry.RawJSON,
 		entry.Command,
 		entry.ExitCode,
 		entry.Status,
 		entry.ToolUseID,
+		entry.AgentName, // backwards compat: agent_id = agent_name
+		"out",           // backwards compat: direction = 'out'
 	)
 	return err
 }

@@ -27,11 +27,12 @@ func TestInterruptAgentNotFound(t *testing.T) {
 func TestInterruptRequiresPID(t *testing.T) {
 	db := openTestDB(t)
 	defer db.Close()
+	ctx := testCtx()
 
 	// Create an agent without a PID
 	agent := repo.Agent{
-		Project: "test-project",
-		Branch:  "main",
+		Project: ctx.Project,
+		Branch:  ctx.Branch,
 		Name:    "nopidagent",
 		Type:    "claude",
 		Task:    "test task",

@@ -10,7 +10,7 @@ import (
 	"otto/internal/db"
 	ottoexec "otto/internal/exec"
 	"otto/internal/repo"
-	"otto/internal/scope"
+	
 )
 
 func TestSpawnBuildsCommand(t *testing.T) {
@@ -52,7 +52,7 @@ func TestSpawnBuildsCodexCommand(t *testing.T) {
 
 func TestGenerateAgentID(t *testing.T) {
 	db := openTestDB(t)
-	ctx := scope.Context{Project: "test-project", Branch: "main"}
+	ctx := testCtx()
 
 	tests := []struct {
 		name     string
@@ -78,12 +78,12 @@ func TestGenerateAgentID(t *testing.T) {
 
 func TestGenerateAgentIDUnique(t *testing.T) {
 	db := openTestDB(t)
-	ctx := scope.Context{Project: "test-project", Branch: "main"}
+	ctx := testCtx()
 
 	// Create first agent
 	_ = repo.CreateAgent(db, repo.Agent{
-		Project:   "test-project",
-		Branch:    "main",
+		Project:   ctx.Project,
+		Branch:    ctx.Branch,
 		Name:      "authbackend",
 		Type:      "claude",
 		Task:      "task",
@@ -99,8 +99,8 @@ func TestGenerateAgentIDUnique(t *testing.T) {
 
 	// Create second agent
 	_ = repo.CreateAgent(db, repo.Agent{
-		Project:   "test-project",
-		Branch:    "main",
+		Project:   ctx.Project,
+		Branch:    ctx.Branch,
 		Name:      "authbackend-2",
 		Type:      "claude",
 		Task:      "task",
@@ -117,7 +117,7 @@ func TestGenerateAgentIDUnique(t *testing.T) {
 
 func TestResolveAgentName(t *testing.T) {
 	db := openTestDB(t)
-	ctx := scope.Context{Project: "test-project", Branch: "main"}
+	ctx := testCtx()
 
 	tests := []struct {
 		name     string
@@ -146,12 +146,12 @@ func TestResolveAgentName(t *testing.T) {
 
 func TestResolveAgentNameUnique(t *testing.T) {
 	db := openTestDB(t)
-	ctx := scope.Context{Project: "test-project", Branch: "main"}
+	ctx := testCtx()
 
 	// Create first agent with name "researcher"
 	_ = repo.CreateAgent(db, repo.Agent{
-		Project:   "test-project",
-		Branch:    "main",
+		Project:   ctx.Project,
+		Branch:    ctx.Branch,
 		Name:      "researcher",
 		Type:      "claude",
 		Task:      "task",
@@ -167,8 +167,8 @@ func TestResolveAgentNameUnique(t *testing.T) {
 
 	// Create second agent
 	_ = repo.CreateAgent(db, repo.Agent{
-		Project:   "test-project",
-		Branch:    "main",
+		Project:   ctx.Project,
+		Branch:    ctx.Branch,
 		Name:      "researcher-2",
 		Type:      "claude",
 		Task:      "task",
@@ -210,6 +210,7 @@ func TestBuildSpawnPromptWithFilesAndContext(t *testing.T) {
 
 func TestSpawnStoresPromptAndTranscript(t *testing.T) {
 	db := openTestDB(t)
+	ctx := testCtx()
 
 	chunks := make(chan ottoexec.TranscriptChunk, 2)
 	chunks <- ottoexec.TranscriptChunk{Stream: "stdout", Data: "hello\n"}
@@ -239,7 +240,7 @@ func TestSpawnStoresPromptAndTranscript(t *testing.T) {
 		t.Fatalf("expected message to be short summary, got %q", msgs[0].Content)
 	}
 
-	entries, err := repo.ListLogs(db, "test-project", "main", "testtask", "")
+	entries, err := repo.ListLogs(db, ctx.Project, ctx.Branch, "testtask", "")
 	if err != nil {
 		t.Fatalf("list transcript entries: %v", err)
 	}
@@ -370,6 +371,7 @@ func (m *mockRunner) StartWithTranscriptCaptureEnv(name string, env []string, ar
 
 func TestCodexSpawnCapturesThreadID(t *testing.T) {
 	db := openTestDB(t)
+	ctx := testCtx()
 
 	// Create mock runner that simulates Codex JSON output
 	chunks := make(chan ottoexec.TranscriptChunk, 5)
@@ -390,7 +392,7 @@ func TestCodexSpawnCapturesThreadID(t *testing.T) {
 		t.Fatalf("runSpawn failed: %v", err)
 	}
 
-	agent, err := repo.GetAgent(db, "test-project", "main", "testtask")
+	agent, err := repo.GetAgent(db, ctx.Project, ctx.Branch, "testtask")
 	if err != nil {
 		t.Fatalf("expected agent to exist, got err=%v", err)
 	}
@@ -407,6 +409,7 @@ func TestCodexSpawnCapturesThreadID(t *testing.T) {
 
 func TestCodexSpawnWithoutThreadID(t *testing.T) {
 	db := openTestDB(t)
+	ctx := testCtx()
 
 	// Create mock runner with no thread.started event
 	chunks := make(chan ottoexec.TranscriptChunk, 3)
@@ -426,7 +429,7 @@ func TestCodexSpawnWithoutThreadID(t *testing.T) {
 		t.Fatalf("runSpawn failed: %v", err)
 	}
 
-	agent, err := repo.GetAgent(db, "test-project", "main", "testtask")
+	agent, err := repo.GetAgent(db, ctx.Project, ctx.Branch, "testtask")
 	if err != nil {
 		t.Fatalf("expected agent to exist, got err=%v", err)
 	}
@@ -507,6 +510,7 @@ func TestCodexSpawnSetsCodexHome(t *testing.T) {
 
 func TestSpawnWithCustomName(t *testing.T) {
 	db := openTestDB(t)
+	ctx := testCtx()
 
 	// Channel to signal when we've verified the agent
 	agentVerified := make(chan bool)
@@ -514,13 +518,13 @@ func TestSpawnWithCustomName(t *testing.T) {
 	runner := &mockRunner{
 		startWithTranscriptCaptureFunc: func(name string, args ...string) (int, <-chan ottoexec.TranscriptChunk, func() error, error) {
 			// Check agent exists with custom name while process is "running"
-			_, err := repo.GetAgent(db, "test-project", "main", "researcher")
+			_, err := repo.GetAgent(db, ctx.Project, ctx.Branch, "researcher")
 			if err != nil {
 				t.Errorf("expected agent with ID 'researcher', got error: %v", err)
 			}
 
 			// Verify auto-generated ID was NOT used
-			_, err = repo.GetAgent(db, "test-project", "main", "buildtheauthback") // auto-generated would be first 16 chars
+			_, err = repo.GetAgent(db, ctx.Project, ctx.Branch, "buildtheauthback") // auto-generated would be first 16 chars
 			if err != sql.ErrNoRows {
 				t.Error("expected no agent with auto-generated ID, but found one")
 			}
@@ -543,7 +547,7 @@ func TestSpawnWithCustomName(t *testing.T) {
 		t.Fatalf("runSpawn failed: %v", err)
 	}
 
-	agent, err := repo.GetAgent(db, "test-project", "main", "researcher")
+	agent, err := repo.GetAgent(db, ctx.Project, ctx.Branch, "researcher")
 	if err != nil {
 		t.Fatalf("expected agent to exist after completion, got err=%v", err)
 	}
@@ -554,11 +558,12 @@ func TestSpawnWithCustomName(t *testing.T) {
 
 func TestSpawnWithCustomNameCollision(t *testing.T) {
 	db := openTestDB(t)
+	ctx := testCtx()
 
 	// Create first agent with name "researcher"
 	_ = repo.CreateAgent(db, repo.Agent{
-		Project:   "test-project",
-		Branch:    "main",
+		Project:   ctx.Project,
+		Branch:    ctx.Branch,
 		Name:      "researcher",
 		Type:      "claude",
 		Task:      "task 1",
@@ -572,7 +577,7 @@ func TestSpawnWithCustomNameCollision(t *testing.T) {
 	runner := &mockRunner{
 		startWithTranscriptCaptureFunc: func(name string, args ...string) (int, <-chan ottoexec.TranscriptChunk, func() error, error) {
 			// Verify second agent got -2 suffix while process is "running"
-			_, err := repo.GetAgent(db, "test-project", "main", "researcher-2")
+			_, err := repo.GetAgent(db, ctx.Project, ctx.Branch, "researcher-2")
 			if err != nil {
 				t.Errorf("expected agent with ID 'researcher-2', got error: %v", err)
 			}
@@ -595,7 +600,7 @@ func TestSpawnWithCustomNameCollision(t *testing.T) {
 		t.Fatalf("runSpawn failed: %v", err)
 	}
 
-	agent, err := repo.GetAgent(db, "test-project", "main", "researcher-2")
+	agent, err := repo.GetAgent(db, ctx.Project, ctx.Branch, "researcher-2")
 	if err != nil {
 		t.Fatalf("expected agent to exist after completion, got err=%v", err)
 	}
@@ -604,7 +609,7 @@ func TestSpawnWithCustomNameCollision(t *testing.T) {
 	}
 
 	// First agent should still exist
-	_, err = repo.GetAgent(db, "test-project", "main", "researcher")
+	_, err = repo.GetAgent(db, ctx.Project, ctx.Branch, "researcher")
 	if err != nil {
 		t.Fatalf("expected first agent to still exist, got error: %v", err)
 	}
@@ -612,6 +617,7 @@ func TestSpawnWithCustomNameCollision(t *testing.T) {
 
 func TestSpawnDetachLaunchesWorker(t *testing.T) {
 	db := openTestDB(t)
+	ctx := testCtx()
 
 	var capturedCmd string
 	var capturedArgs []string
@@ -651,7 +657,7 @@ func TestSpawnDetachLaunchesWorker(t *testing.T) {
 
 	// Verify agent was created
 	agentID := capturedArgs[1]
-	agent, err := repo.GetAgent(db, "test-project", "main", agentID)
+	agent, err := repo.GetAgent(db, ctx.Project, ctx.Branch, agentID)
 	if err != nil {
 		t.Fatalf("expected agent to exist, got error: %v", err)
 	}

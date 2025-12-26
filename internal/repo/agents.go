@@ -15,6 +15,7 @@ type Agent struct {
 	Pid             sql.NullInt64
 	CompactedAt     sql.NullTime
 	LastSeenMsgID   sql.NullString
+	PeekCursor      sql.NullString
 	CompletedAt     sql.NullTime
 	ArchivedAt      sql.NullTime
 }
@@ -26,15 +27,16 @@ type AgentFilter struct {
 }
 
 func CreateAgent(db *sql.DB, a Agent) error {
-	_, err := db.Exec(`INSERT INTO agents (project, branch, name, type, task, status, session_id, pid, compacted_at, last_seen_message_id, completed_at, archived_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		a.Project, a.Branch, a.Name, a.Type, a.Task, a.Status, a.SessionID, a.Pid, a.CompactedAt, a.LastSeenMsgID, a.CompletedAt, a.ArchivedAt)
+	// Also set id for backwards compatibility with old schema (id TEXT PRIMARY KEY)
+	_, err := db.Exec(`INSERT INTO agents (project, branch, name, type, task, status, session_id, pid, compacted_at, last_seen_message_id, peek_cursor, completed_at, archived_at, id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		a.Project, a.Branch, a.Name, a.Type, a.Task, a.Status, a.SessionID, a.Pid, a.CompactedAt, a.LastSeenMsgID, a.PeekCursor, a.CompletedAt, a.ArchivedAt, a.Name)
 	return err
 }
 
 func GetAgent(db *sql.DB, project, branch, name string) (Agent, error) {
 	var a Agent
-	err := db.QueryRow(`SELECT project, branch, name, type, task, status, session_id, pid, compacted_at, last_seen_message_id, completed_at, archived_at FROM agents WHERE project = ? AND branch = ? AND name = ?`, project, branch, name).
-		Scan(&a.Project, &a.Branch, &a.Name, &a.Type, &a.Task, &a.Status, &a.SessionID, &a.Pid, &a.CompactedAt, &a.LastSeenMsgID, &a.CompletedAt, &a.ArchivedAt)
+	err := db.QueryRow(`SELECT project, branch, name, type, task, status, session_id, pid, compacted_at, last_seen_message_id, peek_cursor, completed_at, archived_at FROM agents WHERE project = ? AND branch = ? AND name = ?`, project, branch, name).
+		Scan(&a.Project, &a.Branch, &a.Name, &a.Type, &a.Task, &a.Status, &a.SessionID, &a.Pid, &a.CompactedAt, &a.LastSeenMsgID, &a.PeekCursor, &a.CompletedAt, &a.ArchivedAt)
 	return a, err
 }
 
@@ -58,8 +60,13 @@ func UpdateAgentLastSeenMsgID(db *sql.DB, project, branch, name, msgID string) e
 	return err
 }
 
+func UpdateAgentPeekCursor(db *sql.DB, project, branch, name, logID string) error {
+	_, err := db.Exec(`UPDATE agents SET peek_cursor = ?, updated_at = CURRENT_TIMESTAMP WHERE project = ? AND branch = ? AND name = ?`, logID, project, branch, name)
+	return err
+}
+
 func ListAgents(db *sql.DB, f AgentFilter) ([]Agent, error) {
-	query := `SELECT project, branch, name, type, task, status, session_id, pid, compacted_at, last_seen_message_id, completed_at, archived_at FROM agents`
+	query := `SELECT project, branch, name, type, task, status, session_id, pid, compacted_at, last_seen_message_id, peek_cursor, completed_at, archived_at FROM agents`
 	var args []interface{}
 	var conditions []string
 
@@ -92,7 +99,7 @@ func ListAgents(db *sql.DB, f AgentFilter) ([]Agent, error) {
 	var out []Agent
 	for rows.Next() {
 		var a Agent
-		if err := rows.Scan(&a.Project, &a.Branch, &a.Name, &a.Type, &a.Task, &a.Status, &a.SessionID, &a.Pid, &a.CompactedAt, &a.LastSeenMsgID, &a.CompletedAt, &a.ArchivedAt); err != nil {
+		if err := rows.Scan(&a.Project, &a.Branch, &a.Name, &a.Type, &a.Task, &a.Status, &a.SessionID, &a.Pid, &a.CompactedAt, &a.LastSeenMsgID, &a.PeekCursor, &a.CompletedAt, &a.ArchivedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, a)

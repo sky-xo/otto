@@ -61,10 +61,10 @@ func TestModelView(t *testing.T) {
 
 func TestChannelOrdering(t *testing.T) {
 	agents := []repo.Agent{
-		{ID: "agent-3", Status: "failed"},
-		{ID: "agent-2", Status: "blocked"},
-		{ID: "agent-1", Status: "busy"},
-		{ID: "agent-4", Status: "complete"},
+		{Name: "agent-3", Status: "failed"},
+		{Name: "agent-2", Status: "blocked"},
+		{Name: "agent-1", Status: "busy"},
+		{Name: "agent-4", Status: "complete"},
 	}
 
 	ordered := sortAgentsByStatus(agents)
@@ -74,8 +74,8 @@ func TestChannelOrdering(t *testing.T) {
 
 	expected := []string{"agent-1", "agent-2", "agent-4", "agent-3"}
 	for i, id := range expected {
-		if ordered[i].ID != id {
-			t.Fatalf("expected %q at index %d, got %q", id, i, ordered[i].ID)
+		if ordered[i].Name != id {
+			t.Fatalf("expected %q at index %d, got %q", id, i, ordered[i].Name)
 		}
 	}
 }
@@ -83,8 +83,8 @@ func TestChannelOrdering(t *testing.T) {
 func TestChannelsIncludeMainFirst(t *testing.T) {
 	m := NewModel(nil)
 	m.agents = []repo.Agent{
-		{ID: "agent-2", Status: "complete"},
-		{ID: "agent-1", Status: "busy"},
+		{Name: "agent-2", Status: "complete"},
+		{Name: "agent-1", Status: "busy"},
 	}
 
 	channels := m.channels()
@@ -103,9 +103,9 @@ func TestArchivedAgentsHiddenByDefault(t *testing.T) {
 	m := NewModel(nil)
 	archivedAt := time.Now().Add(-time.Hour)
 	m.agents = []repo.Agent{
-		{ID: "agent-1", Status: "busy"},
+		{Name: "agent-1", Status: "busy"},
 		{
-			ID:         "agent-2",
+			Name:       "agent-2",
 			Status:     "complete",
 			ArchivedAt: sql.NullTime{Time: archivedAt, Valid: true},
 		},
@@ -131,14 +131,14 @@ func TestArchivedAgentsAppearWhenExpanded(t *testing.T) {
 	older := time.Now().Add(-2 * time.Hour)
 	newer := time.Now().Add(-1 * time.Hour)
 	m.agents = []repo.Agent{
-		{ID: "agent-1", Status: "busy"},
+		{Name: "agent-1", Status: "busy"},
 		{
-			ID:         "agent-2",
+			Name:       "agent-2",
 			Status:     "complete",
 			ArchivedAt: sql.NullTime{Time: older, Valid: true},
 		},
 		{
-			ID:         "agent-3",
+			Name:       "agent-3",
 			Status:     "failed",
 			ArchivedAt: sql.NullTime{Time: newer, Valid: true},
 		},
@@ -164,9 +164,9 @@ func TestArchivedEnterTogglesExpanded(t *testing.T) {
 	m := NewModel(nil)
 	archivedAt := time.Now().Add(-time.Hour)
 	m.agents = []repo.Agent{
-		{ID: "agent-1", Status: "busy"},
+		{Name: "agent-1", Status: "busy"},
 		{
-			ID:         "agent-2",
+			Name:       "agent-2",
 			Status:     "complete",
 			ArchivedAt: sql.NullTime{Time: archivedAt, Valid: true},
 		},

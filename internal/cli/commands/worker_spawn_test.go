@@ -14,10 +14,11 @@ import (
 func TestWorkerSpawnCapturesPromptAndLogs(t *testing.T) {
 	// 1) Set up temp DB, create agent row, store prompt message
 	db := openTestDB(t)
+	ctx := testCtx()
 
 	agent := repo.Agent{
-		Project:   "test-project",
-		Branch:    "main",
+		Project:   ctx.Project,
+		Branch:    ctx.Branch,
 		Name:      "test-worker",
 		Type:      "claude",
 		Task:      "test task",
@@ -31,8 +32,8 @@ func TestWorkerSpawnCapturesPromptAndLogs(t *testing.T) {
 	// Store prompt message
 	promptMsg := repo.Message{
 		ID:           uuid.New().String(),
-		Project:      "test-project",
-		Branch:       "main",
+		Project:      ctx.Project,
+		Branch:       ctx.Branch,
 		FromAgent:    "orchestrator",
 		ToAgent:      sql.NullString{String: "test-worker", Valid: true},
 		Type:         "prompt",
@@ -64,7 +65,7 @@ func TestWorkerSpawnCapturesPromptAndLogs(t *testing.T) {
 	}
 
 	// 3) Assert logs contain prompt (in) + output (out)
-	entries, err := repo.ListLogs(db, "test-project", "main", "test-worker", "")
+	entries, err := repo.ListLogs(db, ctx.Project, ctx.Branch, "test-worker", "")
 	if err != nil {
 		t.Fatalf("list logs: %v", err)
 	}
@@ -91,7 +92,7 @@ func TestWorkerSpawnCapturesPromptAndLogs(t *testing.T) {
 	}
 
 	// Verify agent status was updated to complete
-	updatedAgent, err := repo.GetAgent(db, "test-project", "main", "test-worker")
+	updatedAgent, err := repo.GetAgent(db, ctx.Project, ctx.Branch, "test-worker")
 	if err != nil {
 		t.Fatalf("get agent: %v", err)
 	}
@@ -111,12 +112,13 @@ func TestWorkerSpawnCapturesPromptAndLogs(t *testing.T) {
 
 func TestWorkerSpawnCapturesThreadID(t *testing.T) {
 	db := openTestDB(t)
+	ctx := testCtx()
 
 	// Create Codex agent with placeholder session_id
 	placeholderID := uuid.New().String()
 	agent := repo.Agent{
-		Project:   "test-project",
-		Branch:    "main",
+		Project:   ctx.Project,
+		Branch:    ctx.Branch,
 		Name:      "test-codex-worker",
 		Type:      "codex",
 		Task:      "test codex task",
@@ -130,8 +132,8 @@ func TestWorkerSpawnCapturesThreadID(t *testing.T) {
 	// Store prompt message
 	promptMsg := repo.Message{
 		ID:           uuid.New().String(),
-		Project:      "test-project",
-		Branch:       "main",
+		Project:      ctx.Project,
+		Branch:       ctx.Branch,
 		FromAgent:    "orchestrator",
 		ToAgent:      sql.NullString{String: "test-codex-worker", Valid: true},
 		Type:         "prompt",
@@ -163,7 +165,7 @@ func TestWorkerSpawnCapturesThreadID(t *testing.T) {
 	}
 
 	// Verify thread_id was captured and stored as session_id
-	updatedAgent, err := repo.GetAgent(db, "test-project", "main", "test-codex-worker")
+	updatedAgent, err := repo.GetAgent(db, ctx.Project, ctx.Branch, "test-codex-worker")
 	if err != nil {
 		t.Fatalf("get agent: %v", err)
 	}
@@ -177,12 +179,13 @@ func TestWorkerSpawnCapturesThreadID(t *testing.T) {
 
 func TestWorkerSpawnCodexWithoutThreadID(t *testing.T) {
 	db := openTestDB(t)
+	ctx := testCtx()
 
 	// Create Codex agent with placeholder session_id
 	placeholderID := uuid.New().String()
 	agent := repo.Agent{
-		Project:   "test-project",
-		Branch:    "main",
+		Project:   ctx.Project,
+		Branch:    ctx.Branch,
 		Name:      "test-codex-worker-no-thread",
 		Type:      "codex",
 		Task:      "test codex task without thread_id",
@@ -196,8 +199,8 @@ func TestWorkerSpawnCodexWithoutThreadID(t *testing.T) {
 	// Store prompt message
 	promptMsg := repo.Message{
 		ID:           uuid.New().String(),
-		Project:      "test-project",
-		Branch:       "main",
+		Project:      ctx.Project,
+		Branch:       ctx.Branch,
 		FromAgent:    "orchestrator",
 		ToAgent:      sql.NullString{String: "test-codex-worker-no-thread", Valid: true},
 		Type:         "prompt",
@@ -228,7 +231,7 @@ func TestWorkerSpawnCodexWithoutThreadID(t *testing.T) {
 	}
 
 	// Verify agent completed successfully (but session_id should still be placeholder)
-	updatedAgent, err := repo.GetAgent(db, "test-project", "main", "test-codex-worker-no-thread")
+	updatedAgent, err := repo.GetAgent(db, ctx.Project, ctx.Branch, "test-codex-worker-no-thread")
 	if err != nil {
 		t.Fatalf("get agent: %v", err)
 	}

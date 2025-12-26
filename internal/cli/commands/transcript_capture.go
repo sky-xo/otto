@@ -40,7 +40,7 @@ func storePrompt(db *sql.DB, ctx scope.Context, agentID, summary, fullPrompt str
 		Branch:    ctx.Branch,
 		AgentName: agentID,
 		AgentType: agent.Type,
-		EventType: "in",
+		EventType: "input",
 		Content:   sql.NullString{String: fullPrompt, Valid: true},
 	}
 	return repo.CreateLogEntry(db, entry)
@@ -63,7 +63,7 @@ func consumeTranscriptEntries(db *sql.DB, ctx scope.Context, agentID string, out
 				Branch:    ctx.Branch,
 				AgentName: agentID,
 				AgentType: agent.Type,
-				EventType: "out",
+				EventType: "output",
 				ToolName:  sql.NullString{String: chunk.Stream, Valid: true},
 				Content:   sql.NullString{String: chunk.Data, Valid: true},
 			}

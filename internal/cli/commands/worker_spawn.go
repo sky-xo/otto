@@ -57,7 +57,7 @@ func runWorkerSpawn(db *sql.DB, runner ottoexec.Runner, agentID string) error {
 		Branch:    ctx.Branch,
 		AgentName: agentID,
 		AgentType: agent.Type,
-		EventType: "in",
+		EventType: "input",
 		Content:   sql.NullString{String: promptContent, Valid: true},
 	}
 	if err := repo.CreateLogEntry(db, entry); err != nil {

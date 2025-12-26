@@ -22,10 +22,12 @@ CREATE TABLE IF NOT EXISTS agents (
   pid INTEGER,
   compacted_at DATETIME,
   last_seen_message_id TEXT,
+  peek_cursor TEXT,
   completed_at DATETIME,
   archived_at DATETIME,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  id TEXT,  -- backwards compat alias for name
   PRIMARY KEY (project, branch, name)
 );
 
@@ -41,7 +43,8 @@ CREATE TABLE IF NOT EXISTS messages (
   mentions TEXT,
   requires_human BOOLEAN DEFAULT FALSE,
   read_by TEXT DEFAULT '[]',
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  from_id TEXT  -- backwards compat alias for from_agent
 );
 
 -- logs table
@@ -59,7 +62,9 @@ CREATE TABLE IF NOT EXISTS logs (
   exit_code INTEGER,
   status TEXT,
   tool_use_id TEXT,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  agent_id TEXT,   -- backwards compat alias for agent_name
+  direction TEXT   -- backwards compat (was 'in'/'out')
 );
 
 -- tasks table
@@ -114,6 +119,7 @@ func ensureSchema(conn *sql.DB) error {
 	_, _ = conn.Exec(`ALTER TABLE agents ADD COLUMN name TEXT`)
 	_, _ = conn.Exec(`ALTER TABLE agents ADD COLUMN compacted_at DATETIME`)
 	_, _ = conn.Exec(`ALTER TABLE agents ADD COLUMN last_seen_message_id TEXT`)
+	_, _ = conn.Exec(`ALTER TABLE agents ADD COLUMN peek_cursor TEXT`)
 	_, _ = conn.Exec(`ALTER TABLE messages ADD COLUMN project TEXT`)
 	_, _ = conn.Exec(`ALTER TABLE messages ADD COLUMN branch TEXT`)
 	_, _ = conn.Exec(`ALTER TABLE messages ADD COLUMN from_agent TEXT`)

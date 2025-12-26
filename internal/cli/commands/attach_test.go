@@ -37,10 +37,11 @@ func captureStdout(t *testing.T, fn func()) string {
 
 func TestAttachCodexShowsDangerFullAccess(t *testing.T) {
 	db := openTestDB(t)
+	ctx := testCtx()
 
 	agent := repo.Agent{
-		Project:   "test-project",
-		Branch:    "main",
+		Project:   ctx.Project,
+		Branch:    ctx.Branch,
 		Name:      "codexer",
 		Type:      "codex",
 		Task:      "task",
@@ -65,10 +66,11 @@ func TestAttachCodexShowsDangerFullAccess(t *testing.T) {
 
 func TestAttachUnarchivesAgent(t *testing.T) {
 	db := openTestDB(t)
+	ctx := testCtx()
 
 	agent := repo.Agent{
-		Project:   "test-project",
-		Branch:    "main",
+		Project:   ctx.Project,
+		Branch:    ctx.Branch,
 		Name:      "archived",
 		Type:      "claude",
 		Task:      "task",
@@ -88,7 +90,7 @@ func TestAttachUnarchivesAgent(t *testing.T) {
 		}
 	})
 
-	updated, err := repo.GetAgent(db, "test-project", "main", "archived")
+	updated, err := repo.GetAgent(db, ctx.Project, ctx.Branch, "archived")
 	if err != nil {
 		t.Fatalf("get agent: %v", err)
 	}

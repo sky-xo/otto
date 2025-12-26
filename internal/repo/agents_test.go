@@ -236,3 +236,27 @@ func TestListAgentsFilteredByProjectBranch(t *testing.T) {
 		t.Fatalf("unexpected agent: %#v", agents[0])
 	}
 }
+
+func TestMarkAgentCompacted(t *testing.T) {
+	conn := openTestDB(t)
+	defer conn.Close()
+
+	agent := Agent{Project: "otto", Branch: "main", Name: "compactor", Type: "codex", Task: "test task", Status: "busy"}
+	if err := CreateAgent(conn, agent); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	// Mark agent as compacted
+	if err := MarkAgentCompacted(conn, agent.Project, agent.Branch, agent.Name); err != nil {
+		t.Fatalf("mark compacted: %v", err)
+	}
+
+	// Verify compacted_at is set
+	updated, err := GetAgent(conn, agent.Project, agent.Branch, agent.Name)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if !updated.CompactedAt.Valid {
+		t.Fatalf("expected compacted_at to be set")
+	}
+}

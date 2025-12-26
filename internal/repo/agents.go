@@ -129,3 +129,8 @@ func UnarchiveAgent(db *sql.DB, project, branch, name string) error {
 	_, err := db.Exec(`UPDATE agents SET archived_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE project = ? AND branch = ? AND name = ?`, project, branch, name)
 	return err
 }
+
+func MarkAgentCompacted(db *sql.DB, project, branch, name string) error {
+	_, err := db.Exec(`UPDATE agents SET compacted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE project = ? AND branch = ? AND name = ?`, project, branch, name)
+	return err
+}

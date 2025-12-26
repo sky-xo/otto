@@ -2,7 +2,6 @@ package commands
 
 import (
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -169,25 +168,42 @@ func runWorkerCodexSpawn(db *sql.DB, runner ottoexec.Runner, ctx scope.Context, 
 	// Update agent with PID
 	_ = repo.UpdateAgentPid(db, ctx.Project, ctx.Branch, agentID, pid)
 
-	// Parse output stream for thread_id in background
-	threadIDCaptured := false
-	threadIDParser := func(line string) {
-		if threadIDCaptured {
-			return
+	// Parse output stream for Codex events
+	onEvent := func(event CodexEvent) {
+		if event.Type == "thread.started" && event.ThreadID != "" {
+			_ = repo.UpdateAgentSessionID(db, ctx.Project, ctx.Branch, agentID, event.ThreadID)
 		}
-		var event map[string]interface{}
-		if err := json.Unmarshal([]byte(line), &event); err != nil {
-			return
+		if event.Type == "context_compacted" {
+			_ = repo.MarkAgentCompacted(db, ctx.Project, ctx.Branch, agentID)
 		}
-		if eventType, ok := event["type"].(string); ok && eventType == "thread.started" {
-			if threadID, ok := event["thread_id"].(string); ok && threadID != "" {
-				_ = repo.UpdateAgentSessionID(db, ctx.Project, ctx.Branch, agentID, threadID)
-				threadIDCaptured = true
+		if event.Type == "turn.failed" {
+			_ = repo.SetAgentFailed(db, ctx.Project, ctx.Branch, agentID)
+		}
+		if event.Type == "item.completed" && event.Item != nil {
+			logEntry := repo.LogEntry{
+				Project:   ctx.Project,
+				Branch:    ctx.Branch,
+				AgentName: agentID,
+				AgentType: "codex",
+				EventType: event.Item.Type,
+				Content:   sql.NullString{String: event.Item.Text, Valid: event.Item.Text != ""},
+				RawJSON:   sql.NullString{String: event.Raw, Valid: true},
+				Command:   sql.NullString{String: event.Item.Command, Valid: event.Item.Command != ""},
 			}
+			if event.Item.Type == "command_execution" {
+				logEntry.Content = sql.NullString{String: event.Item.AggregatedOutput, Valid: true}
+				if event.Item.ExitCode != nil {
+					logEntry.ExitCode = sql.NullInt64{Int64: int64(*event.Item.ExitCode), Valid: true}
+				}
+			}
+			if event.Item.Status != "" {
+				logEntry.Status = sql.NullString{String: event.Item.Status, Valid: true}
+			}
+			_ = repo.CreateLogEntry(db, logEntry)
 		}
 	}
 
-	transcriptDone := consumeTranscriptEntries(db, ctx, agentID, output, threadIDParser)
+	transcriptDone := consumeTranscriptEntries(db, ctx, agentID, output, onEvent)
 
 	// Wait for process
 	if err := wait(); err != nil {
@@ -222,11 +238,6 @@ func runWorkerCodexSpawn(db *sql.DB, runner ottoexec.Runner, ctx scope.Context, 
 
 	if consumeErr := <-transcriptDone; consumeErr != nil {
 		return fmt.Errorf("spawn codex: %w", consumeErr)
-	}
-
-	// If we didn't capture thread_id, log a warning (but don't fail)
-	if !threadIDCaptured {
-		fmt.Fprintf(os.Stderr, "Warning: Could not capture thread_id for Codex agent %s\n", agentID)
 	}
 
 	msg := repo.Message{

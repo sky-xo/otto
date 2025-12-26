@@ -46,7 +46,7 @@ func storePrompt(db *sql.DB, ctx scope.Context, agentID, summary, fullPrompt str
 	return repo.CreateLogEntry(db, entry)
 }
 
-func consumeTranscriptEntries(db *sql.DB, ctx scope.Context, agentID string, output <-chan ottoexec.TranscriptChunk, onStdoutLine func(string)) <-chan error {
+func consumeTranscriptEntries(db *sql.DB, ctx scope.Context, agentID string, output <-chan ottoexec.TranscriptChunk, onEvent func(CodexEvent)) <-chan error {
 	done := make(chan error, 1)
 	go func() {
 		// Get agent type once at the start
@@ -71,7 +71,7 @@ func consumeTranscriptEntries(db *sql.DB, ctx scope.Context, agentID string, out
 				done <- err
 				return
 			}
-			if onStdoutLine != nil && chunk.Stream == "stdout" {
+			if onEvent != nil && chunk.Stream == "stdout" {
 				stdoutBuffer += chunk.Data
 				for {
 					newline := strings.IndexByte(stdoutBuffer, '\n')
@@ -81,15 +81,21 @@ func consumeTranscriptEntries(db *sql.DB, ctx scope.Context, agentID string, out
 					line := strings.TrimSpace(stdoutBuffer[:newline])
 					stdoutBuffer = stdoutBuffer[newline+1:]
 					if line != "" {
-						onStdoutLine(line)
+						event := ParseCodexEvent(line)
+						if event.Type != "" {
+							onEvent(event)
+						}
 					}
 				}
 			}
 		}
-		if onStdoutLine != nil {
+		if onEvent != nil {
 			line := strings.TrimSpace(stdoutBuffer)
 			if line != "" {
-				onStdoutLine(line)
+				event := ParseCodexEvent(line)
+				if event.Type != "" {
+					onEvent(event)
+				}
 			}
 		}
 		done <- nil

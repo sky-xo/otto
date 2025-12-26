@@ -7,8 +7,10 @@ import (
 
 type Message struct {
 	ID            string
-	FromID        string
-	ToID          sql.NullString
+	Project       string
+	Branch        string
+	FromAgent     string
+	ToAgent       sql.NullString
 	Type          string
 	Content       string
 	MentionsJSON  string
@@ -17,22 +19,25 @@ type Message struct {
 }
 
 type MessageFilter struct {
-	Type     string
-	FromID   string
-	ToID     string
-	Limit    int
-	Mention  string
-	ReaderID string
-	SinceID  string
+	Project   string
+	Branch    string
+	Type      string
+	FromAgent string
+	ToAgent   string
+	Limit     int
+	Mention   string
+	ReaderID  string
+	SinceID   string
 }
 
 func CreateMessage(db *sql.DB, m Message) error {
-	_, err := db.Exec(`INSERT INTO messages (id, from_id, to_id, type, content, mentions, requires_human, read_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, m.ID, m.FromID, m.ToID, m.Type, m.Content, m.MentionsJSON, m.RequiresHuman, m.ReadByJSON)
+	_, err := db.Exec(`INSERT INTO messages (id, project, branch, from_agent, to_agent, type, content, mentions, requires_human, read_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		m.ID, m.Project, m.Branch, m.FromAgent, m.ToAgent, m.Type, m.Content, m.MentionsJSON, m.RequiresHuman, m.ReadByJSON)
 	return err
 }
 
 func ListMessages(db *sql.DB, f MessageFilter) ([]Message, error) {
-	query := `SELECT id, from_id, to_id, type, content, mentions, requires_human, read_by FROM messages`
+	query := `SELECT id, project, branch, from_agent, to_agent, type, content, mentions, requires_human, read_by FROM messages`
 	var args []interface{}
 	where := ""
 	var sinceCreatedAt string
@@ -44,17 +49,25 @@ func ListMessages(db *sql.DB, f MessageFilter) ([]Message, error) {
 			sinceCreatedAt = ""
 		}
 	}
+	if f.Project != "" {
+		where = appendWhere(where, "project = ?")
+		args = append(args, f.Project)
+	}
+	if f.Branch != "" {
+		where = appendWhere(where, "branch = ?")
+		args = append(args, f.Branch)
+	}
 	if f.Type != "" {
 		where = appendWhere(where, "type = ?")
 		args = append(args, f.Type)
 	}
-	if f.FromID != "" {
-		where = appendWhere(where, "from_id = ?")
-		args = append(args, f.FromID)
+	if f.FromAgent != "" {
+		where = appendWhere(where, "from_agent = ?")
+		args = append(args, f.FromAgent)
 	}
-	if f.ToID != "" {
-		where = appendWhere(where, "to_id = ?")
-		args = append(args, f.ToID)
+	if f.ToAgent != "" {
+		where = appendWhere(where, "to_agent = ?")
+		args = append(args, f.ToAgent)
 	}
 	if sinceCreatedAt != "" {
 		where = appendWhere(where, "((created_at = ? AND id > ?) OR created_at > ?)")
@@ -78,7 +91,7 @@ func ListMessages(db *sql.DB, f MessageFilter) ([]Message, error) {
 	var out []Message
 	for rows.Next() {
 		var m Message
-		if err := rows.Scan(&m.ID, &m.FromID, &m.ToID, &m.Type, &m.Content, &m.MentionsJSON, &m.RequiresHuman, &m.ReadByJSON); err != nil {
+		if err := rows.Scan(&m.ID, &m.Project, &m.Branch, &m.FromAgent, &m.ToAgent, &m.Type, &m.Content, &m.MentionsJSON, &m.RequiresHuman, &m.ReadByJSON); err != nil {
 			return nil, err
 		}
 		if f.Mention != "" && !mentionsContain(m.MentionsJSON, f.Mention) {
@@ -125,15 +138,15 @@ func readByContains(readByJSON, reader string) bool {
 	return false
 }
 
-func GetLatestPromptForAgent(db *sql.DB, agentID string) (Message, error) {
-	query := `SELECT id, from_id, to_id, type, content, mentions, requires_human, read_by
+func GetLatestPromptForAgent(db *sql.DB, project, branch, agentName string) (Message, error) {
+	query := `SELECT id, project, branch, from_agent, to_agent, type, content, mentions, requires_human, read_by
 	          FROM messages
-	          WHERE type='prompt' AND to_id=?
+	          WHERE type='prompt' AND project=? AND branch=? AND to_agent=?
 	          ORDER BY created_at DESC, id DESC
 	          LIMIT 1`
 
 	var m Message
-	err := db.QueryRow(query, agentID).Scan(&m.ID, &m.FromID, &m.ToID, &m.Type, &m.Content, &m.MentionsJSON, &m.RequiresHuman, &m.ReadByJSON)
+	err := db.QueryRow(query, project, branch, agentName).Scan(&m.ID, &m.Project, &m.Branch, &m.FromAgent, &m.ToAgent, &m.Type, &m.Content, &m.MentionsJSON, &m.RequiresHuman, &m.ReadByJSON)
 	return m, err
 }
 

@@ -19,8 +19,10 @@ func TestCreateMessage(t *testing.T) {
 
 	msg := Message{
 		ID:            "m1",
-		FromID:        "agent-1",
-		ToID:          nullStr("agent-2"),
+		Project:       "otto",
+		Branch:        "main",
+		FromAgent:     "agent-1",
+		ToAgent:       nullStr("agent-2"),
 		Type:          "say",
 		Content:       "hello",
 		MentionsJSON:  `["agent-2"]`,
@@ -32,7 +34,7 @@ func TestCreateMessage(t *testing.T) {
 		t.Fatalf("create: %v", err)
 	}
 
-	msgs, err := ListMessages(db, MessageFilter{})
+	msgs, err := ListMessages(db, MessageFilter{Project: "otto", Branch: "main"})
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -49,10 +51,10 @@ func TestListMessagesFilters(t *testing.T) {
 	db := openTestDB(t)
 
 	messages := []Message{
-		{ID: "m1", FromID: "agent-1", ToID: nullStr("agent-2"), Type: "say", Content: "hello", MentionsJSON: `["agent-1","agent-2"]`, ReadByJSON: `[]`},
-		{ID: "m2", FromID: "agent-1", ToID: nullStr("agent-3"), Type: "question", Content: "help", MentionsJSON: `["agent-2"]`, ReadByJSON: `["reader-1"]`},
-		{ID: "m3", FromID: "agent-2", ToID: nullStr(""), Type: "say", Content: "later", MentionsJSON: `["agent-3"]`, ReadByJSON: `[]`},
-		{ID: "m4", FromID: "agent-2", ToID: nullStr("agent-3"), Type: "say", Content: "bad json", MentionsJSON: `not-json`, ReadByJSON: `[]`},
+		{ID: "m1", Project: "otto", Branch: "main", FromAgent: "agent-1", ToAgent: nullStr("agent-2"), Type: "say", Content: "hello", MentionsJSON: `["agent-1","agent-2"]`, ReadByJSON: `[]`},
+		{ID: "m2", Project: "otto", Branch: "main", FromAgent: "agent-1", ToAgent: nullStr("agent-3"), Type: "question", Content: "help", MentionsJSON: `["agent-2"]`, ReadByJSON: `["reader-1"]`},
+		{ID: "m3", Project: "otto", Branch: "main", FromAgent: "agent-2", ToAgent: nullStr(""), Type: "say", Content: "later", MentionsJSON: `["agent-3"]`, ReadByJSON: `[]`},
+		{ID: "m4", Project: "otto", Branch: "main", FromAgent: "agent-2", ToAgent: nullStr("agent-3"), Type: "say", Content: "bad json", MentionsJSON: `not-json`, ReadByJSON: `[]`},
 	}
 
 	for _, msg := range messages {
@@ -62,7 +64,7 @@ func TestListMessagesFilters(t *testing.T) {
 	}
 
 	t.Run("filter by type", func(t *testing.T) {
-		msgs, err := ListMessages(db, MessageFilter{Type: "question"})
+		msgs, err := ListMessages(db, MessageFilter{Project: "otto", Branch: "main", Type: "question"})
 		if err != nil {
 			t.Fatalf("list: %v", err)
 		}
@@ -71,18 +73,18 @@ func TestListMessagesFilters(t *testing.T) {
 		}
 	})
 
-	t.Run("filter by from_id", func(t *testing.T) {
-		msgs, err := ListMessages(db, MessageFilter{FromID: "agent-2"})
+	t.Run("filter by from_agent", func(t *testing.T) {
+		msgs, err := ListMessages(db, MessageFilter{Project: "otto", Branch: "main", FromAgent: "agent-2"})
 		if err != nil {
 			t.Fatalf("list: %v", err)
 		}
-		if len(msgs) != 2 || msgs[0].FromID != "agent-2" || msgs[1].FromID != "agent-2" {
+		if len(msgs) != 2 || msgs[0].FromAgent != "agent-2" || msgs[1].FromAgent != "agent-2" {
 			t.Fatalf("unexpected messages: %#v", msgs)
 		}
 	})
 
 	t.Run("filter by mention", func(t *testing.T) {
-		msgs, err := ListMessages(db, MessageFilter{Mention: "agent-1"})
+		msgs, err := ListMessages(db, MessageFilter{Project: "otto", Branch: "main", Mention: "agent-1"})
 		if err != nil {
 			t.Fatalf("list: %v", err)
 		}
@@ -90,18 +92,18 @@ func TestListMessagesFilters(t *testing.T) {
 			t.Fatalf("unexpected messages: %#v", msgs)
 		}
 	})
-	t.Run("filter by to_id", func(t *testing.T) {
-		msgs, err := ListMessages(db, MessageFilter{ToID: "agent-3"})
+	t.Run("filter by to_agent", func(t *testing.T) {
+		msgs, err := ListMessages(db, MessageFilter{Project: "otto", Branch: "main", ToAgent: "agent-3"})
 		if err != nil {
 			t.Fatalf("list: %v", err)
 		}
-		if len(msgs) != 2 || msgs[0].ToID.String != "agent-3" || msgs[1].ToID.String != "agent-3" {
+		if len(msgs) != 2 || msgs[0].ToAgent.String != "agent-3" || msgs[1].ToAgent.String != "agent-3" {
 			t.Fatalf("unexpected messages: %#v", msgs)
 		}
 	})
 
 	t.Run("filter unread by reader", func(t *testing.T) {
-		msgs, err := ListMessages(db, MessageFilter{ReaderID: "reader-1"})
+		msgs, err := ListMessages(db, MessageFilter{Project: "otto", Branch: "main", ReaderID: "reader-1"})
 		if err != nil {
 			t.Fatalf("list: %v", err)
 		}
@@ -120,9 +122,9 @@ func TestListMessagesSinceAndLimit(t *testing.T) {
 	db := openTestDB(t)
 
 	messages := []Message{
-		{ID: "m1", FromID: "agent-1", ToID: nullStr("agent-2"), Type: "say", Content: "one", MentionsJSON: `[]`, ReadByJSON: `[]`},
-		{ID: "m2", FromID: "agent-1", ToID: nullStr("agent-2"), Type: "say", Content: "two", MentionsJSON: `[]`, ReadByJSON: `[]`},
-		{ID: "m3", FromID: "agent-1", ToID: nullStr("agent-2"), Type: "say", Content: "three", MentionsJSON: `[]`, ReadByJSON: `[]`},
+		{ID: "m1", Project: "otto", Branch: "main", FromAgent: "agent-1", ToAgent: nullStr("agent-2"), Type: "say", Content: "one", MentionsJSON: `[]`, ReadByJSON: `[]`},
+		{ID: "m2", Project: "otto", Branch: "main", FromAgent: "agent-1", ToAgent: nullStr("agent-2"), Type: "say", Content: "two", MentionsJSON: `[]`, ReadByJSON: `[]`},
+		{ID: "m3", Project: "otto", Branch: "main", FromAgent: "agent-1", ToAgent: nullStr("agent-2"), Type: "say", Content: "three", MentionsJSON: `[]`, ReadByJSON: `[]`},
 	}
 
 	for _, msg := range messages {
@@ -142,7 +144,7 @@ func TestListMessagesSinceAndLimit(t *testing.T) {
 		}
 	}
 
-	msgs, err := ListMessages(db, MessageFilter{SinceID: "m1"})
+	msgs, err := ListMessages(db, MessageFilter{Project: "otto", Branch: "main", SinceID: "m1"})
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -150,7 +152,7 @@ func TestListMessagesSinceAndLimit(t *testing.T) {
 		t.Fatalf("unexpected messages: %#v", msgs)
 	}
 
-	msgs, err = ListMessages(db, MessageFilter{SinceID: "missing"})
+	msgs, err = ListMessages(db, MessageFilter{Project: "otto", Branch: "main", SinceID: "missing"})
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -158,7 +160,7 @@ func TestListMessagesSinceAndLimit(t *testing.T) {
 		t.Fatalf("unexpected messages: %#v", msgs)
 	}
 
-	msgs, err = ListMessages(db, MessageFilter{Limit: 2})
+	msgs, err = ListMessages(db, MessageFilter{Project: "otto", Branch: "main", Limit: 2})
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -171,9 +173,9 @@ func TestListMessagesSinceSameSecond(t *testing.T) {
 	db := openTestDB(t)
 
 	messages := []Message{
-		{ID: "m1", FromID: "agent-1", ToID: nullStr("agent-2"), Type: "say", Content: "one", MentionsJSON: `[]`, ReadByJSON: `[]`},
-		{ID: "m2", FromID: "agent-1", ToID: nullStr("agent-2"), Type: "say", Content: "two", MentionsJSON: `[]`, ReadByJSON: `[]`},
-		{ID: "m3", FromID: "agent-1", ToID: nullStr("agent-2"), Type: "say", Content: "three", MentionsJSON: `[]`, ReadByJSON: `[]`},
+		{ID: "m1", Project: "otto", Branch: "main", FromAgent: "agent-1", ToAgent: nullStr("agent-2"), Type: "say", Content: "one", MentionsJSON: `[]`, ReadByJSON: `[]`},
+		{ID: "m2", Project: "otto", Branch: "main", FromAgent: "agent-1", ToAgent: nullStr("agent-2"), Type: "say", Content: "two", MentionsJSON: `[]`, ReadByJSON: `[]`},
+		{ID: "m3", Project: "otto", Branch: "main", FromAgent: "agent-1", ToAgent: nullStr("agent-2"), Type: "say", Content: "three", MentionsJSON: `[]`, ReadByJSON: `[]`},
 	}
 
 	for _, msg := range messages {
@@ -189,7 +191,7 @@ func TestListMessagesSinceSameSecond(t *testing.T) {
 		t.Fatalf("set created_at: %v", err)
 	}
 
-	msgs, err := ListMessages(db, MessageFilter{SinceID: "m1"})
+	msgs, err := ListMessages(db, MessageFilter{Project: "otto", Branch: "main", SinceID: "m1"})
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -201,10 +203,10 @@ func TestListMessagesSinceSameSecond(t *testing.T) {
 func TestMarkMessagesRead(t *testing.T) {
 	db := openTestDB(t)
 
-	if err := CreateMessage(db, Message{ID: "m1", FromID: "agent-1", Type: "say", Content: "hello", MentionsJSON: `[]`, ReadByJSON: `[]`}); err != nil {
+	if err := CreateMessage(db, Message{ID: "m1", Project: "otto", Branch: "main", FromAgent: "agent-1", Type: "say", Content: "hello", MentionsJSON: `[]`, ReadByJSON: `[]`}); err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	if err := CreateMessage(db, Message{ID: "m2", FromID: "agent-1", Type: "say", Content: "again", MentionsJSON: `[]`, ReadByJSON: `["reader-1"]`}); err != nil {
+	if err := CreateMessage(db, Message{ID: "m2", Project: "otto", Branch: "main", FromAgent: "agent-1", Type: "say", Content: "again", MentionsJSON: `[]`, ReadByJSON: `["reader-1"]`}); err != nil {
 		t.Fatalf("create: %v", err)
 	}
 
@@ -212,7 +214,7 @@ func TestMarkMessagesRead(t *testing.T) {
 		t.Fatalf("mark read: %v", err)
 	}
 
-	msgs, err := ListMessages(db, MessageFilter{})
+	msgs, err := ListMessages(db, MessageFilter{Project: "otto", Branch: "main"})
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -264,7 +266,7 @@ func TestMarkMessagesRead(t *testing.T) {
 func TestMarkMessagesReadInvalidJSON(t *testing.T) {
 	db := openTestDB(t)
 
-	if err := CreateMessage(db, Message{ID: "m1", FromID: "agent-1", Type: "say", Content: "hello", MentionsJSON: `[]`, ReadByJSON: `not-json`}); err != nil {
+	if err := CreateMessage(db, Message{ID: "m1", Project: "otto", Branch: "main", FromAgent: "agent-1", Type: "say", Content: "hello", MentionsJSON: `[]`, ReadByJSON: `not-json`}); err != nil {
 		t.Fatalf("create: %v", err)
 	}
 
@@ -297,11 +299,11 @@ func TestGetLatestPromptForAgent(t *testing.T) {
 
 	// Create multiple messages including prompts to agent-1
 	messages := []Message{
-		{ID: "m1", FromID: "orchestrator", ToID: nullStr("agent-1"), Type: "prompt", Content: "first prompt", MentionsJSON: `[]`, ReadByJSON: `[]`},
-		{ID: "m2", FromID: "agent-1", ToID: nullStr(""), Type: "say", Content: "response", MentionsJSON: `[]`, ReadByJSON: `[]`},
-		{ID: "m3", FromID: "orchestrator", ToID: nullStr("agent-1"), Type: "prompt", Content: "second prompt", MentionsJSON: `[]`, ReadByJSON: `[]`},
-		{ID: "m4", FromID: "orchestrator", ToID: nullStr("agent-2"), Type: "prompt", Content: "other agent", MentionsJSON: `[]`, ReadByJSON: `[]`},
-		{ID: "m5", FromID: "orchestrator", ToID: nullStr("agent-1"), Type: "prompt", Content: "latest prompt", MentionsJSON: `[]`, ReadByJSON: `[]`},
+		{ID: "m1", Project: "otto", Branch: "main", FromAgent: "orchestrator", ToAgent: nullStr("agent-1"), Type: "prompt", Content: "first prompt", MentionsJSON: `[]`, ReadByJSON: `[]`},
+		{ID: "m2", Project: "otto", Branch: "main", FromAgent: "agent-1", ToAgent: nullStr(""), Type: "say", Content: "response", MentionsJSON: `[]`, ReadByJSON: `[]`},
+		{ID: "m3", Project: "otto", Branch: "main", FromAgent: "orchestrator", ToAgent: nullStr("agent-1"), Type: "prompt", Content: "second prompt", MentionsJSON: `[]`, ReadByJSON: `[]`},
+		{ID: "m4", Project: "otto", Branch: "main", FromAgent: "orchestrator", ToAgent: nullStr("agent-2"), Type: "prompt", Content: "other agent", MentionsJSON: `[]`, ReadByJSON: `[]`},
+		{ID: "m5", Project: "otto", Branch: "main", FromAgent: "orchestrator", ToAgent: nullStr("agent-1"), Type: "prompt", Content: "latest prompt", MentionsJSON: `[]`, ReadByJSON: `[]`},
 	}
 
 	for _, msg := range messages {
@@ -325,7 +327,7 @@ func TestGetLatestPromptForAgent(t *testing.T) {
 	}
 
 	// Should return latest prompt for agent-1
-	prompt, err := GetLatestPromptForAgent(db, "agent-1")
+	prompt, err := GetLatestPromptForAgent(db, "otto", "main", "agent-1")
 	if err != nil {
 		t.Fatalf("get latest prompt: %v", err)
 	}
@@ -337,7 +339,7 @@ func TestGetLatestPromptForAgent(t *testing.T) {
 	}
 
 	// Should return error for agent with no prompts
-	_, err = GetLatestPromptForAgent(db, "agent-3")
+	_, err = GetLatestPromptForAgent(db, "otto", "main", "agent-3")
 	if err != sql.ErrNoRows {
 		t.Fatalf("expected sql.ErrNoRows for agent with no prompts, got %v", err)
 	}

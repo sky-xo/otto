@@ -21,16 +21,16 @@ func openTestDB(t *testing.T) *sql.DB {
 func TestAgentsCRUD(t *testing.T) {
 	db := openTestDB(t)
 
-	err := CreateAgent(db, Agent{ID: "authbackend", Type: "claude", Task: "design", Status: "busy"})
+	err := CreateAgent(db, Agent{Project: "otto", Branch: "main", Name: "authbackend", Type: "claude", Task: "design", Status: "busy"})
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
 
-	if err := UpdateAgentStatus(db, "authbackend", "done"); err != nil {
+	if err := UpdateAgentStatus(db, "otto", "main", "authbackend", "done"); err != nil {
 		t.Fatalf("update: %v", err)
 	}
 
-	agents, err := ListAgents(db)
+	agents, err := ListAgents(db, AgentFilter{Project: "otto", Branch: "main"})
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -38,7 +38,7 @@ func TestAgentsCRUD(t *testing.T) {
 		t.Fatalf("unexpected agents: %#v", agents)
 	}
 
-	if _, err := GetAgent(db, "authbackend"); err != nil {
+	if _, err := GetAgent(db, "otto", "main", "authbackend"); err != nil {
 		t.Fatalf("get: %v", err)
 	}
 }
@@ -49,7 +49,9 @@ func TestUpdateAgentSessionID(t *testing.T) {
 	// Create agent with initial session ID
 	initialSessionID := "uuid-1234"
 	err := CreateAgent(db, Agent{
-		ID:        "codexagent",
+		Project:   "otto",
+		Branch:    "main",
+		Name:      "codexagent",
 		Type:      "codex",
 		Task:      "test task",
 		Status:    "working",
@@ -61,12 +63,12 @@ func TestUpdateAgentSessionID(t *testing.T) {
 
 	// Update session ID to the real thread_id
 	realThreadID := "thread_abc123xyz"
-	if err := UpdateAgentSessionID(db, "codexagent", realThreadID); err != nil {
+	if err := UpdateAgentSessionID(db, "otto", "main", "codexagent", realThreadID); err != nil {
 		t.Fatalf("update session_id: %v", err)
 	}
 
 	// Verify the session ID was updated
-	agent, err := GetAgent(db, "codexagent")
+	agent, err := GetAgent(db, "otto", "main", "codexagent")
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
@@ -80,32 +82,34 @@ func TestUpdateAgentSessionID(t *testing.T) {
 	}
 }
 
-func TestAgentLastReadLogID(t *testing.T) {
+func TestAgentLastSeenMsgID(t *testing.T) {
 	db := openTestDB(t)
 	defer db.Close()
 
 	agent := Agent{
-		ID:     "test-agent",
-		Type:   "claude",
-		Task:   "test task",
-		Status: "busy",
+		Project: "otto",
+		Branch:  "main",
+		Name:    "test-agent",
+		Type:    "claude",
+		Task:    "test task",
+		Status:  "busy",
 	}
 	if err := CreateAgent(db, agent); err != nil {
 		t.Fatalf("create agent: %v", err)
 	}
 
-	// Update last read log ID
-	if err := UpdateAgentLastReadLogID(db, "test-agent", "log-123"); err != nil {
-		t.Fatalf("update last read: %v", err)
+	// Update last seen message ID
+	if err := UpdateAgentLastSeenMsgID(db, "otto", "main", "test-agent", "msg-123"); err != nil {
+		t.Fatalf("update last seen: %v", err)
 	}
 
 	// Verify it was saved
-	got, err := GetAgent(db, "test-agent")
+	got, err := GetAgent(db, "otto", "main", "test-agent")
 	if err != nil {
 		t.Fatalf("get agent: %v", err)
 	}
-	if !got.LastReadLogID.Valid || got.LastReadLogID.String != "log-123" {
-		t.Errorf("expected LastReadLogID='log-123', got %v", got.LastReadLogID)
+	if !got.LastSeenMsgID.Valid || got.LastSeenMsgID.String != "msg-123" {
+		t.Errorf("expected LastSeenMsgID='msg-123', got %v", got.LastSeenMsgID)
 	}
 }
 
@@ -113,16 +117,16 @@ func TestDeleteAgent(t *testing.T) {
 	conn := openTestDB(t)
 	defer conn.Close()
 
-	agent := Agent{ID: "test", Type: "claude", Task: "test task", Status: "busy"}
+	agent := Agent{Project: "otto", Branch: "main", Name: "test", Type: "claude", Task: "test task", Status: "busy"}
 	if err := CreateAgent(conn, agent); err != nil {
 		t.Fatalf("create: %v", err)
 	}
 
-	if err := DeleteAgent(conn, "test"); err != nil {
+	if err := DeleteAgent(conn, "otto", "main", "test"); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
 
-	_, err := GetAgent(conn, "test")
+	_, err := GetAgent(conn, "otto", "main", "test")
 	if err != sql.ErrNoRows {
 		t.Fatalf("expected ErrNoRows, got %v", err)
 	}
@@ -132,16 +136,16 @@ func TestAgentCompletionLifecycle(t *testing.T) {
 	conn := openTestDB(t)
 	defer conn.Close()
 
-	agent := Agent{ID: "complete-me", Type: "claude", Task: "test task", Status: "busy"}
+	agent := Agent{Project: "otto", Branch: "main", Name: "complete-me", Type: "claude", Task: "test task", Status: "busy"}
 	if err := CreateAgent(conn, agent); err != nil {
 		t.Fatalf("create: %v", err)
 	}
 
-	if err := SetAgentComplete(conn, agent.ID); err != nil {
+	if err := SetAgentComplete(conn, agent.Project, agent.Branch, agent.Name); err != nil {
 		t.Fatalf("set complete: %v", err)
 	}
 
-	updated, err := GetAgent(conn, agent.ID)
+	updated, err := GetAgent(conn, agent.Project, agent.Branch, agent.Name)
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
@@ -152,11 +156,11 @@ func TestAgentCompletionLifecycle(t *testing.T) {
 		t.Fatalf("expected completed_at to be set")
 	}
 
-	if err := ResumeAgent(conn, agent.ID); err != nil {
+	if err := ResumeAgent(conn, agent.Project, agent.Branch, agent.Name); err != nil {
 		t.Fatalf("resume: %v", err)
 	}
 
-	resumed, err := GetAgent(conn, agent.ID)
+	resumed, err := GetAgent(conn, agent.Project, agent.Branch, agent.Name)
 	if err != nil {
 		t.Fatalf("get resumed: %v", err)
 	}
@@ -172,16 +176,16 @@ func TestAgentFailure(t *testing.T) {
 	conn := openTestDB(t)
 	defer conn.Close()
 
-	agent := Agent{ID: "fail-me", Type: "claude", Task: "test task", Status: "busy"}
+	agent := Agent{Project: "otto", Branch: "main", Name: "fail-me", Type: "claude", Task: "test task", Status: "busy"}
 	if err := CreateAgent(conn, agent); err != nil {
 		t.Fatalf("create: %v", err)
 	}
 
-	if err := SetAgentFailed(conn, agent.ID); err != nil {
+	if err := SetAgentFailed(conn, agent.Project, agent.Branch, agent.Name); err != nil {
 		t.Fatalf("set failed: %v", err)
 	}
 
-	updated, err := GetAgent(conn, agent.ID)
+	updated, err := GetAgent(conn, agent.Project, agent.Branch, agent.Name)
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
@@ -197,20 +201,38 @@ func TestArchiveAgentSetsArchivedAt(t *testing.T) {
 	conn := openTestDB(t)
 	defer conn.Close()
 
-	err := CreateAgent(conn, Agent{ID: "arch-me", Type: "claude", Task: "task", Status: "complete"})
+	err := CreateAgent(conn, Agent{Project: "otto", Branch: "main", Name: "arch-me", Type: "claude", Task: "task", Status: "complete"})
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
 
-	if err := ArchiveAgent(conn, "arch-me"); err != nil {
+	if err := ArchiveAgent(conn, "otto", "main", "arch-me"); err != nil {
 		t.Fatalf("archive: %v", err)
 	}
 
-	got, err := GetAgent(conn, "arch-me")
+	got, err := GetAgent(conn, "otto", "main", "arch-me")
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
 	if !got.ArchivedAt.Valid {
 		t.Fatalf("expected archived_at to be set")
+	}
+}
+
+func TestListAgentsFilteredByProjectBranch(t *testing.T) {
+	db := openTestDB(t)
+	_ = CreateAgent(db, Agent{Project: "alpha", Branch: "main", Name: "a1", Type: "codex", Task: "t", Status: "busy"})
+	_ = CreateAgent(db, Agent{Project: "beta", Branch: "main", Name: "a1", Type: "codex", Task: "t", Status: "busy"})
+	_ = CreateAgent(db, Agent{Project: "alpha", Branch: "dev", Name: "a1", Type: "codex", Task: "t", Status: "busy"})
+
+	agents, err := ListAgents(db, AgentFilter{Project: "alpha", Branch: "main"})
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(agents) != 1 {
+		t.Fatalf("expected 1 agent, got %d", len(agents))
+	}
+	if agents[0].Project != "alpha" || agents[0].Branch != "main" {
+		t.Fatalf("unexpected agent: %#v", agents[0])
 	}
 }

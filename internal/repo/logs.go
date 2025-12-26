@@ -8,32 +8,47 @@ import (
 
 type LogEntry struct {
 	ID        string
-	AgentID   string
-	Direction string
-	Stream    sql.NullString
-	Content   string
+	Project   string
+	Branch    string
+	AgentName string
+	AgentType string
+	EventType string
+	ToolName  sql.NullString
+	Content   sql.NullString
+	RawJSON   sql.NullString
+	Command   sql.NullString
+	ExitCode  sql.NullInt64
+	Status    sql.NullString
+	ToolUseID sql.NullString
 	CreatedAt string
 }
 
-func CreateLogEntry(db *sql.DB, agentID, direction, stream, content string) error {
-	var streamValue sql.NullString
-	if stream != "" {
-		streamValue = sql.NullString{String: stream, Valid: true}
+func CreateLogEntry(db *sql.DB, entry LogEntry) error {
+	if entry.ID == "" {
+		entry.ID = uuid.NewString()
 	}
 	_, err := db.Exec(
-		`INSERT INTO logs (id, agent_id, direction, stream, content) VALUES (?, ?, ?, ?, ?)`,
-		uuid.NewString(),
-		agentID,
-		direction,
-		streamValue,
-		content,
+		`INSERT INTO logs (id, project, branch, agent_name, agent_type, event_type, tool_name, content, raw_json, command, exit_code, status, tool_use_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		entry.ID,
+		entry.Project,
+		entry.Branch,
+		entry.AgentName,
+		entry.AgentType,
+		entry.EventType,
+		entry.ToolName,
+		entry.Content,
+		entry.RawJSON,
+		entry.Command,
+		entry.ExitCode,
+		entry.Status,
+		entry.ToolUseID,
 	)
 	return err
 }
 
-func ListLogs(db *sql.DB, agentID, sinceID string) ([]LogEntry, error) {
-	query := `SELECT id, agent_id, direction, stream, content, created_at FROM logs WHERE agent_id = ?`
-	args := []interface{}{agentID}
+func ListLogs(db *sql.DB, project, branch, agentName, sinceID string) ([]LogEntry, error) {
+	query := `SELECT id, project, branch, agent_name, agent_type, event_type, tool_name, content, raw_json, command, exit_code, status, tool_use_id, created_at FROM logs WHERE project = ? AND branch = ? AND agent_name = ?`
+	args := []interface{}{project, branch, agentName}
 	var sinceCreatedAt string
 	var sinceRowID int64
 	if sinceID != "" {
@@ -59,7 +74,7 @@ func ListLogs(db *sql.DB, agentID, sinceID string) ([]LogEntry, error) {
 	var out []LogEntry
 	for rows.Next() {
 		var entry LogEntry
-		if err := rows.Scan(&entry.ID, &entry.AgentID, &entry.Direction, &entry.Stream, &entry.Content, &entry.CreatedAt); err != nil {
+		if err := rows.Scan(&entry.ID, &entry.Project, &entry.Branch, &entry.AgentName, &entry.AgentType, &entry.EventType, &entry.ToolName, &entry.Content, &entry.RawJSON, &entry.Command, &entry.ExitCode, &entry.Status, &entry.ToolUseID, &entry.CreatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, entry)
@@ -67,12 +82,12 @@ func ListLogs(db *sql.DB, agentID, sinceID string) ([]LogEntry, error) {
 	return out, rows.Err()
 }
 
-func ListLogsWithTail(db *sql.DB, agentID string, n int) ([]LogEntry, error) {
-	query := `SELECT id, agent_id, direction, stream, content, created_at
-		FROM logs WHERE agent_id = ?
+func ListLogsWithTail(db *sql.DB, project, branch, agentName string, n int) ([]LogEntry, error) {
+	query := `SELECT id, project, branch, agent_name, agent_type, event_type, tool_name, content, raw_json, command, exit_code, status, tool_use_id, created_at
+		FROM logs WHERE project = ? AND branch = ? AND agent_name = ?
 		ORDER BY created_at DESC, rowid DESC LIMIT ?`
 
-	rows, err := db.Query(query, agentID, n)
+	rows, err := db.Query(query, project, branch, agentName, n)
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +96,7 @@ func ListLogsWithTail(db *sql.DB, agentID string, n int) ([]LogEntry, error) {
 	var out []LogEntry
 	for rows.Next() {
 		var entry LogEntry
-		if err := rows.Scan(&entry.ID, &entry.AgentID, &entry.Direction, &entry.Stream, &entry.Content, &entry.CreatedAt); err != nil {
+		if err := rows.Scan(&entry.ID, &entry.Project, &entry.Branch, &entry.AgentName, &entry.AgentType, &entry.EventType, &entry.ToolName, &entry.Content, &entry.RawJSON, &entry.Command, &entry.ExitCode, &entry.Status, &entry.ToolUseID, &entry.CreatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, entry)

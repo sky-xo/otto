@@ -2,6 +2,7 @@ package commands
 
 import (
 	"bytes"
+	"database/sql"
 	"fmt"
 	"strings"
 	"testing"
@@ -15,13 +16,13 @@ func TestRunLog(t *testing.T) {
 	defer conn.Close()
 
 	// Create agent
-	agent := repo.Agent{ID: "test-agent", Type: "claude", Task: "test", Status: "busy"}
+	agent := repo.Agent{Project: "test-project", Branch: "main", Name: "test-agent", Type: "claude", Task: "test", Status: "busy"}
 	repo.CreateAgent(conn, agent)
 
 	// Create some log entries
-	repo.CreateLogEntry(conn, "test-agent", "out", "stdout", "line 1")
-	repo.CreateLogEntry(conn, "test-agent", "out", "stdout", "line 2")
-	repo.CreateLogEntry(conn, "test-agent", "out", "stderr", "error 1")
+	repo.CreateLogEntry(conn, repo.LogEntry{Project: "test-project", Branch: "main", AgentName: "test-agent", AgentType: "claude", EventType: "output", Content: sql.NullString{String: "line 1", Valid: true}})
+	repo.CreateLogEntry(conn, repo.LogEntry{Project: "test-project", Branch: "main", AgentName: "test-agent", AgentType: "claude", EventType: "output", Content: sql.NullString{String: "line 2", Valid: true}})
+	repo.CreateLogEntry(conn, repo.LogEntry{Project: "test-project", Branch: "main", AgentName: "test-agent", AgentType: "claude", EventType: "error", Content: sql.NullString{String: "error 1", Valid: true}})
 
 	var buf bytes.Buffer
 	err := runLog(conn, "test-agent", 0, &buf)
@@ -39,12 +40,12 @@ func TestRunLogWithTail(t *testing.T) {
 	conn, _ := db.Open(":memory:")
 	defer conn.Close()
 
-	agent := repo.Agent{ID: "test-agent", Type: "claude", Task: "test", Status: "busy"}
+	agent := repo.Agent{Project: "test-project", Branch: "main", Name: "test-agent", Type: "claude", Task: "test", Status: "busy"}
 	repo.CreateAgent(conn, agent)
 
 	// Create 10 entries
 	for i := 0; i < 10; i++ {
-		repo.CreateLogEntry(conn, "test-agent", "out", "stdout", fmt.Sprintf("line %d", i))
+		repo.CreateLogEntry(conn, repo.LogEntry{Project: "test-project", Branch: "main", AgentName: "test-agent", AgentType: "claude", EventType: "output", Content: sql.NullString{String: fmt.Sprintf("line %d", i), Valid: true}})
 	}
 
 	var buf bytes.Buffer

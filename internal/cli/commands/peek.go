@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"otto/internal/repo"
+	"otto/internal/scope"
 
 	"github.com/spf13/cobra"
 )
@@ -36,7 +37,9 @@ func NewPeekCmd() *cobra.Command {
 }
 
 func runPeek(db *sql.DB, agentID string, w io.Writer) error {
-	agent, err := repo.GetAgent(db, agentID)
+	ctx := scope.CurrentContext()
+
+	agent, err := repo.GetAgent(db, ctx.Project, ctx.Branch, agentID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return fmt.Errorf("agent %q not found", agentID)
@@ -44,29 +47,30 @@ func runPeek(db *sql.DB, agentID string, w io.Writer) error {
 		return err
 	}
 
-	sinceID := ""
-	if agent.LastReadLogID.Valid {
-		sinceID = agent.LastReadLogID.String
-	}
-
-	logs, err := repo.ListLogs(db, agentID, sinceID)
+	// For peek, we want to show logs, not messages
+	// We'll just show all logs for now since there's no LastReadLogID anymore
+	// (In the future, we could use agent.LastSeenMsgID to track the last message
+	// and correlate it with logs, but for now we just show all logs)
+	_ = agent // Suppress unused warning
+	logs, err := repo.ListLogs(db, ctx.Project, ctx.Branch, agentID, "")
 	if err != nil {
 		return err
 	}
 
 	if len(logs) == 0 {
-		fmt.Fprintf(w, "No new log entries for %s\n", agentID)
+		fmt.Fprintf(w, "No log entries for %s\n", agentID)
 		return nil
 	}
 
 	for _, entry := range logs {
 		stream := ""
-		if entry.Stream.Valid {
-			stream = fmt.Sprintf("[%s] ", entry.Stream.String)
+		if entry.ToolName.Valid {
+			stream = fmt.Sprintf("[%s] ", entry.ToolName.String)
 		}
-		fmt.Fprintf(w, "%s%s\n", stream, entry.Content)
+		if entry.Content.Valid {
+			fmt.Fprintf(w, "%s%s\n", stream, entry.Content.String)
+		}
 	}
 
-	lastID := logs[len(logs)-1].ID
-	return repo.UpdateAgentLastReadLogID(db, agentID, lastID)
+	return nil
 }

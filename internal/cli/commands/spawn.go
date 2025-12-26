@@ -71,12 +71,15 @@ func runSpawn(db *sql.DB, runner ottoexec.Runner, agentType, task, files, contex
 }
 
 func runSpawnWithOptions(db *sql.DB, runner ottoexec.Runner, agentType, task, files, context, name string, detach bool, w io.Writer) error {
+	// Get current context
+	ctx := scope.CurrentContext()
+
 	// Generate agent ID: use provided name or auto-generate from task
 	var agentID string
 	if name != "" {
-		agentID = resolveAgentName(db, name)
+		agentID = resolveAgentName(db, ctx, name)
 	} else {
-		agentID = generateAgentID(db, task)
+		agentID = generateAgentID(db, ctx, task)
 	}
 
 	// Generate session ID (for Claude, or as placeholder for Codex until we capture thread_id)
@@ -84,7 +87,9 @@ func runSpawnWithOptions(db *sql.DB, runner ottoexec.Runner, agentType, task, fi
 
 	// Create agent row (status: busy)
 	agent := repo.Agent{
-		ID:        agentID,
+		Project:   ctx.Project,
+		Branch:    ctx.Branch,
+		Name:      agentID,
 		Type:      agentType,
 		Task:      task,
 		Status:    "busy",
@@ -106,7 +111,7 @@ func runSpawnWithOptions(db *sql.DB, runner ottoexec.Runner, agentType, task, fi
 
 	// Store short summary in messages, full prompt in logs
 	summary := fmt.Sprintf("spawned %s - %s", agentID, task)
-	if err := storePrompt(db, agentID, summary, prompt); err != nil {
+	if err := storePrompt(db, ctx, agentID, summary, prompt); err != nil {
 		return fmt.Errorf("store prompt: %w", err)
 	}
 
@@ -131,19 +136,21 @@ func runSpawnWithOptions(db *sql.DB, runner ottoexec.Runner, agentType, task, fi
 			_ = repo.RecordLaunchError(scopePath, agentID, errorText)
 
 			msg := repo.Message{
-				ID:           uuid.New().String(),
-				FromID:       agentID,
-				Type:         "exit",
-				Content:      errorText,
+				ID:        uuid.New().String(),
+				Project:   ctx.Project,
+				Branch:    ctx.Branch,
+				FromAgent: agentID,
+				Type:      "exit",
+				Content:   errorText,
 				MentionsJSON: "[]",
 				ReadByJSON:   "[]",
 			}
 			_ = repo.CreateMessage(db, msg)
-			_ = repo.SetAgentFailed(db, agentID)
+			_ = repo.SetAgentFailed(db, ctx.Project, ctx.Branch, agentID)
 			return fmt.Errorf("spawn worker: %w", err)
 		}
 
-		_ = repo.UpdateAgentPid(db, agentID, pid)
+		_ = repo.UpdateAgentPid(db, ctx.Project, ctx.Branch, agentID, pid)
 		fmt.Fprintln(w, agentID)
 		return nil
 	}
@@ -152,7 +159,7 @@ func runSpawnWithOptions(db *sql.DB, runner ottoexec.Runner, agentType, task, fi
 
 	// For Codex agents, we need to capture the thread_id from JSON output
 	if agentType == "codex" {
-		return runCodexSpawn(db, runner, agentID, cmdArgs)
+		return runCodexSpawn(db, runner, ctx, agentID, cmdArgs)
 	}
 
 	// For Claude agents, use transcript capture
@@ -162,9 +169,9 @@ func runSpawnWithOptions(db *sql.DB, runner ottoexec.Runner, agentType, task, fi
 	}
 
 	// Update agent with PID
-	_ = repo.UpdateAgentPid(db, agentID, pid)
+	_ = repo.UpdateAgentPid(db, ctx.Project, ctx.Branch, agentID, pid)
 
-	transcriptDone := consumeTranscriptEntries(db, agentID, output, nil)
+	transcriptDone := consumeTranscriptEntries(db, ctx, agentID, output, nil)
 
 	// Wait for process
 	if err := wait(); err != nil {
@@ -173,15 +180,17 @@ func runSpawnWithOptions(db *sql.DB, runner ottoexec.Runner, agentType, task, fi
 		}
 		// Post failure message and mark agent failed
 		msg := repo.Message{
-			ID:           uuid.New().String(),
-			FromID:       agentID,
-			Type:         "exit",
-			Content:      fmt.Sprintf("process failed: %v", err),
+			ID:        uuid.New().String(),
+			Project:   ctx.Project,
+			Branch:    ctx.Branch,
+			FromAgent: agentID,
+			Type:      "exit",
+			Content:   fmt.Sprintf("process failed: %v", err),
 			MentionsJSON: "[]",
 			ReadByJSON:   "[]",
 		}
 		_ = repo.CreateMessage(db, msg)
-		_ = repo.SetAgentFailed(db, agentID)
+		_ = repo.SetAgentFailed(db, ctx.Project, ctx.Branch, agentID)
 		return fmt.Errorf("spawn %s: %w", agentType, err)
 	}
 
@@ -190,20 +199,22 @@ func runSpawnWithOptions(db *sql.DB, runner ottoexec.Runner, agentType, task, fi
 	}
 
 	msg := repo.Message{
-		ID:           uuid.New().String(),
-		FromID:       agentID,
-		Type:         "exit",
-		Content:      "process completed successfully",
+		ID:        uuid.New().String(),
+		Project:   ctx.Project,
+		Branch:    ctx.Branch,
+		FromAgent: agentID,
+		Type:      "exit",
+		Content:   "process completed successfully",
 		MentionsJSON: "[]",
 		ReadByJSON:   "[]",
 	}
 	_ = repo.CreateMessage(db, msg)
-	_ = repo.SetAgentComplete(db, agentID)
+	_ = repo.SetAgentComplete(db, ctx.Project, ctx.Branch, agentID)
 
 	return nil
 }
 
-func runCodexSpawn(db *sql.DB, runner ottoexec.Runner, agentID string, cmdArgs []string) error {
+func runCodexSpawn(db *sql.DB, runner ottoexec.Runner, ctx scope.Context, agentID string, cmdArgs []string) error {
 	// Create temp directory for CODEX_HOME to bypass superpowers
 	tempDir, err := os.MkdirTemp("", "otto-codex-*")
 	if err != nil {
@@ -233,7 +244,7 @@ func runCodexSpawn(db *sql.DB, runner ottoexec.Runner, agentID string, cmdArgs [
 	}
 
 	// Update agent with PID
-	_ = repo.UpdateAgentPid(db, agentID, pid)
+	_ = repo.UpdateAgentPid(db, ctx.Project, ctx.Branch, agentID, pid)
 
 	// Parse output stream for thread_id in background
 	threadIDCaptured := false
@@ -247,13 +258,13 @@ func runCodexSpawn(db *sql.DB, runner ottoexec.Runner, agentID string, cmdArgs [
 		}
 		if eventType, ok := event["type"].(string); ok && eventType == "thread.started" {
 			if threadID, ok := event["thread_id"].(string); ok && threadID != "" {
-				_ = repo.UpdateAgentSessionID(db, agentID, threadID)
+				_ = repo.UpdateAgentSessionID(db, ctx.Project, ctx.Branch, agentID, threadID)
 				threadIDCaptured = true
 			}
 		}
 	}
 
-	transcriptDone := consumeTranscriptEntries(db, agentID, output, threadIDParser)
+	transcriptDone := consumeTranscriptEntries(db, ctx, agentID, output, threadIDParser)
 
 	// Wait for process
 	if err := wait(); err != nil {
@@ -262,15 +273,17 @@ func runCodexSpawn(db *sql.DB, runner ottoexec.Runner, agentID string, cmdArgs [
 		}
 		// Post failure message and mark agent failed
 		msg := repo.Message{
-			ID:           uuid.New().String(),
-			FromID:       agentID,
-			Type:         "exit",
-			Content:      fmt.Sprintf("process failed: %v", err),
+			ID:        uuid.New().String(),
+			Project:   ctx.Project,
+			Branch:    ctx.Branch,
+			FromAgent: agentID,
+			Type:      "exit",
+			Content:   fmt.Sprintf("process failed: %v", err),
 			MentionsJSON: "[]",
 			ReadByJSON:   "[]",
 		}
 		_ = repo.CreateMessage(db, msg)
-		_ = repo.SetAgentFailed(db, agentID)
+		_ = repo.SetAgentFailed(db, ctx.Project, ctx.Branch, agentID)
 		return fmt.Errorf("spawn codex: %w", err)
 	}
 
@@ -284,20 +297,22 @@ func runCodexSpawn(db *sql.DB, runner ottoexec.Runner, agentID string, cmdArgs [
 	}
 
 	msg := repo.Message{
-		ID:           uuid.New().String(),
-		FromID:       agentID,
-		Type:         "exit",
-		Content:      "process completed successfully",
+		ID:        uuid.New().String(),
+		Project:   ctx.Project,
+		Branch:    ctx.Branch,
+		FromAgent: agentID,
+		Type:      "exit",
+		Content:   "process completed successfully",
 		MentionsJSON: "[]",
 		ReadByJSON:   "[]",
 	}
 	_ = repo.CreateMessage(db, msg)
-	_ = repo.SetAgentComplete(db, agentID)
+	_ = repo.SetAgentComplete(db, ctx.Project, ctx.Branch, agentID)
 
 	return nil
 }
 
-func generateAgentID(db *sql.DB, task string) string {
+func generateAgentID(db *sql.DB, ctx scope.Context, task string) string {
 	// Generate slug: lowercase alphanumeric only, max 16 chars
 	slug := strings.ToLower(task)
 	slug = regexp.MustCompile(`[^a-z0-9]`).ReplaceAllString(slug, "")
@@ -312,7 +327,7 @@ func generateAgentID(db *sql.DB, task string) string {
 	baseSlug := slug
 	counter := 2
 	for {
-		_, err := repo.GetAgent(db, slug)
+		_, err := repo.GetAgent(db, ctx.Project, ctx.Branch, slug)
 		if err == sql.ErrNoRows {
 			return slug
 		}
@@ -321,7 +336,7 @@ func generateAgentID(db *sql.DB, task string) string {
 	}
 }
 
-func resolveAgentName(db *sql.DB, name string) string {
+func resolveAgentName(db *sql.DB, ctx scope.Context, name string) string {
 	// Clean up provided name: lowercase, alphanumeric and hyphens only
 	slug := strings.ToLower(name)
 	slug = regexp.MustCompile(`[^a-z0-9-]`).ReplaceAllString(slug, "")
@@ -336,7 +351,7 @@ func resolveAgentName(db *sql.DB, name string) string {
 	baseName := slug
 	counter := 2
 	for {
-		_, err := repo.GetAgent(db, slug)
+		_, err := repo.GetAgent(db, ctx.Project, ctx.Branch, slug)
 		if err == sql.ErrNoRows {
 			return slug
 		}

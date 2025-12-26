@@ -8,6 +8,7 @@ import (
 
 	"otto/internal/db"
 	"otto/internal/repo"
+	"otto/internal/scope"
 )
 
 func TestSinceIDFiltering(t *testing.T) {
@@ -18,7 +19,9 @@ func TestSinceIDFiltering(t *testing.T) {
 	messages := []repo.Message{
 		{
 			ID:           "m1",
-			FromID:       "user1",
+			Project:      "test-project",
+			Branch:       "main",
+			FromAgent:    "user1",
 			Type:         "text",
 			Content:      "First message",
 			MentionsJSON: "[]",
@@ -26,7 +29,9 @@ func TestSinceIDFiltering(t *testing.T) {
 		},
 		{
 			ID:           "m2",
-			FromID:       "user1",
+			Project:      "test-project",
+			Branch:       "main",
+			FromAgent:    "user1",
 			Type:         "text",
 			Content:      "Second message",
 			MentionsJSON: "[]",
@@ -34,7 +39,9 @@ func TestSinceIDFiltering(t *testing.T) {
 		},
 		{
 			ID:           "m3",
-			FromID:       "user1",
+			Project:      "test-project",
+			Branch:       "main",
+			FromAgent:    "user1",
 			Type:         "text",
 			Content:      "Third message",
 			MentionsJSON: "[]",
@@ -109,21 +116,24 @@ func TestCleanupStaleAgentsDeletesDeadAgents(t *testing.T) {
 	// Create an agent with a dead PID (PID 99999 should not exist)
 	deadPID := int64(99999)
 	agent := repo.Agent{
-		ID:     "deadagent",
-		Type:   "claude",
-		Task:   "test task",
-		Status: "busy",
-		Pid:    sql.NullInt64{Int64: deadPID, Valid: true},
+		Project: "test-project",
+		Branch:  "main",
+		Name:    "deadagent",
+		Type:    "claude",
+		Task:    "test task",
+		Status:  "busy",
+		Pid:     sql.NullInt64{Int64: deadPID, Valid: true},
 	}
 	if err := repo.CreateAgent(testDB, agent); err != nil {
 		t.Fatalf("create agent: %v", err)
 	}
 
 	// Run cleanup
-	cleanupStaleAgents(testDB)
+	ctx := scope.Context{Project: "test-project", Branch: "main"}
+	cleanupStaleAgents(testDB, ctx)
 
 	// Agent should be deleted
-	_, err := repo.GetAgent(testDB, "deadagent")
+	_, err := repo.GetAgent(testDB, "test-project", "main", "deadagent")
 	if err != sql.ErrNoRows {
 		t.Fatalf("expected agent to be deleted, got err=%v", err)
 	}
@@ -136,8 +146,8 @@ func TestCleanupStaleAgentsDeletesDeadAgents(t *testing.T) {
 	if len(msgs) != 1 {
 		t.Fatalf("expected 1 exit message, got %d", len(msgs))
 	}
-	if msgs[0].FromID != "deadagent" {
-		t.Fatalf("expected exit message from deadagent, got %s", msgs[0].FromID)
+	if msgs[0].FromAgent != "deadagent" {
+		t.Fatalf("expected exit message from deadagent, got %s", msgs[0].FromAgent)
 	}
 }
 

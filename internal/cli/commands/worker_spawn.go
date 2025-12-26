@@ -37,21 +37,31 @@ func NewWorkerSpawnCmd() *cobra.Command {
 }
 
 func runWorkerSpawn(db *sql.DB, runner ottoexec.Runner, agentID string) error {
+	ctx := scope.CurrentContext()
+
 	// Load agent
-	agent, err := repo.GetAgent(db, agentID)
+	agent, err := repo.GetAgent(db, ctx.Project, ctx.Branch, agentID)
 	if err != nil {
 		return fmt.Errorf("load agent: %w", err)
 	}
 
 	// Get latest prompt message
-	promptMsg, err := repo.GetLatestPromptForAgent(db, agentID)
+	promptMsg, err := repo.GetLatestPromptForAgent(db, ctx.Project, ctx.Branch, agentID)
 	if err != nil {
 		return fmt.Errorf("load prompt: %w", err)
 	}
 	promptContent := promptMsg.Content
 
 	// Store prompt as input log entry
-	if err := repo.CreateLogEntry(db, agentID, "in", "", promptContent); err != nil {
+	entry := repo.LogEntry{
+		Project:   ctx.Project,
+		Branch:    ctx.Branch,
+		AgentName: agentID,
+		AgentType: agent.Type,
+		EventType: "in",
+		Content:   sql.NullString{String: promptContent, Valid: true},
+	}
+	if err := repo.CreateLogEntry(db, entry); err != nil {
 		return fmt.Errorf("store prompt log: %w", err)
 	}
 
@@ -60,7 +70,7 @@ func runWorkerSpawn(db *sql.DB, runner ottoexec.Runner, agentID string) error {
 
 	// Run with transcript capture (different logic for codex vs claude)
 	if agent.Type == "codex" {
-		return runWorkerCodexSpawn(db, runner, agentID, cmdArgs)
+		return runWorkerCodexSpawn(db, runner, ctx, agentID, cmdArgs)
 	}
 
 	// For Claude agents, use standard transcript capture
@@ -70,10 +80,10 @@ func runWorkerSpawn(db *sql.DB, runner ottoexec.Runner, agentID string) error {
 	}
 
 	// Update agent with PID
-	_ = repo.UpdateAgentPid(db, agentID, pid)
+	_ = repo.UpdateAgentPid(db, ctx.Project, ctx.Branch, agentID, pid)
 
 	// Consume transcript entries
-	transcriptDone := consumeTranscriptEntries(db, agentID, output, nil)
+	transcriptDone := consumeTranscriptEntries(db, ctx, agentID, output, nil)
 
 	// Wait for process
 	if err := wait(); err != nil {
@@ -92,15 +102,17 @@ func runWorkerSpawn(db *sql.DB, runner ottoexec.Runner, agentID string) error {
 
 		// Post failure message and mark agent failed
 		msg := repo.Message{
-			ID:           uuid.New().String(),
-			FromID:       agentID,
-			Type:         "exit",
-			Content:      errorText,
+			ID:        uuid.New().String(),
+			Project:   ctx.Project,
+			Branch:    ctx.Branch,
+			FromAgent: agentID,
+			Type:      "exit",
+			Content:   errorText,
 			MentionsJSON: "[]",
 			ReadByJSON:   "[]",
 		}
 		_ = repo.CreateMessage(db, msg)
-		_ = repo.SetAgentFailed(db, agentID)
+		_ = repo.SetAgentFailed(db, ctx.Project, ctx.Branch, agentID)
 		return fmt.Errorf("spawn %s: %w", agent.Type, err)
 	}
 
@@ -110,20 +122,22 @@ func runWorkerSpawn(db *sql.DB, runner ottoexec.Runner, agentID string) error {
 
 	// Success - post completion message
 	msg := repo.Message{
-		ID:           uuid.New().String(),
-		FromID:       agentID,
-		Type:         "exit",
-		Content:      "process completed successfully",
+		ID:        uuid.New().String(),
+		Project:   ctx.Project,
+		Branch:    ctx.Branch,
+		FromAgent: agentID,
+		Type:      "exit",
+		Content:   "process completed successfully",
 		MentionsJSON: "[]",
 		ReadByJSON:   "[]",
 	}
 	_ = repo.CreateMessage(db, msg)
-	_ = repo.SetAgentComplete(db, agentID)
+	_ = repo.SetAgentComplete(db, ctx.Project, ctx.Branch, agentID)
 
 	return nil
 }
 
-func runWorkerCodexSpawn(db *sql.DB, runner ottoexec.Runner, agentID string, cmdArgs []string) error {
+func runWorkerCodexSpawn(db *sql.DB, runner ottoexec.Runner, ctx scope.Context, agentID string, cmdArgs []string) error {
 	// Create temp directory for CODEX_HOME to bypass superpowers
 	tempDir, err := os.MkdirTemp("", "otto-codex-*")
 	if err != nil {
@@ -153,7 +167,7 @@ func runWorkerCodexSpawn(db *sql.DB, runner ottoexec.Runner, agentID string, cmd
 	}
 
 	// Update agent with PID
-	_ = repo.UpdateAgentPid(db, agentID, pid)
+	_ = repo.UpdateAgentPid(db, ctx.Project, ctx.Branch, agentID, pid)
 
 	// Parse output stream for thread_id in background
 	threadIDCaptured := false
@@ -167,13 +181,13 @@ func runWorkerCodexSpawn(db *sql.DB, runner ottoexec.Runner, agentID string, cmd
 		}
 		if eventType, ok := event["type"].(string); ok && eventType == "thread.started" {
 			if threadID, ok := event["thread_id"].(string); ok && threadID != "" {
-				_ = repo.UpdateAgentSessionID(db, agentID, threadID)
+				_ = repo.UpdateAgentSessionID(db, ctx.Project, ctx.Branch, agentID, threadID)
 				threadIDCaptured = true
 			}
 		}
 	}
 
-	transcriptDone := consumeTranscriptEntries(db, agentID, output, threadIDParser)
+	transcriptDone := consumeTranscriptEntries(db, ctx, agentID, output, threadIDParser)
 
 	// Wait for process
 	if err := wait(); err != nil {
@@ -192,15 +206,17 @@ func runWorkerCodexSpawn(db *sql.DB, runner ottoexec.Runner, agentID string, cmd
 
 		// Post failure message and mark agent failed
 		msg := repo.Message{
-			ID:           uuid.New().String(),
-			FromID:       agentID,
-			Type:         "exit",
-			Content:      errorText,
+			ID:        uuid.New().String(),
+			Project:   ctx.Project,
+			Branch:    ctx.Branch,
+			FromAgent: agentID,
+			Type:      "exit",
+			Content:   errorText,
 			MentionsJSON: "[]",
 			ReadByJSON:   "[]",
 		}
 		_ = repo.CreateMessage(db, msg)
-		_ = repo.SetAgentFailed(db, agentID)
+		_ = repo.SetAgentFailed(db, ctx.Project, ctx.Branch, agentID)
 		return fmt.Errorf("spawn codex: %w", err)
 	}
 
@@ -214,15 +230,17 @@ func runWorkerCodexSpawn(db *sql.DB, runner ottoexec.Runner, agentID string, cmd
 	}
 
 	msg := repo.Message{
-		ID:           uuid.New().String(),
-		FromID:       agentID,
-		Type:         "exit",
-		Content:      "process completed successfully",
+		ID:        uuid.New().String(),
+		Project:   ctx.Project,
+		Branch:    ctx.Branch,
+		FromAgent: agentID,
+		Type:      "exit",
+		Content:   "process completed successfully",
 		MentionsJSON: "[]",
 		ReadByJSON:   "[]",
 	}
 	_ = repo.CreateMessage(db, msg)
-	_ = repo.SetAgentComplete(db, agentID)
+	_ = repo.SetAgentComplete(db, ctx.Project, ctx.Branch, agentID)
 
 	return nil
 }

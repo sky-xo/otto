@@ -39,7 +39,9 @@ func TestAttachCodexShowsDangerFullAccess(t *testing.T) {
 	db := openTestDB(t)
 
 	agent := repo.Agent{
-		ID:        "codexer",
+		Project:   "test-project",
+		Branch:    "main",
+		Name:      "codexer",
 		Type:      "codex",
 		Task:      "task",
 		Status:    "complete",
@@ -65,7 +67,9 @@ func TestAttachUnarchivesAgent(t *testing.T) {
 	db := openTestDB(t)
 
 	agent := repo.Agent{
-		ID:        "archived",
+		Project:   "test-project",
+		Branch:    "main",
+		Name:      "archived",
 		Type:      "claude",
 		Task:      "task",
 		Status:    "complete",
@@ -74,7 +78,7 @@ func TestAttachUnarchivesAgent(t *testing.T) {
 	if err := repo.CreateAgent(db, agent); err != nil {
 		t.Fatalf("create agent: %v", err)
 	}
-	if err := repo.ArchiveAgent(db, agent.ID); err != nil {
+	if err := repo.ArchiveAgent(db, agent.Project, agent.Branch, agent.Name); err != nil {
 		t.Fatalf("archive agent: %v", err)
 	}
 
@@ -84,7 +88,7 @@ func TestAttachUnarchivesAgent(t *testing.T) {
 		}
 	})
 
-	updated, err := repo.GetAgent(db, "archived")
+	updated, err := repo.GetAgent(db, "test-project", "main", "archived")
 	if err != nil {
 		t.Fatalf("get agent: %v", err)
 	}

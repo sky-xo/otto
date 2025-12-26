@@ -14,11 +14,13 @@ func TestKillDeletesAgent(t *testing.T) {
 	// Create an agent with a PID (use current process PID for testing)
 	// We won't actually kill it, just test that the message and deletion happen
 	agent := repo.Agent{
-		ID:     "testagent",
-		Type:   "claude",
-		Task:   "test task",
-		Status: "busy",
-		Pid:    sql.NullInt64{Int64: 99999, Valid: true}, // Use fake PID that doesn't exist
+		Project: "test-project",
+		Branch:  "main",
+		Name:    "testagent",
+		Type:    "claude",
+		Task:    "test task",
+		Status:  "busy",
+		Pid:     sql.NullInt64{Int64: 99999, Valid: true}, // Use fake PID that doesn't exist
 	}
 	if err := repo.CreateAgent(db, agent); err != nil {
 		t.Fatalf("create agent: %v", err)
@@ -41,10 +43,12 @@ func TestKillRequiresPID(t *testing.T) {
 
 	// Create an agent without a PID
 	agent := repo.Agent{
-		ID:     "nopidagent",
-		Type:   "claude",
-		Task:   "test task",
-		Status: "busy",
+		Project: "test-project",
+		Branch:  "main",
+		Name:    "nopidagent",
+		Type:    "claude",
+		Task:    "test task",
+		Status:  "busy",
 	}
 	if err := repo.CreateAgent(db, agent); err != nil {
 		t.Fatalf("create agent: %v", err)

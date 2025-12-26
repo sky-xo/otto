@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"otto/internal/repo"
+	"otto/internal/scope"
 
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
@@ -39,8 +40,10 @@ func NewKillCmd() *cobra.Command {
 }
 
 func runKill(db *sql.DB, agentID string) error {
+	ctx := scope.CurrentContext()
+
 	// Look up agent
-	agent, err := repo.GetAgent(db, agentID)
+	agent, err := repo.GetAgent(db, ctx.Project, ctx.Branch, agentID)
 	if err == sql.ErrNoRows {
 		return fmt.Errorf("agent %q not found", agentID)
 	}
@@ -68,10 +71,12 @@ func runKill(db *sql.DB, agentID string) error {
 
 	// Post kill message
 	msg := repo.Message{
-		ID:           uuid.New().String(),
-		FromID:       agentID,
-		Type:         "exit",
-		Content:      "KILLED: by orchestrator",
+		ID:        uuid.New().String(),
+		Project:   ctx.Project,
+		Branch:    ctx.Branch,
+		FromAgent: agentID,
+		Type:      "exit",
+		Content:   "KILLED: by orchestrator",
 		MentionsJSON: "[]",
 		ReadByJSON:   "[]",
 	}
@@ -80,7 +85,7 @@ func runKill(db *sql.DB, agentID string) error {
 	}
 
 	// Delete agent row
-	if err := repo.DeleteAgent(db, agentID); err != nil {
+	if err := repo.DeleteAgent(db, ctx.Project, ctx.Branch, agentID); err != nil {
 		return fmt.Errorf("delete agent: %w", err)
 	}
 

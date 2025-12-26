@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"otto/internal/repo"
+	"otto/internal/scope"
 
 	"github.com/spf13/cobra"
 )
@@ -36,8 +37,10 @@ func NewAttachCmd() *cobra.Command {
 }
 
 func runAttach(db *sql.DB, agentID string) error {
+	ctx := scope.CurrentContext()
+
 	// Look up agent
-	agent, err := repo.GetAgent(db, agentID)
+	agent, err := repo.GetAgent(db, ctx.Project, ctx.Branch, agentID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return fmt.Errorf("agent %q not found", agentID)
@@ -51,7 +54,7 @@ func runAttach(db *sql.DB, agentID string) error {
 	}
 
 	if agent.ArchivedAt.Valid {
-		if err := repo.UnarchiveAgent(db, agentID); err != nil {
+		if err := repo.UnarchiveAgent(db, ctx.Project, ctx.Branch, agentID); err != nil {
 			return fmt.Errorf("unarchive agent: %w", err)
 		}
 	}

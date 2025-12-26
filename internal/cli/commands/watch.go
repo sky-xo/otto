@@ -9,6 +9,7 @@ import (
 
 	"otto/internal/process"
 	"otto/internal/repo"
+	"otto/internal/scope"
 	"otto/internal/tui"
 
 	"github.com/spf13/cobra"
@@ -38,6 +39,7 @@ func NewWatchCmd() *cobra.Command {
 }
 
 func runWatch(ctx context.Context, db *sql.DB) error {
+	scopeCtx := scope.CurrentContext()
 	fmt.Println("Watching for messages... (Ctrl+C to stop)")
 
 	var lastSeenID string
@@ -51,10 +53,13 @@ func runWatch(ctx context.Context, db *sql.DB) error {
 		}
 
 		// Clean up stale agents
-		cleanupStaleAgents(db)
+		cleanupStaleAgents(db, scopeCtx)
 
 		// Build filter
-		filter := repo.MessageFilter{}
+		filter := repo.MessageFilter{
+			Project: scopeCtx.Project,
+			Branch:  scopeCtx.Branch,
+		}
 		if lastSeenID != "" {
 			filter.SinceID = lastSeenID
 		}
@@ -67,7 +72,7 @@ func runWatch(ctx context.Context, db *sql.DB) error {
 
 		// Print new messages
 		for _, m := range messages {
-			fmt.Printf("[%s] %s: %s\n", m.Type, m.FromID, m.Content)
+			fmt.Printf("[%s] %s: %s\n", m.Type, m.FromAgent, m.Content)
 			lastSeenID = m.ID
 		}
 
@@ -76,8 +81,13 @@ func runWatch(ctx context.Context, db *sql.DB) error {
 	}
 }
 
-func cleanupStaleAgents(db *sql.DB) {
-	agents, err := repo.ListAgents(db)
+func cleanupStaleAgents(db *sql.DB, scopeCtx scope.Context) {
+	filter := repo.AgentFilter{
+		Project:         scopeCtx.Project,
+		Branch:          scopeCtx.Branch,
+		IncludeArchived: false,
+	}
+	agents, err := repo.ListAgents(db, filter)
 	if err != nil {
 		return
 	}
@@ -86,15 +96,17 @@ func cleanupStaleAgents(db *sql.DB) {
 			if !process.IsProcessAlive(int(a.Pid.Int64)) {
 				// Post exit message and delete agent
 				msg := repo.Message{
-					ID:           fmt.Sprintf("%s-exit-%d", a.ID, time.Now().Unix()),
-					FromID:       a.ID,
-					Type:         "exit",
-					Content:      "process died unexpectedly",
+					ID:        fmt.Sprintf("%s-exit-%d", a.Name, time.Now().Unix()),
+					Project:   scopeCtx.Project,
+					Branch:    scopeCtx.Branch,
+					FromAgent: a.Name,
+					Type:      "exit",
+					Content:   "process died unexpectedly",
 					MentionsJSON: "[]",
 					ReadByJSON:   "[]",
 				}
 				_ = repo.CreateMessage(db, msg)
-				_ = repo.DeleteAgent(db, a.ID)
+				_ = repo.DeleteAgent(db, a.Project, a.Branch, a.Name)
 			}
 		}
 	}

@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"otto/internal/repo"
+	"otto/internal/scope"
 
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
@@ -41,17 +42,20 @@ func NewCompleteCmd() *cobra.Command {
 }
 
 func runComplete(db *sql.DB, fromID, content string) error {
-	mentions := parseMentions(content)
+	ctx := scope.CurrentContext()
+	mentions := parseMentions(content, ctx)
 	mentionsJSON, err := json.Marshal(mentions)
 	if err != nil {
 		return fmt.Errorf("marshal mentions: %w", err)
 	}
 
 	msg := repo.Message{
-		ID:           uuid.New().String(),
-		FromID:       fromID,
-		Type:         "complete",
-		Content:      content,
+		ID:        uuid.New().String(),
+		Project:   ctx.Project,
+		Branch:    ctx.Branch,
+		FromAgent: fromID,
+		Type:      "complete",
+		Content:   content,
 		MentionsJSON: string(mentionsJSON),
 		ReadByJSON:   "[]",
 	}
@@ -60,7 +64,7 @@ func runComplete(db *sql.DB, fromID, content string) error {
 		return fmt.Errorf("create message: %w", err)
 	}
 
-	if err := repo.SetAgentComplete(db, fromID); err != nil {
+	if err := repo.SetAgentComplete(db, ctx.Project, ctx.Branch, fromID); err != nil {
 		return fmt.Errorf("set agent complete: %w", err)
 	}
 

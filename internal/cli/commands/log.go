@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"otto/internal/repo"
+	"otto/internal/scope"
 
 	"github.com/spf13/cobra"
 )
@@ -39,7 +40,9 @@ func NewLogCmd() *cobra.Command {
 }
 
 func runLog(db *sql.DB, agentID string, tail int, w io.Writer) error {
-	if _, err := repo.GetAgent(db, agentID); err != nil {
+	ctx := scope.CurrentContext()
+
+	if _, err := repo.GetAgent(db, ctx.Project, ctx.Branch, agentID); err != nil {
 		if err == sql.ErrNoRows {
 			return fmt.Errorf("agent %q not found", agentID)
 		}
@@ -50,9 +53,9 @@ func runLog(db *sql.DB, agentID string, tail int, w io.Writer) error {
 	var err error
 
 	if tail > 0 {
-		logs, err = repo.ListLogsWithTail(db, agentID, tail)
+		logs, err = repo.ListLogsWithTail(db, ctx.Project, ctx.Branch, agentID, tail)
 	} else {
-		logs, err = repo.ListLogs(db, agentID, "")
+		logs, err = repo.ListLogs(db, ctx.Project, ctx.Branch, agentID, "")
 	}
 	if err != nil {
 		return err
@@ -65,10 +68,12 @@ func runLog(db *sql.DB, agentID string, tail int, w io.Writer) error {
 
 	for _, entry := range logs {
 		stream := ""
-		if entry.Stream.Valid {
-			stream = fmt.Sprintf("[%s] ", entry.Stream.String)
+		if entry.ToolName.Valid {
+			stream = fmt.Sprintf("[%s] ", entry.ToolName.String)
 		}
-		fmt.Fprintf(w, "%s%s\n", stream, entry.Content)
+		if entry.Content.Valid {
+			fmt.Fprintf(w, "%s%s\n", stream, entry.Content.String)
+		}
 	}
 	return nil
 }

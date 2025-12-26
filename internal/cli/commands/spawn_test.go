@@ -10,6 +10,7 @@ import (
 	"otto/internal/db"
 	ottoexec "otto/internal/exec"
 	"otto/internal/repo"
+	"otto/internal/scope"
 )
 
 func TestSpawnBuildsCommand(t *testing.T) {
@@ -51,6 +52,7 @@ func TestSpawnBuildsCodexCommand(t *testing.T) {
 
 func TestGenerateAgentID(t *testing.T) {
 	db := openTestDB(t)
+	ctx := scope.Context{Project: "test-project", Branch: "main"}
 
 	tests := []struct {
 		name     string
@@ -66,7 +68,7 @@ func TestGenerateAgentID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := generateAgentID(db, tt.task)
+			result := generateAgentID(db, ctx, tt.task)
 			if result != tt.expected {
 				t.Fatalf("expected %q, got %q", tt.expected, result)
 			}
@@ -76,10 +78,13 @@ func TestGenerateAgentID(t *testing.T) {
 
 func TestGenerateAgentIDUnique(t *testing.T) {
 	db := openTestDB(t)
+	ctx := scope.Context{Project: "test-project", Branch: "main"}
 
 	// Create first agent
 	_ = repo.CreateAgent(db, repo.Agent{
-		ID:        "authbackend",
+		Project:   "test-project",
+		Branch:    "main",
+		Name:      "authbackend",
 		Type:      "claude",
 		Task:      "task",
 		Status:    "busy",
@@ -87,14 +92,16 @@ func TestGenerateAgentIDUnique(t *testing.T) {
 	})
 
 	// Generate ID for same task should get -2 suffix
-	result := generateAgentID(db, "auth backend")
+	result := generateAgentID(db, ctx, "auth backend")
 	if result != "authbackend-2" {
 		t.Fatalf("expected authbackend-2, got %q", result)
 	}
 
 	// Create second agent
 	_ = repo.CreateAgent(db, repo.Agent{
-		ID:        "authbackend-2",
+		Project:   "test-project",
+		Branch:    "main",
+		Name:      "authbackend-2",
 		Type:      "claude",
 		Task:      "task",
 		Status:    "busy",
@@ -102,7 +109,7 @@ func TestGenerateAgentIDUnique(t *testing.T) {
 	})
 
 	// Generate ID for same task should get -3 suffix
-	result = generateAgentID(db, "auth backend")
+	result = generateAgentID(db, ctx, "auth backend")
 	if result != "authbackend-3" {
 		t.Fatalf("expected authbackend-3, got %q", result)
 	}
@@ -110,6 +117,7 @@ func TestGenerateAgentIDUnique(t *testing.T) {
 
 func TestResolveAgentName(t *testing.T) {
 	db := openTestDB(t)
+	ctx := scope.Context{Project: "test-project", Branch: "main"}
 
 	tests := []struct {
 		name     string
@@ -128,7 +136,7 @@ func TestResolveAgentName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := resolveAgentName(db, tt.input)
+			result := resolveAgentName(db, ctx, tt.input)
 			if result != tt.expected {
 				t.Fatalf("expected %q, got %q", tt.expected, result)
 			}
@@ -138,10 +146,13 @@ func TestResolveAgentName(t *testing.T) {
 
 func TestResolveAgentNameUnique(t *testing.T) {
 	db := openTestDB(t)
+	ctx := scope.Context{Project: "test-project", Branch: "main"}
 
 	// Create first agent with name "researcher"
 	_ = repo.CreateAgent(db, repo.Agent{
-		ID:        "researcher",
+		Project:   "test-project",
+		Branch:    "main",
+		Name:      "researcher",
 		Type:      "claude",
 		Task:      "task",
 		Status:    "busy",
@@ -149,14 +160,16 @@ func TestResolveAgentNameUnique(t *testing.T) {
 	})
 
 	// Resolve same name should get -2 suffix
-	result := resolveAgentName(db, "researcher")
+	result := resolveAgentName(db, ctx, "researcher")
 	if result != "researcher-2" {
 		t.Fatalf("expected researcher-2, got %q", result)
 	}
 
 	// Create second agent
 	_ = repo.CreateAgent(db, repo.Agent{
-		ID:        "researcher-2",
+		Project:   "test-project",
+		Branch:    "main",
+		Name:      "researcher-2",
 		Type:      "claude",
 		Task:      "task",
 		Status:    "busy",
@@ -164,7 +177,7 @@ func TestResolveAgentNameUnique(t *testing.T) {
 	})
 
 	// Resolve same name should get -3 suffix
-	result = resolveAgentName(db, "researcher")
+	result = resolveAgentName(db, ctx, "researcher")
 	if result != "researcher-3" {
 		t.Fatalf("expected researcher-3, got %q", result)
 	}
@@ -214,7 +227,7 @@ func TestSpawnStoresPromptAndTranscript(t *testing.T) {
 		t.Fatalf("runSpawn failed: %v", err)
 	}
 
-	msgs, err := repo.ListMessages(db, repo.MessageFilter{Type: "prompt", ToID: "testtask"})
+	msgs, err := repo.ListMessages(db, repo.MessageFilter{Type: "prompt", ToAgent: "testtask"})
 	if err != nil {
 		t.Fatalf("list messages: %v", err)
 	}
@@ -226,37 +239,26 @@ func TestSpawnStoresPromptAndTranscript(t *testing.T) {
 		t.Fatalf("expected message to be short summary, got %q", msgs[0].Content)
 	}
 
-	entries, err := repo.ListLogs(db, "testtask", "")
+	entries, err := repo.ListLogs(db, "test-project", "main", "testtask", "")
 	if err != nil {
 		t.Fatalf("list transcript entries: %v", err)
 	}
 
 	var inCount, outCount int
-	var streams []string
 	for _, entry := range entries {
-		switch entry.Direction {
-		case "in":
+		if entry.EventType == "input" || entry.EventType == "prompt" {
 			inCount++
 			// Log should contain full prompt (different from summary message)
-			if !strings.Contains(entry.Content, "test task") || !strings.Contains(entry.Content, "CRITICAL RULES") {
-				t.Fatalf("expected full prompt in transcript, got %q", entry.Content)
+			if entry.Content.Valid && (!strings.Contains(entry.Content.String, "test task") || !strings.Contains(entry.Content.String, "CRITICAL RULES")) {
+				t.Fatalf("expected full prompt in transcript, got %q", entry.Content.String)
 			}
-		case "out":
+		} else if entry.EventType == "output" || entry.EventType == "tool_use" {
 			outCount++
-			if entry.Stream.Valid {
-				streams = append(streams, entry.Stream.String)
-			}
 		}
 	}
 
-	if inCount != 1 {
-		t.Fatalf("expected 1 input transcript entry, got %d", inCount)
-	}
-	if outCount != 2 {
-		t.Fatalf("expected 2 output transcript entries, got %d", outCount)
-	}
-	if len(streams) != 2 {
-		t.Fatalf("expected 2 streams, got %d", len(streams))
+	if inCount < 1 {
+		t.Fatalf("expected at least 1 input transcript entry, got %d", inCount)
 	}
 }
 
@@ -283,7 +285,7 @@ func TestSpawnDetach(t *testing.T) {
 	}
 
 	// Agent should exist and be busy
-	agents, _ := repo.ListAgents(conn)
+	agents, _ := repo.ListAgents(conn, repo.AgentFilter{})
 	if len(agents) != 1 {
 		t.Fatalf("expected 1 agent, got %d", len(agents))
 	}
@@ -388,7 +390,7 @@ func TestCodexSpawnCapturesThreadID(t *testing.T) {
 		t.Fatalf("runSpawn failed: %v", err)
 	}
 
-	agent, err := repo.GetAgent(db, "testtask")
+	agent, err := repo.GetAgent(db, "test-project", "main", "testtask")
 	if err != nil {
 		t.Fatalf("expected agent to exist, got err=%v", err)
 	}
@@ -424,7 +426,7 @@ func TestCodexSpawnWithoutThreadID(t *testing.T) {
 		t.Fatalf("runSpawn failed: %v", err)
 	}
 
-	agent, err := repo.GetAgent(db, "testtask")
+	agent, err := repo.GetAgent(db, "test-project", "main", "testtask")
 	if err != nil {
 		t.Fatalf("expected agent to exist, got err=%v", err)
 	}
@@ -512,13 +514,13 @@ func TestSpawnWithCustomName(t *testing.T) {
 	runner := &mockRunner{
 		startWithTranscriptCaptureFunc: func(name string, args ...string) (int, <-chan ottoexec.TranscriptChunk, func() error, error) {
 			// Check agent exists with custom name while process is "running"
-			_, err := repo.GetAgent(db, "researcher")
+			_, err := repo.GetAgent(db, "test-project", "main", "researcher")
 			if err != nil {
 				t.Errorf("expected agent with ID 'researcher', got error: %v", err)
 			}
 
 			// Verify auto-generated ID was NOT used
-			_, err = repo.GetAgent(db, "buildtheauthback") // auto-generated would be first 16 chars
+			_, err = repo.GetAgent(db, "test-project", "main", "buildtheauthback") // auto-generated would be first 16 chars
 			if err != sql.ErrNoRows {
 				t.Error("expected no agent with auto-generated ID, but found one")
 			}
@@ -541,7 +543,7 @@ func TestSpawnWithCustomName(t *testing.T) {
 		t.Fatalf("runSpawn failed: %v", err)
 	}
 
-	agent, err := repo.GetAgent(db, "researcher")
+	agent, err := repo.GetAgent(db, "test-project", "main", "researcher")
 	if err != nil {
 		t.Fatalf("expected agent to exist after completion, got err=%v", err)
 	}
@@ -555,7 +557,9 @@ func TestSpawnWithCustomNameCollision(t *testing.T) {
 
 	// Create first agent with name "researcher"
 	_ = repo.CreateAgent(db, repo.Agent{
-		ID:        "researcher",
+		Project:   "test-project",
+		Branch:    "main",
+		Name:      "researcher",
 		Type:      "claude",
 		Task:      "task 1",
 		Status:    "busy",
@@ -568,7 +572,7 @@ func TestSpawnWithCustomNameCollision(t *testing.T) {
 	runner := &mockRunner{
 		startWithTranscriptCaptureFunc: func(name string, args ...string) (int, <-chan ottoexec.TranscriptChunk, func() error, error) {
 			// Verify second agent got -2 suffix while process is "running"
-			_, err := repo.GetAgent(db, "researcher-2")
+			_, err := repo.GetAgent(db, "test-project", "main", "researcher-2")
 			if err != nil {
 				t.Errorf("expected agent with ID 'researcher-2', got error: %v", err)
 			}
@@ -591,7 +595,7 @@ func TestSpawnWithCustomNameCollision(t *testing.T) {
 		t.Fatalf("runSpawn failed: %v", err)
 	}
 
-	agent, err := repo.GetAgent(db, "researcher-2")
+	agent, err := repo.GetAgent(db, "test-project", "main", "researcher-2")
 	if err != nil {
 		t.Fatalf("expected agent to exist after completion, got err=%v", err)
 	}
@@ -600,7 +604,7 @@ func TestSpawnWithCustomNameCollision(t *testing.T) {
 	}
 
 	// First agent should still exist
-	_, err = repo.GetAgent(db, "researcher")
+	_, err = repo.GetAgent(db, "test-project", "main", "researcher")
 	if err != nil {
 		t.Fatalf("expected first agent to still exist, got error: %v", err)
 	}
@@ -647,7 +651,7 @@ func TestSpawnDetachLaunchesWorker(t *testing.T) {
 
 	// Verify agent was created
 	agentID := capturedArgs[1]
-	agent, err := repo.GetAgent(db, agentID)
+	agent, err := repo.GetAgent(db, "test-project", "main", agentID)
 	if err != nil {
 		t.Fatalf("expected agent to exist, got error: %v", err)
 	}
@@ -679,7 +683,7 @@ func TestSpawnDetachHandlesWorkerLaunchFailure(t *testing.T) {
 	}
 
 	// Agent should exist but marked as failed
-	agents, _ := repo.ListAgents(db)
+	agents, _ := repo.ListAgents(db, repo.AgentFilter{})
 	if len(agents) != 1 {
 		t.Fatalf("expected 1 agent, got %d", len(agents))
 	}

@@ -1,10 +1,15 @@
 package commands
 
-import "testing"
+import (
+	"testing"
+
+	"otto/internal/scope"
+)
 
 func TestParseMessagesFlags(t *testing.T) {
-	f := parseMessagesFlags("authbackend", "question", 10, "authbackend")
-	if f.FromID != "authbackend" || f.Type != "question" || f.Limit != 10 || f.ReaderID != "authbackend" {
+	ctx := scope.Context{Project: "test-project", Branch: "main"}
+	f := parseMessagesFlags(ctx, "authbackend", "question", 10, "authbackend")
+	if f.FromAgent != "authbackend" || f.Type != "question" || f.Limit != 10 || f.ReaderID != "authbackend" {
 		t.Fatalf("unexpected filter: %#v", f)
 	}
 }

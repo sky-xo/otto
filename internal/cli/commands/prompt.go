@@ -9,6 +9,7 @@ import (
 
 	ottoexec "otto/internal/exec"
 	"otto/internal/repo"
+	"otto/internal/scope"
 
 	"github.com/spf13/cobra"
 )
@@ -40,8 +41,10 @@ func NewPromptCmd() *cobra.Command {
 }
 
 func runPrompt(db *sql.DB, runner ottoexec.Runner, agentID, message string) error {
+	ctx := scope.CurrentContext()
+
 	// Look up agent
-	agent, err := repo.GetAgent(db, agentID)
+	agent, err := repo.GetAgent(db, ctx.Project, ctx.Branch, agentID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return fmt.Errorf("agent %q not found", agentID)
@@ -55,7 +58,7 @@ func runPrompt(db *sql.DB, runner ottoexec.Runner, agentID, message string) erro
 	}
 
 	if agent.ArchivedAt.Valid {
-		if err := repo.UnarchiveAgent(db, agentID); err != nil {
+		if err := repo.UnarchiveAgent(db, ctx.Project, ctx.Branch, agentID); err != nil {
 			return fmt.Errorf("unarchive agent: %w", err)
 		}
 	}
@@ -73,16 +76,16 @@ func runPrompt(db *sql.DB, runner ottoexec.Runner, agentID, message string) erro
 		return fmt.Errorf("unsupported agent type %q", agent.Type)
 	}
 
-	if err := storePrompt(db, agentID, message, message); err != nil {
+	if err := storePrompt(db, ctx, agentID, message, message); err != nil {
 		return fmt.Errorf("store prompt: %w", err)
 	}
 
-	if err := repo.ResumeAgent(db, agentID); err != nil {
+	if err := repo.ResumeAgent(db, ctx.Project, ctx.Branch, agentID); err != nil {
 		return fmt.Errorf("resume agent: %w", err)
 	}
 
 	if agent.Type == "codex" {
-		return runCodexPrompt(db, runner, agentID, cmdArgs)
+		return runCodexPrompt(db, runner, ctx, agentID, cmdArgs)
 	}
 
 	// Run command for Claude agents
@@ -91,27 +94,27 @@ func runPrompt(db *sql.DB, runner ottoexec.Runner, agentID, message string) erro
 		return fmt.Errorf("prompt %s: %w", agent.Type, err)
 	}
 
-	_ = repo.UpdateAgentPid(db, agentID, pid)
+	_ = repo.UpdateAgentPid(db, ctx.Project, ctx.Branch, agentID, pid)
 
-	transcriptDone := consumeTranscriptEntries(db, agentID, output, nil)
+	transcriptDone := consumeTranscriptEntries(db, ctx, agentID, output, nil)
 
 	if err := wait(); err != nil {
 		if consumeErr := <-transcriptDone; consumeErr != nil {
 			return fmt.Errorf("prompt %s: %w", agent.Type, consumeErr)
 		}
-		_ = repo.SetAgentFailed(db, agentID)
+		_ = repo.SetAgentFailed(db, ctx.Project, ctx.Branch, agentID)
 		return fmt.Errorf("prompt %s: %w", agent.Type, err)
 	}
 
 	if consumeErr := <-transcriptDone; consumeErr != nil {
 		return fmt.Errorf("prompt %s: %w", agent.Type, consumeErr)
 	}
-	_ = repo.SetAgentComplete(db, agentID)
+	_ = repo.SetAgentComplete(db, ctx.Project, ctx.Branch, agentID)
 
 	return nil
 }
 
-func runCodexPrompt(db *sql.DB, runner ottoexec.Runner, agentID string, cmdArgs []string) error {
+func runCodexPrompt(db *sql.DB, runner ottoexec.Runner, ctx scope.Context, agentID string, cmdArgs []string) error {
 	// Create temp directory for CODEX_HOME to bypass superpowers
 	tempDir, err := os.MkdirTemp("", "otto-codex-*")
 	if err != nil {
@@ -138,9 +141,9 @@ func runCodexPrompt(db *sql.DB, runner ottoexec.Runner, agentID string, cmdArgs 
 		return fmt.Errorf("prompt codex: %w", err)
 	}
 
-	_ = repo.UpdateAgentPid(db, agentID, pid)
+	_ = repo.UpdateAgentPid(db, ctx.Project, ctx.Branch, agentID, pid)
 
-	transcriptDone := consumeTranscriptEntries(db, agentID, output, nil)
+	transcriptDone := consumeTranscriptEntries(db, ctx, agentID, output, nil)
 
 	err = wait()
 	os.RemoveAll(tempDir)
@@ -148,14 +151,14 @@ func runCodexPrompt(db *sql.DB, runner ottoexec.Runner, agentID string, cmdArgs 
 		if consumeErr := <-transcriptDone; consumeErr != nil {
 			return fmt.Errorf("prompt codex: %w", consumeErr)
 		}
-		_ = repo.SetAgentFailed(db, agentID)
+		_ = repo.SetAgentFailed(db, ctx.Project, ctx.Branch, agentID)
 		return fmt.Errorf("prompt codex: %w", err)
 	}
 
 	if consumeErr := <-transcriptDone; consumeErr != nil {
 		return fmt.Errorf("prompt codex: %w", consumeErr)
 	}
-	_ = repo.SetAgentComplete(db, agentID)
+	_ = repo.SetAgentComplete(db, ctx.Project, ctx.Branch, agentID)
 
 	return nil
 }

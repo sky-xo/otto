@@ -2,6 +2,7 @@ package commands
 
 import (
 	"bytes"
+	"database/sql"
 	"strings"
 	"testing"
 
@@ -13,12 +14,12 @@ func TestRunPeek(t *testing.T) {
 	conn, _ := db.Open(":memory:")
 	defer conn.Close()
 
-	agent := repo.Agent{ID: "test-agent", Type: "claude", Task: "test", Status: "busy"}
+	agent := repo.Agent{Project: "test-project", Branch: "main", Name: "test-agent", Type: "claude", Task: "test", Status: "busy"}
 	repo.CreateAgent(conn, agent)
 
 	// Create log entries
-	repo.CreateLogEntry(conn, "test-agent", "out", "stdout", "line 1")
-	repo.CreateLogEntry(conn, "test-agent", "out", "stdout", "line 2")
+	repo.CreateLogEntry(conn, repo.LogEntry{Project: "test-project", Branch: "main", AgentName: "test-agent", AgentType: "claude", EventType: "output", Content: sql.NullString{String: "line 1", Valid: true}})
+	repo.CreateLogEntry(conn, repo.LogEntry{Project: "test-project", Branch: "main", AgentName: "test-agent", AgentType: "claude", EventType: "output", Content: sql.NullString{String: "line 2", Valid: true}})
 
 	var buf bytes.Buffer
 
@@ -42,7 +43,7 @@ func TestRunPeek(t *testing.T) {
 	}
 
 	// Add new entry
-	repo.CreateLogEntry(conn, "test-agent", "out", "stdout", "line 3")
+	repo.CreateLogEntry(conn, repo.LogEntry{Project: "test-project", Branch: "main", AgentName: "test-agent", AgentType: "claude", EventType: "output", Content: sql.NullString{String: "line 3", Valid: true}})
 
 	// Third peek should show only new entry
 	buf.Reset()

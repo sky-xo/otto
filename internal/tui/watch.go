@@ -366,16 +366,16 @@ func (m model) mainContentLines(width int) []string {
 
 	lines := make([]string, 0, len(m.messages))
 	for _, msg := range m.messages {
-		fromStyle := lipgloss.NewStyle().Foreground(usernameColor(msg.FromID)).Bold(true)
-		fromText := padRight(fromStyle.Render(msg.FromID), fromWidth)
+		fromStyle := lipgloss.NewStyle().Foreground(usernameColor(msg.FromAgent)).Bold(true)
+		fromText := padRight(fromStyle.Render(msg.FromAgent), fromWidth)
 
 		content, style := formatMessage(msg)
 
 		// For prompts with a target agent, prepend styled @mention
 		var mentionPrefix string
-		if msg.Type == "prompt" && msg.ToID.Valid {
-			mentionStyle := lipgloss.NewStyle().Foreground(usernameColor(msg.ToID.String)).Bold(true)
-			mentionPrefix = mentionStyle.Render("@"+msg.ToID.String) + " "
+		if msg.Type == "prompt" && msg.ToAgent.Valid {
+			mentionStyle := lipgloss.NewStyle().Foreground(usernameColor(msg.ToAgent.String)).Bold(true)
+			mentionPrefix = mentionStyle.Render("@"+msg.ToAgent.String) + " "
 		}
 
 		// Wrap long lines to prevent overflow
@@ -413,7 +413,7 @@ func (m model) transcriptContentLines(agentID string, width int) []string {
 		prefixText := padRight(style.Render(prefix), prefixWidth)
 
 		// Wrap long lines to prevent overflow
-		contentLines := wrapText(entry.Content, contentWidth)
+		contentLines := wrapText(entry.Content.String, contentWidth)
 		for i, line := range contentLines {
 			var displayLine string
 			if i == 0 {
@@ -448,8 +448,8 @@ func (m model) channels() []channel {
 	ordered := sortAgentsByStatus(activeAgents)
 	for _, agent := range ordered {
 		channels = append(channels, channel{
-			ID:     agent.ID,
-			Name:   agent.ID,
+			ID:     agent.Name,
+			Name:   agent.Name,
 			Kind:   "agent",
 			Status: agent.Status,
 		})
@@ -465,8 +465,8 @@ func (m model) channels() []channel {
 			orderedArchived := sortArchivedAgents(archivedAgents)
 			for _, agent := range orderedArchived {
 				channels = append(channels, channel{
-					ID:     agent.ID,
-					Name:   agent.ID,
+					ID:     agent.Name,
+					Name:   agent.Name,
 					Kind:   "agent",
 					Status: agent.Status,
 				})
@@ -658,7 +658,7 @@ func sortAgentsByStatus(agents []repo.Agent) []repo.Agent {
 		if iOrder != jOrder {
 			return iOrder < jOrder
 		}
-		return ordered[i].ID < ordered[j].ID
+		return ordered[i].Name < ordered[j].Name
 	})
 	return ordered
 }
@@ -678,7 +678,7 @@ func sortArchivedAgents(agents []repo.Agent) []repo.Agent {
 		if !iTime.Equal(jTime) {
 			return iTime.After(jTime)
 		}
-		return ordered[i].ID < ordered[j].ID
+		return ordered[i].Name < ordered[j].Name
 	})
 	return ordered
 }
@@ -709,13 +709,17 @@ func formatMessage(msg repo.Message) (string, lipgloss.Style) {
 }
 
 func transcriptPrefix(entry repo.LogEntry) (string, lipgloss.Style) {
-	switch entry.Direction {
-	case "in":
+	switch entry.EventType {
+	case "tool_call", "command_execution":
 		return "→", mutedStyle
-	case "out":
-		if entry.Stream.Valid && entry.Stream.String == "stderr" {
+	case "tool_result":
+		if entry.Status.Valid && entry.Status.String == "failed" {
 			return "!", statusFailedStyle
 		}
+		return "←", messageStyle
+	case "reasoning", "thinking":
+		return "·", mutedStyle
+	case "agent_message", "message":
 		return "←", messageStyle
 	default:
 		return "·", mutedStyle
@@ -828,7 +832,7 @@ func fetchMessagesCmd(db *sql.DB, sinceID string) tea.Cmd {
 
 func fetchAgentsCmd(db *sql.DB) tea.Cmd {
 	return func() tea.Msg {
-		agents, err := repo.ListAgents(db)
+		agents, err := repo.ListAgents(db, repo.AgentFilter{})
 		if err != nil {
 			return err
 		}
@@ -838,7 +842,8 @@ func fetchAgentsCmd(db *sql.DB) tea.Cmd {
 
 func fetchTranscriptsCmd(db *sql.DB, agentID, sinceID string) tea.Cmd {
 	return func() tea.Msg {
-		entries, err := repo.ListLogs(db, agentID, sinceID)
+		// TODO: Add project/branch awareness to TUI
+		entries, err := repo.ListLogs(db, "", "", agentID, sinceID)
 		if err != nil {
 			return err
 		}
@@ -848,7 +853,7 @@ func fetchTranscriptsCmd(db *sql.DB, agentID, sinceID string) tea.Cmd {
 
 func cleanupStaleAgentsCmd(db *sql.DB) tea.Cmd {
 	return func() tea.Msg {
-		agents, err := repo.ListAgents(db)
+		agents, err := repo.ListAgents(db, repo.AgentFilter{})
 		if err != nil {
 			return nil
 		}
@@ -856,15 +861,17 @@ func cleanupStaleAgentsCmd(db *sql.DB) tea.Cmd {
 			if a.Status == "busy" && a.Pid.Valid {
 				if !process.IsProcessAlive(int(a.Pid.Int64)) {
 					msg := repo.Message{
-						ID:           fmt.Sprintf("%s-exit-%d", a.ID, time.Now().Unix()),
-						FromID:       a.ID,
+						ID:           fmt.Sprintf("%s-exit-%d", a.Name, time.Now().Unix()),
+						Project:      a.Project,
+						Branch:       a.Branch,
+						FromAgent:    a.Name,
 						Type:         "exit",
 						Content:      "process died unexpectedly",
 						MentionsJSON: "[]",
 						ReadByJSON:   "[]",
 					}
 					_ = repo.CreateMessage(db, msg)
-					_ = repo.SetAgentFailed(db, a.ID)
+					_ = repo.SetAgentFailed(db, a.Project, a.Branch, a.Name)
 				}
 			}
 		}

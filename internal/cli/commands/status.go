@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"otto/internal/repo"
+	"otto/internal/scope"
 
 	"github.com/spf13/cobra"
 )
@@ -34,7 +35,15 @@ func NewStatusCmd() *cobra.Command {
 }
 
 func runStatus(db *sql.DB, includeArchived, archive bool) error {
-	agents, err := repo.ListAgentsFiltered(db, includeArchived)
+	ctx := scope.CurrentContext()
+
+	filter := repo.AgentFilter{
+		Project:         ctx.Project,
+		Branch:          ctx.Branch,
+		IncludeArchived: includeArchived,
+	}
+
+	agents, err := repo.ListAgents(db, filter)
 	if err != nil {
 		return err
 	}
@@ -44,7 +53,7 @@ func runStatus(db *sql.DB, includeArchived, archive bool) error {
 		if includeArchived && a.ArchivedAt.Valid {
 			suffix = " (archived)"
 		}
-		fmt.Printf("%s [%s]: %s - %s%s\n", a.ID, a.Type, a.Status, a.Task, suffix)
+		fmt.Printf("%s [%s]: %s - %s%s\n", a.Name, a.Type, a.Status, a.Task, suffix)
 	}
 
 	if archive {
@@ -55,8 +64,8 @@ func runStatus(db *sql.DB, includeArchived, archive bool) error {
 			if a.Status != "complete" && a.Status != "failed" {
 				continue
 			}
-			if err := repo.ArchiveAgent(db, a.ID); err != nil {
-				return fmt.Errorf("archive agent %q: %w", a.ID, err)
+			if err := repo.ArchiveAgent(db, a.Project, a.Branch, a.Name); err != nil {
+				return fmt.Errorf("archive agent %q: %w", a.Name, err)
 			}
 		}
 	}

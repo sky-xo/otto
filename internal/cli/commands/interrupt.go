@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"otto/internal/repo"
+	"otto/internal/scope"
 
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
@@ -39,8 +40,10 @@ func NewInterruptCmd() *cobra.Command {
 }
 
 func runInterrupt(db *sql.DB, agentID string) error {
+	ctx := scope.CurrentContext()
+
 	// Get agent
-	agent, err := repo.GetAgent(db, agentID)
+	agent, err := repo.GetAgent(db, ctx.Project, ctx.Branch, agentID)
 	if err == sql.ErrNoRows {
 		return fmt.Errorf("agent %q not found", agentID)
 	}
@@ -65,16 +68,18 @@ func runInterrupt(db *sql.DB, agentID string) error {
 	}
 
 	// Update status to idle
-	if err := repo.UpdateAgentStatus(db, agentID, "idle"); err != nil {
+	if err := repo.UpdateAgentStatus(db, ctx.Project, ctx.Branch, agentID, "idle"); err != nil {
 		return fmt.Errorf("update status: %w", err)
 	}
 
 	// Post message
 	msg := repo.Message{
-		ID:           uuid.New().String(),
-		FromID:       agentID,
-		Type:         "system",
-		Content:      "INTERRUPTED",
+		ID:        uuid.New().String(),
+		Project:   ctx.Project,
+		Branch:    ctx.Branch,
+		FromAgent: agentID,
+		Type:      "system",
+		Content:   "INTERRUPTED",
 		MentionsJSON: "[]",
 		ReadByJSON:   "[]",
 	}

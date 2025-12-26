@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"otto/internal/repo"
+	"otto/internal/scope"
 
 	"github.com/spf13/cobra"
 )
@@ -40,6 +41,8 @@ func NewMessagesCmd() *cobra.Command {
 }
 
 func runMessages(db *sql.DB) error {
+	ctx := scope.CurrentContext()
+
 	// Parse flags to build filter
 	msgType := ""
 	if messagesQuestions {
@@ -51,7 +54,7 @@ func runMessages(db *sql.DB) error {
 	if messagesLast > 0 {
 		readerID = "" // --last means show all messages, ignore read status
 	}
-	filter := parseMessagesFlags(messagesFromID, msgType, messagesLast, readerID)
+	filter := parseMessagesFlags(ctx, messagesFromID, msgType, messagesLast, readerID)
 	filter.Mention = messagesMention
 
 	// List messages
@@ -62,7 +65,7 @@ func runMessages(db *sql.DB) error {
 
 	// Print messages
 	for _, m := range messages {
-		fmt.Printf("[%s] %s: %s\n", m.Type, m.FromID, m.Content)
+		fmt.Printf("[%s] %s: %s\n", m.Type, m.FromAgent, m.Content)
 	}
 
 	// Mark as read if reader ID provided and messages were returned
@@ -79,11 +82,13 @@ func runMessages(db *sql.DB) error {
 	return nil
 }
 
-func parseMessagesFlags(fromID, msgType string, last int, readerID string) repo.MessageFilter {
+func parseMessagesFlags(ctx scope.Context, fromID, msgType string, last int, readerID string) repo.MessageFilter {
 	return repo.MessageFilter{
-		FromID:   fromID,
-		Type:     msgType,
-		Limit:    last,
-		ReaderID: readerID,
+		Project:   ctx.Project,
+		Branch:    ctx.Branch,
+		FromAgent: fromID,
+		Type:      msgType,
+		Limit:     last,
+		ReaderID:  readerID,
 	}
 }

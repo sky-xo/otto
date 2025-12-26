@@ -956,7 +956,7 @@ func cleanupStaleAgentsCmd(db *sql.DB) tea.Cmd {
 // Run starts the TUI
 func Run(db *sql.DB) error {
 	m := NewModel(db)
-	p := tea.NewProgram(m, tea.WithAltScreen())
+	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())
 	_, err := p.Run()
 	return err
 }

@@ -12,26 +12,30 @@ import (
 // schemaTablesSQL creates tables only - indexes created after migrations
 const schemaTablesSQL = `-- agents table
 CREATE TABLE IF NOT EXISTS agents (
-  id TEXT PRIMARY KEY,
+  project TEXT NOT NULL,
+  branch TEXT NOT NULL,
+  name TEXT NOT NULL,
   type TEXT NOT NULL,
   task TEXT NOT NULL,
   status TEXT NOT NULL,
   session_id TEXT,
   pid INTEGER,
-  worktree_path TEXT,
-  branch_name TEXT,
+  compacted_at DATETIME,
+  last_seen_message_id TEXT,
   completed_at DATETIME,
   archived_at DATETIME,
-  last_read_log_id TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (project, branch, name)
 );
 
 -- messages table
 CREATE TABLE IF NOT EXISTS messages (
   id TEXT PRIMARY KEY,
-  from_id TEXT NOT NULL,
-  to_id TEXT,
+  project TEXT NOT NULL,
+  branch TEXT NOT NULL,
+  from_agent TEXT NOT NULL,
+  to_agent TEXT,
   type TEXT NOT NULL,
   content TEXT NOT NULL,
   mentions TEXT,
@@ -43,11 +47,34 @@ CREATE TABLE IF NOT EXISTS messages (
 -- logs table
 CREATE TABLE IF NOT EXISTS logs (
   id TEXT PRIMARY KEY,
-  agent_id TEXT NOT NULL,
-  direction TEXT NOT NULL,
-  stream TEXT,
-  content TEXT NOT NULL,
+  project TEXT NOT NULL,
+  branch TEXT NOT NULL,
+  agent_name TEXT NOT NULL,
+  agent_type TEXT NOT NULL,
+  event_type TEXT NOT NULL,
+  tool_name TEXT,
+  content TEXT,
+  raw_json TEXT,
+  command TEXT,
+  exit_code INTEGER,
+  status TEXT,
+  tool_use_id TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- tasks table
+CREATE TABLE IF NOT EXISTS tasks (
+  project TEXT NOT NULL,
+  branch TEXT NOT NULL,
+  id TEXT NOT NULL,
+  parent_id TEXT,
+  name TEXT NOT NULL,
+  sort_index INTEGER NOT NULL DEFAULT 0,
+  assigned_agent TEXT,
+  result TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (project, branch, id)
 );
 `
 
@@ -55,10 +82,10 @@ CREATE TABLE IF NOT EXISTS logs (
 const schemaIndexesSQL = `
 CREATE INDEX IF NOT EXISTS idx_messages_created ON messages(created_at);
 CREATE INDEX IF NOT EXISTS idx_agents_status ON agents(status);
-CREATE INDEX IF NOT EXISTS idx_logs_agent ON logs(agent_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_logs_agent ON logs(agent_name, created_at);
 CREATE INDEX IF NOT EXISTS idx_agents_cleanup ON agents(completed_at) WHERE completed_at IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_agents_archived ON agents(archived_at) WHERE archived_at IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_messages_to ON messages(to_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_messages_to ON messages(to_agent, created_at);
 `
 
 func Open(path string) (*sql.DB, error) {
@@ -82,11 +109,26 @@ func ensureSchema(conn *sql.DB) error {
 
 	// Step 2: Run migrations (for existing databases missing columns)
 	// These use _, _ to ignore "duplicate column" errors
-	_, _ = conn.Exec(`ALTER TABLE agents ADD COLUMN pid INTEGER`)
-	_, _ = conn.Exec(`ALTER TABLE agents ADD COLUMN completed_at DATETIME`)
-	_, _ = conn.Exec(`ALTER TABLE agents ADD COLUMN archived_at DATETIME`)
-	_, _ = conn.Exec(`ALTER TABLE agents ADD COLUMN last_read_log_id TEXT`)
-	_, _ = conn.Exec(`ALTER TABLE messages ADD COLUMN to_id TEXT`)
+	_, _ = conn.Exec(`ALTER TABLE agents ADD COLUMN project TEXT`)
+	_, _ = conn.Exec(`ALTER TABLE agents ADD COLUMN branch TEXT`)
+	_, _ = conn.Exec(`ALTER TABLE agents ADD COLUMN name TEXT`)
+	_, _ = conn.Exec(`ALTER TABLE agents ADD COLUMN compacted_at DATETIME`)
+	_, _ = conn.Exec(`ALTER TABLE agents ADD COLUMN last_seen_message_id TEXT`)
+	_, _ = conn.Exec(`ALTER TABLE messages ADD COLUMN project TEXT`)
+	_, _ = conn.Exec(`ALTER TABLE messages ADD COLUMN branch TEXT`)
+	_, _ = conn.Exec(`ALTER TABLE messages ADD COLUMN from_agent TEXT`)
+	_, _ = conn.Exec(`ALTER TABLE messages ADD COLUMN to_agent TEXT`)
+	_, _ = conn.Exec(`ALTER TABLE logs ADD COLUMN project TEXT`)
+	_, _ = conn.Exec(`ALTER TABLE logs ADD COLUMN branch TEXT`)
+	_, _ = conn.Exec(`ALTER TABLE logs ADD COLUMN agent_name TEXT`)
+	_, _ = conn.Exec(`ALTER TABLE logs ADD COLUMN agent_type TEXT`)
+	_, _ = conn.Exec(`ALTER TABLE logs ADD COLUMN event_type TEXT`)
+	_, _ = conn.Exec(`ALTER TABLE logs ADD COLUMN tool_name TEXT`)
+	_, _ = conn.Exec(`ALTER TABLE logs ADD COLUMN raw_json TEXT`)
+	_, _ = conn.Exec(`ALTER TABLE logs ADD COLUMN command TEXT`)
+	_, _ = conn.Exec(`ALTER TABLE logs ADD COLUMN exit_code INTEGER`)
+	_, _ = conn.Exec(`ALTER TABLE logs ADD COLUMN status TEXT`)
+	_, _ = conn.Exec(`ALTER TABLE logs ADD COLUMN tool_use_id TEXT`)
 	_, _ = conn.Exec(`ALTER TABLE transcript_entries RENAME TO logs`)
 
 	// Step 3: Create indexes (after migrations ensure columns exist)
@@ -99,13 +141,13 @@ func ensureSchema(conn *sql.DB) error {
 func cleanupOldData(conn *sql.DB) {
 	statements := []string{
 		`DELETE FROM logs
-		WHERE agent_id IN (
-			SELECT id FROM agents
+		WHERE (project, branch, agent_name) IN (
+			SELECT project, branch, name FROM agents
 			WHERE archived_at < datetime('now', '-7 days')
 		);`,
 		`DELETE FROM messages
-		WHERE to_id IN (
-			SELECT id FROM agents
+		WHERE (project, branch, to_agent) IN (
+			SELECT project, branch, name FROM agents
 			WHERE archived_at < datetime('now', '-7 days')
 		);`,
 		`DELETE FROM agents

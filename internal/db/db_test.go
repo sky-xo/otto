@@ -28,16 +28,25 @@ func TestEnsureSchema(t *testing.T) {
 	if err := conn.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='logs'").Scan(&name); err != nil {
 		t.Fatalf("logs table missing: %v", err)
 	}
+	if err := conn.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='tasks'").Scan(&name); err != nil {
+		t.Fatalf("tasks table missing: %v", err)
+	}
 
 	// Verify columns exist
-	if !columnExists(t, conn, "agents", "completed_at") {
-		t.Fatalf("agents.completed_at column missing")
+	if !columnExists(t, conn, "agents", "project") {
+		t.Fatalf("agents.project column missing")
 	}
-	if !columnExists(t, conn, "agents", "archived_at") {
-		t.Fatalf("agents.archived_at column missing")
+	if !columnExists(t, conn, "agents", "branch") {
+		t.Fatalf("agents.branch column missing")
 	}
-	if !columnExists(t, conn, "messages", "to_id") {
-		t.Fatalf("messages.to_id column missing")
+	if !columnExists(t, conn, "agents", "name") {
+		t.Fatalf("agents.name column missing")
+	}
+	if !columnExists(t, conn, "messages", "to_agent") {
+		t.Fatalf("messages.to_agent column missing")
+	}
+	if !columnExists(t, conn, "logs", "event_type") {
+		t.Fatalf("logs.event_type column missing")
 	}
 
 	// Verify indexes exist
@@ -66,6 +75,27 @@ func TestLogsTableExists(t *testing.T) {
 	// Verify old table doesn't exist (or is aliased)
 	err = db.QueryRow("SELECT COUNT(*) FROM transcript_entries").Scan(&count)
 	// This should still work due to migration handling old DBs
+}
+
+func TestTasksTableExists(t *testing.T) {
+	conn, err := Open(":memory:")
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer conn.Close()
+
+	if !columnExists(t, conn, "tasks", "project") {
+		t.Fatalf("tasks.project column missing")
+	}
+	if !columnExists(t, conn, "logs", "event_type") {
+		t.Fatalf("logs.event_type column missing")
+	}
+	if !columnExists(t, conn, "logs", "agent_type") {
+		t.Fatalf("logs.agent_type column missing")
+	}
+	if !columnExists(t, conn, "agents", "project") {
+		t.Fatalf("agents.project column missing")
+	}
 }
 
 func columnExists(t *testing.T, conn *sql.DB, table, column string) bool {
@@ -112,80 +142,80 @@ func TestCleanupOnOpen(t *testing.T) {
 	recentCompleted := sqliteTime(time.Now().Add(-2 * 24 * time.Hour))
 
 	_, err = conn.Exec(
-		`INSERT INTO agents (id, type, task, status, completed_at, archived_at) VALUES (?, ?, ?, ?, ?, ?)`,
-		"agent-archived-old", "codex", "old archived task", "complete", oldCompleted, oldArchived,
+		`INSERT INTO agents (project, branch, name, type, task, status, completed_at, archived_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		"proj", "main", "agent-archived-old", "codex", "old archived task", "complete", oldCompleted, oldArchived,
 	)
 	if err != nil {
 		t.Fatalf("insert archived old agent: %v", err)
 	}
 	_, err = conn.Exec(
-		`INSERT INTO agents (id, type, task, status, completed_at) VALUES (?, ?, ?, ?, ?)`,
-		"agent-completed-old", "codex", "old completed task", "complete", oldCompleted,
+		`INSERT INTO agents (project, branch, name, type, task, status, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		"proj", "main", "agent-completed-old", "codex", "old completed task", "complete", oldCompleted,
 	)
 	if err != nil {
 		t.Fatalf("insert old completed agent: %v", err)
 	}
 	_, err = conn.Exec(
-		`INSERT INTO agents (id, type, task, status, completed_at) VALUES (?, ?, ?, ?, ?)`,
-		"agent-recent", "codex", "recent task", "complete", recentCompleted,
+		`INSERT INTO agents (project, branch, name, type, task, status, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		"proj", "main", "agent-recent", "codex", "recent task", "complete", recentCompleted,
 	)
 	if err != nil {
 		t.Fatalf("insert recent agent: %v", err)
 	}
 	_, err = conn.Exec(
-		`INSERT INTO agents (id, type, task, status) VALUES (?, ?, ?, ?)`,
-		"agent-active", "codex", "active task", "busy",
+		`INSERT INTO agents (project, branch, name, type, task, status) VALUES (?, ?, ?, ?, ?, ?)`,
+		"proj", "main", "agent-active", "codex", "active task", "busy",
 	)
 	if err != nil {
 		t.Fatalf("insert active agent: %v", err)
 	}
 
 	_, err = conn.Exec(
-		`INSERT INTO logs (id, agent_id, direction, content) VALUES (?, ?, ?, ?)`,
-		"entry-archived-old", "agent-archived-old", "out", "old output",
+		`INSERT INTO logs (id, project, branch, agent_name, agent_type, event_type, content) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		"entry-archived-old", "proj", "main", "agent-archived-old", "codex", "message", "old output",
 	)
 	if err != nil {
 		t.Fatalf("insert archived old log entry: %v", err)
 	}
 	_, err = conn.Exec(
-		`INSERT INTO logs (id, agent_id, direction, content) VALUES (?, ?, ?, ?)`,
-		"entry-completed-old", "agent-completed-old", "out", "old completed output",
+		`INSERT INTO logs (id, project, branch, agent_name, agent_type, event_type, content) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		"entry-completed-old", "proj", "main", "agent-completed-old", "codex", "message", "old completed output",
 	)
 	if err != nil {
 		t.Fatalf("insert old completed log entry: %v", err)
 	}
 	_, err = conn.Exec(
-		`INSERT INTO logs (id, agent_id, direction, content) VALUES (?, ?, ?, ?)`,
-		"entry-recent", "agent-recent", "out", "recent output",
+		`INSERT INTO logs (id, project, branch, agent_name, agent_type, event_type, content) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		"entry-recent", "proj", "main", "agent-recent", "codex", "message", "recent output",
 	)
 	if err != nil {
 		t.Fatalf("insert recent log entry: %v", err)
 	}
 
 	_, err = conn.Exec(
-		`INSERT INTO messages (id, from_id, to_id, type, content) VALUES (?, ?, ?, ?, ?)`,
-		"msg-archived-old", "orchestrator", "agent-archived-old", "prompt", "old prompt",
+		`INSERT INTO messages (id, project, branch, from_agent, to_agent, type, content) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		"msg-archived-old", "proj", "main", "orchestrator", "agent-archived-old", "prompt", "old prompt",
 	)
 	if err != nil {
 		t.Fatalf("insert archived old message: %v", err)
 	}
 	_, err = conn.Exec(
-		`INSERT INTO messages (id, from_id, to_id, type, content) VALUES (?, ?, ?, ?, ?)`,
-		"msg-completed-old", "orchestrator", "agent-completed-old", "prompt", "old completed prompt",
+		`INSERT INTO messages (id, project, branch, from_agent, to_agent, type, content) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		"msg-completed-old", "proj", "main", "orchestrator", "agent-completed-old", "prompt", "old completed prompt",
 	)
 	if err != nil {
 		t.Fatalf("insert old completed message: %v", err)
 	}
 	_, err = conn.Exec(
-		`INSERT INTO messages (id, from_id, to_id, type, content) VALUES (?, ?, ?, ?, ?)`,
-		"msg-recent", "orchestrator", "agent-recent", "prompt", "recent prompt",
+		`INSERT INTO messages (id, project, branch, from_agent, to_agent, type, content) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		"msg-recent", "proj", "main", "orchestrator", "agent-recent", "prompt", "recent prompt",
 	)
 	if err != nil {
 		t.Fatalf("insert recent message: %v", err)
 	}
 	_, err = conn.Exec(
-		`INSERT INTO messages (id, from_id, type, content) VALUES (?, ?, ?, ?)`,
-		"msg-main", "orchestrator", "note", "main channel",
+		`INSERT INTO messages (id, project, branch, from_agent, type, content) VALUES (?, ?, ?, ?, ?, ?)`,
+		"msg-main", "proj", "main", "orchestrator", "note", "main channel",
 	)
 	if err != nil {
 		t.Fatalf("insert main message: %v", err)
@@ -201,16 +231,16 @@ func TestCleanupOnOpen(t *testing.T) {
 	}
 	defer conn.Close()
 
-	if countRows(t, conn, "SELECT COUNT(*) FROM agents WHERE id='agent-archived-old'") != 0 {
+	if countRows(t, conn, "SELECT COUNT(*) FROM agents WHERE name='agent-archived-old'") != 0 {
 		t.Fatalf("expected archived old agent to be deleted")
 	}
-	if countRows(t, conn, "SELECT COUNT(*) FROM agents WHERE id='agent-completed-old'") != 1 {
+	if countRows(t, conn, "SELECT COUNT(*) FROM agents WHERE name='agent-completed-old'") != 1 {
 		t.Fatalf("expected old completed agent to remain")
 	}
-	if countRows(t, conn, "SELECT COUNT(*) FROM agents WHERE id='agent-recent'") != 1 {
+	if countRows(t, conn, "SELECT COUNT(*) FROM agents WHERE name='agent-recent'") != 1 {
 		t.Fatalf("expected recent agent to remain")
 	}
-	if countRows(t, conn, "SELECT COUNT(*) FROM agents WHERE id='agent-active'") != 1 {
+	if countRows(t, conn, "SELECT COUNT(*) FROM agents WHERE name='agent-active'") != 1 {
 		t.Fatalf("expected active agent to remain")
 	}
 

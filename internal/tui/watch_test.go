@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"otto/internal/repo"
+	"otto/internal/scope"
 
 	_ "modernc.org/sqlite"
 )
@@ -249,10 +250,10 @@ func TestFetchTranscriptsUsesCurrentScope(t *testing.T) {
 	}
 
 	// Insert an agent in the current project/branch scope
-	// NOTE: In the real codebase, scope.CurrentContext() returns {Project: "super", Branch: "super"}
-	// based on the git worktree at /Users/glowy/code/otto/.worktrees/super
-	currentProject := "super"
-	currentBranch := "super"
+	// Use scope.CurrentContext() to get actual values for the test environment
+	ctx := scope.CurrentContext()
+	currentProject := ctx.Project
+	currentBranch := ctx.Branch
 	agentName := "agent-1"
 
 	_, err = db.Exec(
@@ -351,8 +352,10 @@ func TestFetchAgentsUsesCurrentScope(t *testing.T) {
 	}
 
 	// Insert agents in the current project/branch scope
-	currentProject := "super"
-	currentBranch := "super"
+	// Use scope.CurrentContext() to get actual values for the test environment
+	ctx := scope.CurrentContext()
+	currentProject := ctx.Project
+	currentBranch := ctx.Branch
 
 	_, err = db.Exec(
 		`INSERT INTO agents (project, branch, name, type, task, status) VALUES (?, ?, ?, ?, ?, ?)`,
@@ -429,8 +432,10 @@ func TestFetchMessagesUsesCurrentScope(t *testing.T) {
 	}
 
 	// Insert messages in the current project/branch scope
-	currentProject := "super"
-	currentBranch := "super"
+	// Use scope.CurrentContext() to get actual values for the test environment
+	ctx := scope.CurrentContext()
+	currentProject := ctx.Project
+	currentBranch := ctx.Branch
 
 	_, err = db.Exec(
 		`INSERT INTO messages (id, project, branch, from_agent, type, content, mentions, read_by, from_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,

@@ -43,6 +43,7 @@ Queued after current focus. Will become "Current Focus" when ready.
   - Problem: Spawned agent, wanted to check its response, got 100+ old messages, had to grep to find it
   - Potential fixes: `--agent <id>`, `--last N`, `--since 5m`, or better defaults (only recent by default)
   - Also consider: `otto log <agent-id>` as shorthand for agent-specific messages/transcript
+- COPY MODE: inspired by mprocs copy mode
 
 ### TUI
 - Format Codex logs so they look nice (instead of like unreadable JSON)

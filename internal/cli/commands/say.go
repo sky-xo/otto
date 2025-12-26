@@ -3,7 +3,6 @@ package commands
 import (
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,7 +11,6 @@ import (
 	"otto/internal/config"
 	"otto/internal/db"
 	"otto/internal/repo"
-	"otto/internal/scope"
 
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
@@ -84,22 +82,7 @@ func parseMentions(content string) []string {
 }
 
 func openDB() (*sql.DB, error) {
-	repoRoot := scope.RepoRoot()
-	if repoRoot == "" {
-		return nil, errors.New("not in a git repository")
-	}
-
-	branch := scope.BranchName()
-	if branch == "" {
-		branch = "main"
-	}
-
-	scopePath := scope.Scope(repoRoot, branch)
-	if scopePath == "" {
-		return nil, errors.New("could not determine scope")
-	}
-
-	dbPath := filepath.Join(config.DataDir(), "orchestrators", scopePath, "otto.db")
+	dbPath := filepath.Join(config.DataDir(), "otto.db")
 	if err := os.MkdirAll(filepath.Dir(dbPath), 0o755); err != nil {
 		return nil, fmt.Errorf("create db dir: %w", err)
 	}

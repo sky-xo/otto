@@ -37,3 +37,13 @@ func TestScopeWithDifferentPaths(t *testing.T) {
 		}
 	}
 }
+
+func TestCurrentContextFromRepoRoot(t *testing.T) {
+	ctx := ContextFromRepoRoot("/Users/alice/code/my-app", "feature-login")
+	if ctx.Project != "my-app" {
+		t.Fatalf("project = %q", ctx.Project)
+	}
+	if ctx.Branch != "feature-login" {
+		t.Fatalf("branch = %q", ctx.Branch)
+	}
+}

@@ -131,6 +131,20 @@ func ensureSchema(conn *sql.DB) error {
 	_, _ = conn.Exec(`ALTER TABLE logs ADD COLUMN tool_use_id TEXT`)
 	_, _ = conn.Exec(`ALTER TABLE transcript_entries RENAME TO logs`)
 
+	// Step 2b: Backfill NULL values in migrated columns
+	// Old data may have NULL project/branch - set defaults so scans work
+	_, _ = conn.Exec(`UPDATE agents SET project = 'default' WHERE project IS NULL`)
+	_, _ = conn.Exec(`UPDATE agents SET branch = 'main' WHERE branch IS NULL`)
+	_, _ = conn.Exec(`UPDATE agents SET name = id WHERE name IS NULL AND id IS NOT NULL`)
+	_, _ = conn.Exec(`UPDATE messages SET project = 'default' WHERE project IS NULL`)
+	_, _ = conn.Exec(`UPDATE messages SET branch = 'main' WHERE branch IS NULL`)
+	_, _ = conn.Exec(`UPDATE messages SET from_agent = from_id WHERE from_agent IS NULL AND from_id IS NOT NULL`)
+	_, _ = conn.Exec(`UPDATE logs SET project = 'default' WHERE project IS NULL`)
+	_, _ = conn.Exec(`UPDATE logs SET branch = 'main' WHERE branch IS NULL`)
+	_, _ = conn.Exec(`UPDATE logs SET agent_name = agent_id WHERE agent_name IS NULL AND agent_id IS NOT NULL`)
+	_, _ = conn.Exec(`UPDATE logs SET agent_type = 'unknown' WHERE agent_type IS NULL`)
+	_, _ = conn.Exec(`UPDATE logs SET event_type = 'unknown' WHERE event_type IS NULL`)
+
 	// Step 3: Create indexes (after migrations ensure columns exist)
 	if _, err := conn.Exec(schemaIndexesSQL); err != nil {
 		return err

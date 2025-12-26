@@ -9,7 +9,13 @@ import (
 )
 
 func Execute() {
-	rootCmd := &cobra.Command{Use: "otto"}
+	rootCmd := &cobra.Command{
+		Use:   "otto",
+		Short: "Multi-agent orchestrator for Claude Code and Codex",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return commands.RunWatchDefault(cmd.Context())
+		},
+	}
 
 	// Add commands
 	rootCmd.AddCommand(commands.NewSayCmd())

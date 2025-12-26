@@ -21,21 +21,27 @@ func NewWatchCmd() *cobra.Command {
 		Use:   "watch",
 		Short: "Watch for new messages in real-time",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			conn, err := openDB()
-			if err != nil {
-				return err
-			}
-			defer conn.Close()
-
-			if term.IsTerminal(int(os.Stdout.Fd())) {
-				return tui.Run(conn)
-			}
-
-			return runWatch(cmd.Context(), conn)
+			return RunWatchDefault(cmd.Context())
 		},
 	}
 
 	return cmd
+}
+
+// RunWatchDefault runs the watch command with default settings.
+// Used by both "otto watch" and "otto" (no subcommand).
+func RunWatchDefault(ctx context.Context) error {
+	conn, err := openDB()
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	if term.IsTerminal(int(os.Stdout.Fd())) {
+		return tui.Run(conn)
+	}
+
+	return runWatch(ctx, conn)
 }
 
 func runWatch(ctx context.Context, db *sql.DB) error {

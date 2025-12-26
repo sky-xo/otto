@@ -38,18 +38,18 @@ otto status
 # View messages
 otto messages
 
-# Watch in real-time (TUI mode)
-otto watch
+# Launch TUI (watch messages, manage agents)
+otto
 ```
 
 ## Commands
 
 | Command | Description |
 |---------|-------------|
+| `otto` | Launch TUI (same as `otto watch`) |
 | `otto spawn <type> "<task>"` | Spawn a new claude/codex agent |
-| `otto status [--all] [--archive]` | List agent status; use `--all` to include archived, `--archive` to archive complete/failed agents shown |
+| `otto status [--all] [--archive]` | List agent status |
 | `otto messages` | View message stream |
-| `otto watch` | Monitor messages in real-time (TUI in terminal, plain text when piped) |
 | `otto prompt <agent> "<msg>"` | Send prompt to an agent |
 | `otto attach <agent>` | Get command to attach to agent session |
 | `otto archive <agent>` | Archive a completed/failed agent |
@@ -77,7 +77,7 @@ You ←→ Claude Code (orchestrator)
     (design)      (implement)     (review)
 ```
 
-State is stored in `~/.otto/orchestrators/<project>/<branch>/otto.db`.
+State is stored in `~/.otto/otto.db` (global database with project/branch scoping).
 
 ## Development
 

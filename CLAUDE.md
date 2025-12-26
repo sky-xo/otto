@@ -9,7 +9,7 @@ Otto is a multi-agent orchestrator CLI that enables Claude Code to spawn and coo
 ```bash
 make build    # Build the binary
 make test     # Run all tests
-make watch    # Build and run TUI
+./otto        # Run TUI (or: make watch)
 ```
 
 ## Architecture
@@ -32,11 +32,11 @@ make watch    # Build and run TUI
 
 | Command | Purpose |
 |---------|---------|
+| `otto` | Launch TUI (same as `otto watch`) |
 | `spawn <type> "<task>"` | Spawn claude/codex agent |
 | `prompt <agent> "<msg>"` | Send message to agent |
 | `say/ask/complete` | Agent messaging |
 | `messages/status` | View messages and agent states |
-| `watch` | Monitor message stream (TUI in terminal, plain text when piped) |
 
 ## Coding Conventions
 

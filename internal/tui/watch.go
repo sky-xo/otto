@@ -387,10 +387,40 @@ func (m model) transcriptContentLines(agentID string, width int) []string {
 	lines := make([]string, 0, len(entries))
 	for _, entry := range entries {
 		prefix, style := transcriptPrefix(entry)
+
+		// Determine content to display
+		content := entry.Content.String
+		if entry.EventType == "command_execution" {
+			// Show command only, not output
+			content = entry.Command.String
+		}
+
+		// Special handling for input - full background, no indent on wrap
+		if entry.EventType == "input" {
+			inputWidth := width - 4 // leave some margin
+			if inputWidth < 1 {
+				inputWidth = 1
+			}
+			inputLines := wrapText(content, inputWidth)
+			for i, line := range inputLines {
+				var displayLine string
+				if i == 0 {
+					displayLine = prefix + " " + line
+				} else {
+					// Continuation: small indent, flows naturally
+					displayLine = "  " + line
+				}
+				// Apply inputStyle to entire line, pad to width
+				padded := displayLine + strings.Repeat(" ", width-lipgloss.Width(displayLine))
+				lines = append(lines, inputStyle.Render(padded))
+			}
+			continue
+		}
+
 		prefixText := padRight(style.Render(prefix), prefixWidth)
 
 		// Wrap long lines to prevent overflow
-		contentLines := wrapText(entry.Content.String, contentWidth)
+		contentLines := wrapText(content, contentWidth)
 		for i, line := range contentLines {
 			var displayLine string
 			if i == 0 {

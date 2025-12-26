@@ -1,3 +1,8 @@
 .worktrees/
 otto
 .gocache/
+
+# Test artifacts
+*.test
+coverage.out
+coverage.html

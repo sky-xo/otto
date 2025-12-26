@@ -93,9 +93,72 @@ func TestParseMentions(t *testing.T) {
 		{"@", []string{}}, // invalid mention
 	}
 
+	ctx := scope.Context{Project: "test-project", Branch: "main"}
 	for _, tt := range tests {
 		t.Run(tt.content, func(t *testing.T) {
-			result := parseMentions(tt.content)
+			result := parseMentions(tt.content, ctx)
+			if len(result) != len(tt.expected) {
+				t.Fatalf("expected %d mentions, got %d: %v", len(tt.expected), len(result), result)
+			}
+			for i, exp := range tt.expected {
+				// Old tests expected simple names, now we get fully-qualified
+				expected := "test-project:main:" + exp
+				if result[i] != expected {
+					t.Fatalf("expected mention %q at index %d, got %q", expected, i, result[i])
+				}
+			}
+		})
+	}
+}
+
+func TestParseMentionsWithScope(t *testing.T) {
+	ctx := scope.Context{Project: "app", Branch: "feature/login"}
+
+	tests := []struct {
+		name     string
+		content  string
+		expected []string
+	}{
+		{
+			name:     "agent only",
+			content:  "ping @Impl-1",
+			expected: []string{"app:feature/login:impl-1"},
+		},
+		{
+			name:     "branch:agent",
+			content:  "ping @main:Otto",
+			expected: []string{"app:main:otto"},
+		},
+		{
+			name:     "project:branch:agent",
+			content:  "ping @backend:main:Otto",
+			expected: []string{"backend:main:otto"},
+		},
+		{
+			name:     "multiple mentions",
+			content:  "ping @Impl-1 and @backend:main:Otto",
+			expected: []string{"app:feature/login:impl-1", "backend:main:otto"},
+		},
+		{
+			name:     "deduplicate mentions",
+			content:  "@impl-1 @IMPL-1 @Impl-1",
+			expected: []string{"app:feature/login:impl-1"},
+		},
+		{
+			name:     "preserve project and branch casing",
+			content:  "@Backend-API:Feature/Login:agent",
+			expected: []string{"Backend-API:Feature/Login:agent"},
+		},
+		{
+			name:     "agent names with dots and underscores",
+			content:  "@agent.1 @agent_2",
+			expected: []string{"app:feature/login:agent.1", "app:feature/login:agent_2"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := parseMentions(tt.content, ctx)
 			if len(result) != len(tt.expected) {
 				t.Fatalf("expected %d mentions, got %d: %v", len(tt.expected), len(result), result)
 			}

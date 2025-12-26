@@ -7,10 +7,12 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 
 	"otto/internal/config"
 	"otto/internal/db"
 	"otto/internal/repo"
+	"otto/internal/scope"
 
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
@@ -44,7 +46,8 @@ func NewSayCmd() *cobra.Command {
 }
 
 func runSay(db *sql.DB, fromID, content string) error {
-	mentions := parseMentions(content)
+	ctx := scope.CurrentContext()
+	mentions := parseMentions(content, ctx)
 	mentionsJSON, err := json.Marshal(mentions)
 	if err != nil {
 		return fmt.Errorf("marshal mentions: %w", err)
@@ -52,7 +55,9 @@ func runSay(db *sql.DB, fromID, content string) error {
 
 	msg := repo.Message{
 		ID:           uuid.New().String(),
-		FromID:       fromID,
+		Project:      ctx.Project,
+		Branch:       ctx.Branch,
+		FromAgent:    fromID,
 		Type:         "say",
 		Content:      content,
 		MentionsJSON: string(mentionsJSON),
@@ -62,23 +67,32 @@ func runSay(db *sql.DB, fromID, content string) error {
 	return repo.CreateMessage(db, msg)
 }
 
-func parseMentions(content string) []string {
-	re := regexp.MustCompile(`@([a-z0-9-]+)`)
-	matches := re.FindAllStringSubmatch(content, -1)
+var mentionRe = regexp.MustCompile(`@([A-Za-z0-9._/-]+(?::[A-Za-z0-9._/-]+){0,2})`)
 
+func parseMentions(content string, ctx scope.Context) []string {
+	matches := mentionRe.FindAllStringSubmatch(content, -1)
 	seen := make(map[string]bool)
-	var result []string
+	var out []string
 	for _, match := range matches {
-		if len(match) > 1 {
-			mention := match[1]
-			if !seen[mention] {
-				seen[mention] = true
-				result = append(result, mention)
-			}
+		parts := strings.Split(match[1], ":")
+		resolved := ""
+		switch len(parts) {
+		case 1:
+			// @agent -> project:branch:agent
+			resolved = fmt.Sprintf("%s:%s:%s", ctx.Project, ctx.Branch, strings.ToLower(parts[0]))
+		case 2:
+			// @branch:agent -> project:branch:agent
+			resolved = fmt.Sprintf("%s:%s:%s", ctx.Project, parts[0], strings.ToLower(parts[1]))
+		case 3:
+			// @project:branch:agent -> project:branch:agent
+			resolved = fmt.Sprintf("%s:%s:%s", parts[0], parts[1], strings.ToLower(parts[2]))
+		}
+		if resolved != "" && !seen[resolved] {
+			seen[resolved] = true
+			out = append(out, resolved)
 		}
 	}
-
-	return result
+	return out
 }
 
 func openDB() (*sql.DB, error) {

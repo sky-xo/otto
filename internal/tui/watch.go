@@ -414,6 +414,7 @@ func (m model) transcriptContentLines(agentID string, width int) []string {
 				padded := displayLine + strings.Repeat(" ", width-lipgloss.Width(displayLine))
 				lines = append(lines, inputStyle.Render(padded))
 			}
+			lines = append(lines, "") // blank line after entry
 			continue
 		}
 
@@ -432,6 +433,7 @@ func (m model) transcriptContentLines(agentID string, width int) []string {
 			}
 			lines = append(lines, displayLine)
 		}
+		lines = append(lines, "") // blank line after entry
 	}
 	return lines
 }

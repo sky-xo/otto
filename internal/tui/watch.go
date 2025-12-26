@@ -435,25 +435,31 @@ func (m model) transcriptContentLines(agentID string, width int) []string {
 			continue
 		}
 
-		prefixText := padRight(prefixStyle.Render(prefix), prefixWidth)
-
 		// Wrap long lines to prevent overflow
 		contentLines := wrapText(content, contentWidth)
 		for i, line := range contentLines {
 			var displayLine string
 			if i == 0 {
-				// First line: show prefix
-				displayLine = prefixText + " " + line
+				if isDimmed {
+					// For dimmed entries, build line plain then style all at once
+					// (can't nest styles - ANSI codes from first render persist)
+					plainPrefix := padRight(prefix, prefixWidth)
+					displayLine = mutedStyle.Render(plainPrefix + " " + line)
+				} else {
+					// For bright entries, style prefix separately
+					prefixText := padRight(prefixStyle.Render(prefix), prefixWidth)
+					displayLine = prefixText + " " + line
+				}
 			} else {
 				// Continuation lines: indent to align with content
-				displayLine = strings.Repeat(" ", prefixWidth+1) + line
+				contLine := strings.Repeat(" ", prefixWidth+1) + line
+				if isDimmed {
+					displayLine = mutedStyle.Render(contLine)
+				} else {
+					displayLine = contLine
+				}
 			}
-			// Apply dimming to non-message entries
-			if isDimmed {
-				lines = append(lines, mutedStyle.Render(displayLine))
-			} else {
-				lines = append(lines, displayLine)
-			}
+			lines = append(lines, displayLine)
 		}
 		lines = append(lines, "") // blank line after entry
 	}

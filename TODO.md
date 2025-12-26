@@ -2,75 +2,124 @@
 
 Quick overview of features and status. For detailed design, see `docs/plans/`.
 
-## Current Focus
+## Implementation Status
 
-The one list of what we're working on now.
+Based on `docs/plans/2025-12-25-super-orchestrator-v0-design.md`.
 
-### Super Orchestrator - Phase 1: Event Bus + Wake-up
+### Backend (Phase 1) - COMPLETE
 
-Design: `docs/plans/2025-12-24-super-orchestrator-design.md`
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Global DB at `~/.otto/otto.db` | ✅ Done | |
+| Project/branch-aware schema | ✅ Done | agents, messages, logs, tasks tables |
+| Scope context helper | ✅ Done | `scope.CurrentContext()` |
+| @mention parsing | ✅ Done | Resolves to `project:branch:agent` |
+| Codex event parsing | ✅ Done | `codex_events.go` |
+| Compaction detection | ✅ Done | Parses `context_compacted` event |
+| Session ID capture | ✅ Done | From `thread.started` event |
+| Structured log entries | ✅ Done | event_type, command, exit_code, etc. |
+| Tasks table | ✅ Done | Schema exists, repo functions work |
 
-- [ ] Event logging on message posting
-- [ ] @mention detection and parsing
-- [ ] Wake-up mechanism via `otto prompt` with context injection
-- [ ] Wire into `say`, `ask`, `complete` commands
+### TUI (Phase 2) - PARTIAL
 
-Related design docs:
-- `docs/plans/2025-12-24-tasks-design.md` - Tasks table with derived state
-- `docs/plans/2025-12-24-skill-injection-design.md` - Re-injecting skills on wake-up
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Agent list with status indicators | ✅ Done | busy/complete/failed/waiting |
+| Archived agents section | ✅ Done | Collapsible |
+| Transcript view | ✅ Done | Formatting for reasoning, commands, input |
+| Mouse support | ✅ Done | Click to select, scroll wheel |
+| Keyboard navigation | ✅ Done | j/k, tab, enter, escape |
+| **Project/branch grouping** | ❌ Not done | Sidebar should group agents by project:branch |
+| **Activity feed panel** | ❌ Not done | Design shows top panel for status updates |
+| **Chat panel** | ❌ Not done | Design shows bottom panel for orchestrator chat |
 
-## Up Next
+### Daemon/Wake-ups - NOT STARTED
 
-Queued after current focus. Will become "Current Focus" when ready.
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Auto-wake on @mention | ❌ Not done | `wakeup.go` has helpers, not wired in |
+| Auto-wake on agent exit | ❌ Not done | Should notify orchestrator |
+| Context injection | ❌ Not done | `buildContextBundle` exists, unused |
+| Skill re-injection after compaction | ❌ Not done | Design specifies this |
 
-### Agent Reliability
-- Improve agent failure diagnostics (exit codes, stderr, failure reason)
-- Permissions model: currently all subagents are fully permissive (bad). Look at codex-subagents package for inspiration
+### CLI Commands - COMPLETE
 
-### Bugs to Investigate
+All commands working: `spawn`, `status`, `peek`, `log`, `prompt`, `say`, `ask`, `complete`, `kill`, `interrupt`, `archive`, `messages`, `attach`, `install-skills`.
 
-- **Codex resume loses context**: `otto prompt` on Codex agent starts fresh session instead of resuming
-  - Likely cause: `thread_id` never captured during spawn (known Codex bug - GitHub #3817)
-  - Spawn looks for `thread.started` event but Codex may not emit it reliably
-  - If thread_id not captured, DB has UUID placeholder instead of real thread_id
-  - Also: resume command missing `--json` flag (can't capture new thread_id)
-  - See: `internal/cli/commands/spawn.go:240-254`, `prompt.go:71`
+---
 
-### CLI Polish
-- `otto status` should list most recent agents first
-- Archive polish: `--all --archive` and `--archive` batch operations
-- **Messages filtering UX**: `otto messages` dumps all historical messages, making it hard to find recent/relevant ones
-  - Problem: Spawned agent, wanted to check its response, got 100+ old messages, had to grep to find it
-  - Potential fixes: `--agent <id>`, `--last N`, `--since 5m`, or better defaults (only recent by default)
-  - Also consider: `otto log <agent-id>` as shorthand for agent-specific messages/transcript
-- COPY MODE: inspired by mprocs copy mode
+## Remaining Work (Priority Order)
 
-### TUI
-- Format Codex logs so they look nice (instead of like unreadable JSON)
-- Composite indexes for pagination performance
-- Display errors in UI (m.err stored but never shown)
+### P1: Project/Branch Grouping in TUI (BLOCKING)
 
-## Completed
+**Why:** The sidebar needs project:branch headers as clickable targets. "Click project = orchestrator chat, click agent = transcript" (design doc line 350). Without headers, there's no way to select which orchestrator to chat with.
 
-### V1 - Friction Reducers
-Agent lifecycle, kill/interrupt, TUI agents panel, Codex as orchestrator, PID tracking, session resume.
+**Design:** (from super-orchestrator-v0-design.md:331-350)
+```
+│ Projects     │
+│              │
+│ otto/main    │  ← Click this = chat with otto/main orchestrator
+│   @impl-1 *  │  ← Click this = view impl-1 transcript
+│   @reviewer  │
+│ other/branch │  ← Click this = chat with other/branch orchestrator
+│   @worker    │
+```
 
-### V0 - Core Loop
-SQLite database, spawn, status, messages, prompt, say/ask/complete, attach, watch, project/branch scoping.
+**Scope:**
+- Modify `channels()` to group agents by project:branch
+- Add collapsible project:branch headers
+- Indent agents under their group
+- Clicking header selects that branch (for chat target)
+- Clicking agent selects that agent (for transcript view)
+
+### P2: Chat Input in TUI
+
+**Why:** TUI is currently read-only. Depends on P1 - needs a selected target to send messages to.
+
+**Scope:**
+- Add `textinput` component from Bubble Tea
+- Input area at bottom of right panel
+- When project:branch selected: send to orchestrator (@otto for that branch)
+- When agent selected: send to that agent (via `otto prompt`)
+- Messages appear in chat/transcript view
+
+### P3: Daemon Wake-ups (Superorchestrator Core)
+
+**Why:** This is what makes Otto an orchestrator vs just a spawner. Depends on P1+P2.
+
+**Scope:**
+- Wire `processWakeups` into TUI tick loop
+- On @mention: wake mentioned agent with context
+- On agent exit: notify orchestrator
+- After compaction: re-inject skills
+
+### P4: Activity Feed + Chat Split
+
+**Why:** Design shows two-panel right side (feed top, chat bottom). Polish after core works.
+
+**Scope:**
+- Split right panel into top (activity) and bottom (chat)
+- Activity: status changes, completions, agent spawns
+- Chat: messages mentioning @otto, user input
+
+---
+
+## Future (Not V0)
+
+- Hard gates on flow transitions
+- Claude as orchestrator
+- Multiple root tasks per branch
+- Headless mode (`otto --headless`)
+- Cross-project coordination patterns
 
 ## Docs
 
 **Design (current):**
-- `docs/plans/2025-12-24-super-orchestrator-design.md` - Event-driven orchestration
-- `docs/plans/2025-12-24-tasks-design.md` - Tasks table design
+- `docs/plans/2025-12-25-super-orchestrator-v0-design.md` - Main design doc
+- `docs/plans/2025-12-25-super-orchestrator-v0-phase-1-plan.md` - Backend implementation
+- `docs/plans/2025-12-25-super-orchestrator-v0-phase-2-plan.md` - TUI implementation
 - `docs/plans/2025-12-24-skill-injection-design.md` - Skill re-injection
-- `docs/plans/2025-12-22-orchestration-skill-design.md` - Otto vs subagents
-
-**Design (implemented):**
-- `docs/plans/2025-12-23-agent-lifecycle-design.md` - Agent lifecycle
-- `docs/plans/2025-12-23-interrupt-command-plan.md` - Interrupt command
-- `docs/plans/2025-12-22-otto-v0.md` - Original V0 plan
 
 **Reference:**
 - `docs/ARCHITECTURE.md` - How Otto works
-- `docs/SCENARIOS.md` - Usage scenarios / test cases
+- `docs/SCENARIOS.md` - Usage scenarios

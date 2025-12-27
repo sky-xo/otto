@@ -729,6 +729,10 @@ func (m *model) activateSelection() tea.Cmd {
 	if selected.Kind == "project_header" {
 		// Toggle project header expand/collapse
 		m.projectExpanded[selected.ID] = !m.isProjectExpanded(selected.ID)
+		// Also set activeChannelID to the project header ID
+		// This allows the right panel to show orchestrator chat for this project/branch
+		m.activeChannelID = selected.ID
+		m.updateViewportContent()
 		return nil
 	}
 	m.activeChannelID = selected.ID

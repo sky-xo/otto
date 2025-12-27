@@ -869,3 +869,103 @@ func TestArchivedSectionRespectsProjectCollapse(t *testing.T) {
 		t.Fatalf("expected project_header kind at index 2, got %q", channels[2].Kind)
 	}
 }
+
+func TestProjectHeaderSelectionSetsActiveChannel(t *testing.T) {
+	m := NewModel(nil)
+	m.agents = []repo.Agent{
+		{Project: "otto", Branch: "main", Name: "impl-1", Status: "busy"},
+		{Project: "other", Branch: "feature", Name: "worker", Status: "complete"},
+	}
+
+	channels := m.channels()
+
+	// Find the otto/main header
+	headerIndex := -1
+	for i, ch := range channels {
+		if ch.ID == "otto/main" && ch.Kind == "project_header" {
+			headerIndex = i
+			break
+		}
+	}
+	if headerIndex == -1 {
+		t.Fatal("expected to find otto/main header")
+	}
+
+	// Select the project header
+	m.cursorIndex = headerIndex
+	_ = m.activateSelection()
+
+	// Should set activeChannelID to the project header ID
+	if m.activeChannelID != "otto/main" {
+		t.Errorf("expected activeChannelID to be 'otto/main', got %q", m.activeChannelID)
+	}
+}
+
+func TestProjectHeaderSelectionTogglesExpanded(t *testing.T) {
+	m := NewModel(nil)
+	m.agents = []repo.Agent{
+		{Project: "otto", Branch: "main", Name: "impl-1", Status: "busy"},
+	}
+
+	channels := m.channels()
+
+	// Find the otto/main header
+	headerIndex := -1
+	for i, ch := range channels {
+		if ch.ID == "otto/main" && ch.Kind == "project_header" {
+			headerIndex = i
+			break
+		}
+	}
+	if headerIndex == -1 {
+		t.Fatal("expected to find otto/main header")
+	}
+
+	// Initially expanded (default)
+	if !m.isProjectExpanded("otto/main") {
+		t.Fatal("expected otto/main to be expanded by default")
+	}
+
+	// Select the header - should toggle to collapsed
+	m.cursorIndex = headerIndex
+	_ = m.activateSelection()
+	if m.isProjectExpanded("otto/main") {
+		t.Error("expected otto/main to be collapsed after first activation")
+	}
+
+	// Select again - should toggle back to expanded
+	_ = m.activateSelection()
+	if !m.isProjectExpanded("otto/main") {
+		t.Error("expected otto/main to be expanded after second activation")
+	}
+}
+
+func TestAgentSelectionStillSetsActiveChannelToAgent(t *testing.T) {
+	m := NewModel(nil)
+	m.agents = []repo.Agent{
+		{Project: "otto", Branch: "main", Name: "impl-1", Status: "busy"},
+	}
+
+	channels := m.channels()
+
+	// Find the agent
+	agentIndex := -1
+	for i, ch := range channels {
+		if ch.ID == "impl-1" && ch.Kind == "agent" {
+			agentIndex = i
+			break
+		}
+	}
+	if agentIndex == -1 {
+		t.Fatal("expected to find impl-1 agent")
+	}
+
+	// Select the agent
+	m.cursorIndex = agentIndex
+	_ = m.activateSelection()
+
+	// Should set activeChannelID to the agent name
+	if m.activeChannelID != "impl-1" {
+		t.Errorf("expected activeChannelID to be 'impl-1', got %q", m.activeChannelID)
+	}
+}

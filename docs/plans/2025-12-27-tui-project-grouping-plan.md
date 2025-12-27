@@ -18,12 +18,12 @@
 | Task 4: Rendering + indentation | ✅ Done | `fb2102f` | Added ▼/▶ indicators, fixed indent bg |
 | Task 5: Project-scoped messages | ✅ Done | `7e0b3b7` | parseProjectBranch, fetchMessagesCmd |
 | Task 6: Navigation polish | ✅ Done | `566f7a8` | Tests only - existing code worked |
-| Task 7: Chat input + spawning | ❌ Pending | - | Add textinput, spawn @otto |
+| Task 7: Chat input + spawning | ✅ Done | `ad8c807` | Add textinput, spawn/prompt @otto |
 
 **Base commit:** `40b9e81` (before this feature)
-**Current HEAD:** `566f7a8`
+**Current HEAD:** `ad8c807`
 
-**To resume:** Start with Task 7 implementation following TDD pattern below.
+**Status:** ✅ All tasks complete! Feature is ready for integration testing.
 
 ---
 

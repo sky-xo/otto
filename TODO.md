@@ -65,13 +65,6 @@ All commands working: `spawn`, `status`, `peek`, `log`, `prompt`, `say`, `ask`, 
 3959084 fix(scope): handle git worktrees correctly in RepoRoot()
 ```
 
-### Legacy Data to Clean Up
-Old agents with wrong project names from before worktree fix:
-- `default/main` - old test agents
-- `waitlist/waitlist`, `super/super`, `multicurrency/multicurrency` - worktree agents
-
-To archive: `sqlite3 ~/.otto/otto.db "UPDATE agents SET archived_at = datetime('now') WHERE project IN ('default', 'waitlist', 'super', 'multicurrency');"`
-
 ---
 
 ## Remaining Work (Priority Order)

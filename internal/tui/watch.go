@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"hash/fnv"
+	"os"
 	"os/exec"
 	"sort"
 	"strings"
@@ -186,7 +187,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// Clear input and blur
 				m.chatInput.SetValue("")
 				m.chatInput.Blur()
-			case "up", "down", "k", "j", "g", "G", "pgup", "pgdown", "home", "end":
+			case "up", "down", "k", "j", "g", "G", "pgup", "pgdown", "home", "end", "tab":
 				// Navigation keys should fall through to viewport handling
 				// Don't capture them in the text input
 			default:
@@ -248,6 +249,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.cursorIndex = 0
 			m.focusedPanel = panelMessages
 			m.chatInput.Blur()
+			m.updateViewportDimensions() // Update dimensions when switching channels
 			m.updateViewportContent()
 		case "g":
 			if m.focusedPanel == panelMessages {
@@ -283,16 +285,49 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-		// Click - select agent if clicking in agent list
+		// Click - handle panel focus and channel selection
 		if msg.Button == tea.MouseButtonLeft && msg.Action == tea.MouseActionRelease {
 			if !inContentPanel {
+				// Clicking anywhere in left panel focuses it
+				m.focusedPanel = panelAgents
+				m.chatInput.Blur()
+
 				// Calculate which agent was clicked based on msg.Y
 				// Subtract 2 for border + title row
 				clickedIndex := msg.Y - 2
 				channels := m.channels()
 				if clickedIndex >= 0 && clickedIndex < len(channels) {
 					m.cursorIndex = clickedIndex
+					ch := channels[clickedIndex]
+
+					// Check if clicking on a caret (▼/▶) for project or archived headers
+					if ch.Kind == "project_header" || ch.Kind == "archived_header" {
+						// Calculate caret X position based on level and border
+						// Border is at X=0, content starts at X=1
+						// Level 0: caret at X=1-2 (no indent)
+						// Level 1: caret at X=3-4 (2-char indent)
+						caretStartX := 1 + (ch.Level * 2)
+						caretEndX := caretStartX + 2 // "▼ " or "▶ " takes 2 chars
+
+						if msg.X >= caretStartX && msg.X < caretEndX {
+							// Clicking on caret - toggle expand/collapse
+							return m, m.toggleSelection()
+						}
+					}
+
+					// Otherwise, activate the selection
+					// For project headers, also focus the right panel
+					if ch.Kind == "project_header" {
+						m.focusedPanel = panelMessages
+						m.chatInput.Focus()
+					}
 					return m, m.activateSelection()
+				}
+			} else {
+				// Clicking anywhere in right panel focuses it
+				m.focusedPanel = panelMessages
+				if m.showChatInput() {
+					m.chatInput.Focus()
 				}
 			}
 		}
@@ -302,11 +337,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 
 		// Update viewport dimensions
-		_, rightWidth, _, contentHeight := m.layout()
-		m.viewport.Width = rightWidth - 2 // Account for border
-		m.viewport.Height = contentHeight
+		m.updateViewportDimensions()
 
 		// Update chat input width
+		_, rightWidth, _, _ := m.layout()
 		m.chatInput.Width = rightWidth - 4 // Account for border + some padding
 
 		// Update viewport content with new dimensions
@@ -897,7 +931,9 @@ func (m *model) activateSelection() tea.Cmd {
 	}
 	if selected.Kind == "project_header" {
 		// Just set activeChannelID (no toggle on cursor move)
+		// Note: Focus change happens only on click, not on keyboard nav
 		m.activeChannelID = selected.ID
+		m.updateViewportDimensions() // Update dimensions when showing/hiding chat input
 		m.updateViewportContent()
 		return nil
 	}
@@ -910,6 +946,8 @@ func (m *model) activateSelection() tea.Cmd {
 	// Blur chat input when selecting non-project items
 	m.chatInput.Blur()
 
+	// Update viewport dimensions when switching channels (chat input visibility may change)
+	m.updateViewportDimensions()
 	// Update viewport content when switching channels
 	m.updateViewportContent()
 
@@ -971,12 +1009,26 @@ func (m *model) ensureSelection() {
 	if len(channels) == 0 {
 		m.cursorIndex = 0
 		m.activeChannelID = mainChannelID
+		m.updateViewportDimensions() // Update dimensions when changing channel
 		return
 	}
 
 	if !channelExists(channels, m.activeChannelID) {
-		m.activeChannelID = mainChannelID
+		// Select the first valid channel (skip separators)
 		m.cursorIndex = 0
+		for i, ch := range channels {
+			if ch.Kind != "separator" {
+				m.cursorIndex = i
+				m.activeChannelID = ch.ID
+				// If selecting a project header and focus is on messages panel, focus chat input
+				if ch.Kind == "project_header" && m.focusedPanel == panelMessages {
+					m.chatInput.Focus()
+				}
+				break
+			}
+		}
+		m.updateViewportDimensions() // Update dimensions when changing channel
+		m.updateViewportContent()
 	}
 	if m.cursorIndex >= len(channels) {
 		m.cursorIndex = len(channels) - 1
@@ -1000,6 +1052,14 @@ func (m *model) updateViewportContent() {
 	}
 
 	m.viewport.SetContent(content)
+}
+
+// updateViewportDimensions updates the viewport width and height based on current layout
+// Call this whenever the layout changes (window resize, activeChannelID change, etc.)
+func (m *model) updateViewportDimensions() {
+	_, rightWidth, _, contentHeight := m.layout()
+	m.viewport.Width = rightWidth - 2 // Account for border
+	m.viewport.Height = contentHeight
 }
 
 func (m model) layout() (leftWidth, rightWidth, panelHeight, contentHeight int) {
@@ -1380,13 +1440,20 @@ func (m *model) handleChatSubmit() tea.Cmd {
 	// Clear input immediately
 	m.chatInput.SetValue("")
 
+	// Get the path to the currently running executable
+	// This ensures we use the same binary even if not in PATH
+	ottoBin, err := os.Executable()
+	if err != nil {
+		return func() tea.Msg { return err }
+	}
+
 	// Execute command in background
 	var cmd *exec.Cmd
 	if action == "spawn" {
-		cmd = exec.Command("otto", "spawn", "codex", message, "--name", "otto")
+		cmd = exec.Command(ottoBin, "spawn", "codex", message, "--name", "otto")
 	} else {
 		// action == "prompt"
-		cmd = exec.Command("otto", "prompt", "otto", message)
+		cmd = exec.Command(ottoBin, "prompt", "otto", message)
 	}
 
 	return tea.ExecProcess(cmd, func(err error) tea.Msg {

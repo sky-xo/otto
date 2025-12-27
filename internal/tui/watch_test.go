@@ -1848,3 +1848,24 @@ func TestClickRightPanelFocusesPanel(t *testing.T) {
 		t.Errorf("expected focusedPanel to be panelMessages after clicking in right panel, got %d", m.focusedPanel)
 	}
 }
+
+func TestRightPanelRoutesKeysToInput(t *testing.T) {
+	// Create in-memory database
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatalf("failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	m := NewModel(db)
+	m.focusedPanel = panelMessages
+	m.chatInput.Focus() // Focus the input first
+
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}}
+	next, _ := m.Update(msg)
+	model := next.(model)
+
+	if model.chatInput.Value() != "j" {
+		t.Fatalf("expected chat input to capture key, got %q (focused panel: %d, focused: %v)", model.chatInput.Value(), model.focusedPanel, model.chatInput.Focused())
+	}
+}

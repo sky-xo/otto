@@ -170,32 +170,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		// If chat input is visible and focused, handle input
-		if m.showChatInput() && m.focusedPanel == panelMessages {
-			// Check if otto is busy first
-			project, branch := parseProjectBranch(m.activeChannelID)
-			ottoBusy := m.isOttoBusy(project, branch)
-
-			switch msg.String() {
-			case "enter":
-				// Submit message (blocked if otto is busy)
-				if !ottoBusy {
-					cmd := m.handleChatSubmit()
-					return m, cmd
-				}
-			case "esc":
-				// Clear input and blur
-				m.chatInput.SetValue("")
-				m.chatInput.Blur()
-			case "up", "down", "k", "j", "g", "G", "pgup", "pgdown", "home", "end", "tab":
-				// Navigation keys should fall through to viewport handling
-				// Don't capture them in the text input
-			default:
-				// Pass to textinput only if otto is not busy
-				if !ottoBusy {
-					m.chatInput, cmd = m.chatInput.Update(msg)
-					return m, cmd
-				}
+		// Right panel: route all keys to chat input (except Esc/Tab)
+		if m.focusedPanel == panelMessages {
+			if msg.Type != tea.KeyEsc && msg.Type != tea.KeyTab {
+				m.chatInput, cmd = m.chatInput.Update(msg)
+				return m, cmd
 			}
 		}
 

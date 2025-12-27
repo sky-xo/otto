@@ -24,11 +24,25 @@
 When user sends a message to a project header:
 
 1. Check if `@otto` agent exists for this project/branch
-2. If exists and `status = busy` → `otto prompt @otto "message"`
-3. If exists and `status = complete` → spawn new `@otto` with message
-4. If doesn't exist → spawn new `@otto` with message
+2. **If otto is busy** → Submit button disabled, user must wait (no queuing in P1)
+3. **If otto exists and finished** (`status = complete` or `failed`) → `otto prompt otto "message"` (resumes session)
+4. **If otto doesn't exist** → `otto spawn codex "message" --name otto`
 
-Spawn command: `otto spawn codex "message" --name otto`
+**spawn vs prompt distinction:**
+- `spawn` - Creates new agent row + new session
+- `prompt` - Resumes existing agent's session (agent must exist and not be busy)
+
+**Rationale:** Orchestrator is session-scoped, not task-scoped. We want to resume conversations, not start fresh each time.
+
+### Message Queuing (Deferred to P3)
+
+In P1, there is no message queuing:
+- **User → Otto:** TUI disables submit button while otto is busy
+- **Otto → Subagent:** `otto prompt` fails with error if agent is busy
+
+In P3, the daemon will handle queuing:
+- Messages stored in DB while agent is busy
+- Daemon detects agent completion and delivers queued messages (batch delivery - all at once, like catching up on chat)
 
 ### Not In Scope (Deferred)
 
@@ -267,9 +281,9 @@ Expected: PASS
 
 Add tests covering:
 - Text input component appears at bottom of right panel when project header selected.
+- Submit button/action disabled when `@otto` is `busy`.
 - Submitting message when no `@otto` exists spawns new orchestrator.
-- Submitting message when `@otto` is `busy` prompts existing agent.
-- Submitting message when `@otto` is `complete` spawns new orchestrator.
+- Submitting message when `@otto` is `complete` or `failed` prompts existing agent (resumes session).
 
 **Step 2: Run tests to verify failure**
 
@@ -282,10 +296,11 @@ Expected: FAIL
 - Render input at bottom of right panel when project header is active.
 - On submit:
   - Look up `@otto` agent for active project/branch via `repo.GetAgent()`
-  - If not found or `status != busy`: spawn via `otto spawn codex "message" --name otto`
-  - If found and `status == busy`: prompt via `otto prompt otto "message"`
+  - If `status == busy`: ignore submit (button should be disabled)
+  - If exists and finished (`complete`/`failed`): `otto prompt otto "message"` (resume)
+  - If not found: `otto spawn codex "message" --name otto`
 - Clear input after submit.
-- Show "Sending..." or similar feedback.
+- Show visual indicator when otto is busy (grayed input, "Otto is working..." hint).
 
 **Step 4: Run tests**
 
@@ -301,3 +316,4 @@ Expected: PASS
 - Default expansion: expand groups for the current `scope.CurrentContext()` and keep others collapsed unless previously expanded.
 - Orchestrator is always named `@otto` (reserved name).
 - Chat input only appears when a project header is selected, not when viewing agent transcripts.
+- **CLI change:** `otto prompt` should check agent status and fail with error if agent is busy (prevents double-prompting same session).

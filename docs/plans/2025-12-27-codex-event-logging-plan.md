@@ -130,7 +130,25 @@ go test ./internal/cli/commands -run "TestCodex.*Started|TestCodex.*Turn|TestPee
 
 ## Future Work (TUI)
 
-The TUI (`internal/tui/watch.go`) reads `entry.Content` for display. The new event types will currently render with their content (if set) or be blank. If we want special rendering (e.g., `[running]` prefix, turn separators) in the TUI, that's a separate enhancement to coordinate with the unified chat stream work.
+The TUI (`internal/tui/watch.go`) reads `entry.Content` for display. The new event types will currently render with their content (if set) or be blank.
+
+### Proposed TUI Enhancement: Replace-on-Complete
+
+**Concept:** Instead of showing both `item.started` and `item.completed`, use a replacement model:
+
+1. While command is running: show `⏳ rg -n "foo" .` (pending indicator)
+2. When complete: **replace** the pending line with actual output `[Grep] results...`
+3. Don't show turn.started/turn.completed at all (just noise)
+
+**Implementation approach:**
+- Codex events have `item.id` that's the same for started/completed
+- In TUI rendering, group by `item.id`
+- If we have both → only show completed
+- If only started (still running) → show pending indicator
+
+**Result:** Clean transcript that shows what's happening in real-time, then collapses to just results.
+
+**Status:** Deferred - render both for now, experiment with UX later.
 
 ## Dependencies
 

@@ -122,9 +122,10 @@ type model struct {
 	cursorIndex       int
 	activeChannelID   string
 	archivedExpanded  bool
-	focusedPanel      int // Panel index (panelAgents, panelMessages, etc.)
-	mouseX            int // Mouse X position for hover detection
-	mouseY            int // Mouse Y position for hover detection
+	projectExpanded   map[string]bool // Tracks expanded/collapsed state for project/branch headers
+	focusedPanel      int             // Panel index (panelAgents, panelMessages, etc.)
+	mouseX            int             // Mouse X position for hover detection
+	mouseY            int             // Mouse Y position for hover detection
 	err               error
 	viewport          viewport.Model
 }
@@ -139,7 +140,8 @@ func NewModel(db *sql.DB) model {
 		lastTranscriptIDs: map[string]string{},
 		activeChannelID:   mainChannelID,
 		archivedExpanded:  false,
-		focusedPanel:      panelMessages, // Default to content panel
+		projectExpanded:   map[string]bool{}, // Default: all projects expanded
+		focusedPanel:      panelMessages,      // Default to content panel
 		viewport:          vp,
 	}
 }
@@ -522,7 +524,7 @@ func (m model) channels() []channel {
 	// Group active agents by project/branch
 	groupedAgents := make(map[string][]repo.Agent)
 	for _, agent := range activeAgents {
-		key := agent.Project + "/" + agent.Branch
+		key := projectBranchKey(agent.Project, agent.Branch)
 		groupedAgents[key] = append(groupedAgents[key], agent)
 	}
 
@@ -537,29 +539,31 @@ func (m model) channels() []channel {
 	for _, key := range groupKeys {
 		// Add project/branch header
 		channels = append(channels, channel{
-			ID:   key,
-			Name: key,
-			Kind: "project_header",
+			ID:    key,
+			Name:  key,
+			Kind:  "project_header",
 			Level: 0,
 		})
 
-		// Add agents under this header
-		agents := groupedAgents[key]
-		ordered := sortAgentsByStatus(agents)
-		for _, agent := range ordered {
-			channels = append(channels, channel{
-				ID:      agent.Name,
-				Name:    agent.Name,
-				Kind:    "agent",
-				Status:  agent.Status,
-				Level:   1,
-				Project: agent.Project,
-				Branch:  agent.Branch,
-			})
+		// Add agents under this header only if expanded
+		if m.isProjectExpanded(key) {
+			agents := groupedAgents[key]
+			ordered := sortAgentsByStatus(agents)
+			for _, agent := range ordered {
+				channels = append(channels, channel{
+					ID:      agent.Name,
+					Name:    agent.Name,
+					Kind:    "agent",
+					Status:  agent.Status,
+					Level:   1,
+					Project: agent.Project,
+					Branch:  agent.Branch,
+				})
+			}
 		}
 	}
 
-	// Archived section remains at the bottom, not grouped
+	// Archived section at the bottom, grouped by project/branch when expanded
 	if len(archivedAgents) > 0 {
 		channels = append(channels, channel{
 			ID:   archivedChannelID,
@@ -567,18 +571,65 @@ func (m model) channels() []channel {
 			Kind: "archived_header",
 		})
 		if m.archivedExpanded {
-			orderedArchived := sortArchivedAgents(archivedAgents)
-			for _, agent := range orderedArchived {
+			// Group archived agents by project/branch
+			groupedArchived := make(map[string][]repo.Agent)
+			for _, agent := range archivedAgents {
+				key := projectBranchKey(agent.Project, agent.Branch)
+				groupedArchived[key] = append(groupedArchived[key], agent)
+			}
+
+			// Sort group keys alphabetically
+			var archivedGroupKeys []string
+			for key := range groupedArchived {
+				archivedGroupKeys = append(archivedGroupKeys, key)
+			}
+			sort.Strings(archivedGroupKeys)
+
+			// Build channels with headers and grouped archived agents
+			for _, key := range archivedGroupKeys {
+				// Add project/branch header for archived section
 				channels = append(channels, channel{
-					ID:     agent.Name,
-					Name:   agent.Name,
-					Kind:   "agent",
-					Status: agent.Status,
+					ID:    key,
+					Name:  key,
+					Kind:  "project_header",
+					Level: 1,
 				})
+
+				// Add archived agents under this header only if expanded
+				if m.isProjectExpanded(key) {
+					agents := groupedArchived[key]
+					ordered := sortArchivedAgents(agents)
+					for _, agent := range ordered {
+						channels = append(channels, channel{
+							ID:      agent.Name,
+							Name:    agent.Name,
+							Kind:    "agent",
+							Status:  agent.Status,
+							Level:   2,
+							Project: agent.Project,
+							Branch:  agent.Branch,
+						})
+					}
+				}
 			}
 		}
 	}
 	return channels
+}
+
+// projectBranchKey creates a consistent key for project/branch combinations
+func projectBranchKey(project, branch string) string {
+	return project + "/" + branch
+}
+
+// isProjectExpanded checks if a project/branch group is expanded
+// Default is expanded (true) if not explicitly set
+func (m model) isProjectExpanded(key string) bool {
+	expanded, exists := m.projectExpanded[key]
+	if !exists {
+		return true // Default to expanded
+	}
+	return expanded
 }
 
 func (m model) activeChannelLabel() string {
@@ -673,6 +724,11 @@ func (m *model) activateSelection() tea.Cmd {
 	selected := channels[m.cursorIndex]
 	if selected.Kind == "archived_header" {
 		m.archivedExpanded = !m.archivedExpanded
+		return nil
+	}
+	if selected.Kind == "project_header" {
+		// Toggle project header expand/collapse
+		m.projectExpanded[selected.ID] = !m.isProjectExpanded(selected.ID)
 		return nil
 	}
 	m.activeChannelID = selected.ID

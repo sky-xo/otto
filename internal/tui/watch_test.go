@@ -162,9 +162,9 @@ func TestArchivedAgentsAppearWhenExpanded(t *testing.T) {
 	m.archivedExpanded = true
 
 	channels := m.channels()
-	// Expected: Main, test/main header, agent-1, Archived header, agent-3, agent-2
-	if len(channels) != 6 {
-		t.Fatalf("expected 6 channels, got %d", len(channels))
+	// Expected: Main, test/main header, agent-1, Archived header, test/main header (archived), agent-3, agent-2
+	if len(channels) != 7 {
+		t.Fatalf("expected 7 channels, got %d", len(channels))
 	}
 	if channels[3].ID != archivedChannelID {
 		t.Fatalf("expected archived header at index 3, got %q", channels[3].ID)
@@ -172,8 +172,12 @@ func TestArchivedAgentsAppearWhenExpanded(t *testing.T) {
 	if channels[3].Name != "Archived (2)" {
 		t.Fatalf("expected archived header label, got %q", channels[3].Name)
 	}
-	if channels[4].ID != "agent-3" || channels[5].ID != "agent-2" {
-		t.Fatalf("unexpected archived order: %q, %q", channels[4].ID, channels[5].ID)
+	// Archived section now groups by project/branch too
+	if channels[4].Kind != "project_header" {
+		t.Fatalf("expected project_header at index 4 (archived section), got %q", channels[4].Kind)
+	}
+	if channels[5].ID != "agent-3" || channels[6].ID != "agent-2" {
+		t.Fatalf("unexpected archived order: %q, %q", channels[5].ID, channels[6].ID)
 	}
 }
 
@@ -655,5 +659,213 @@ func TestChannelsGroupingWithArchived(t *testing.T) {
 	}
 	if channels[5].Kind != "archived_header" {
 		t.Fatalf("expected 'archived_header' kind, got %q", channels[5].Kind)
+	}
+}
+
+func TestProjectHeaderCollapseHidesAgents(t *testing.T) {
+	m := NewModel(nil)
+	m.projectExpanded = map[string]bool{"otto/main": false}
+	m.agents = []repo.Agent{
+		{Project: "otto", Branch: "main", Name: "impl-1", Status: "busy"},
+		{Project: "otto", Branch: "main", Name: "reviewer", Status: "blocked"},
+	}
+
+	channels := m.channels()
+
+	// Expected structure when collapsed:
+	// 0: Main
+	// 1: otto/main header (collapsed)
+	// No agents shown under header
+
+	expectedCount := 2
+	if len(channels) != expectedCount {
+		t.Fatalf("expected %d channels (Main + header only), got %d", expectedCount, len(channels))
+	}
+
+	if channels[0].ID != mainChannelID {
+		t.Fatalf("expected Main first, got %q", channels[0].ID)
+	}
+	if channels[1].ID != "otto/main" {
+		t.Fatalf("expected otto/main header at index 1, got %q", channels[1].ID)
+	}
+	if channels[1].Kind != "project_header" {
+		t.Fatalf("expected project_header kind, got %q", channels[1].Kind)
+	}
+}
+
+func TestProjectHeaderExpandedShowsAgents(t *testing.T) {
+	m := NewModel(nil)
+	m.projectExpanded = map[string]bool{"otto/main": true}
+	m.agents = []repo.Agent{
+		{Project: "otto", Branch: "main", Name: "impl-1", Status: "busy"},
+		{Project: "otto", Branch: "main", Name: "reviewer", Status: "blocked"},
+	}
+
+	channels := m.channels()
+
+	// Expected structure when expanded:
+	// 0: Main
+	// 1: otto/main header (expanded)
+	// 2:   impl-1
+	// 3:   reviewer
+
+	expectedCount := 4
+	if len(channels) != expectedCount {
+		t.Fatalf("expected %d channels, got %d", expectedCount, len(channels))
+	}
+
+	if channels[0].ID != mainChannelID {
+		t.Fatalf("expected Main first, got %q", channels[0].ID)
+	}
+	if channels[1].ID != "otto/main" {
+		t.Fatalf("expected otto/main header at index 1, got %q", channels[1].ID)
+	}
+	if channels[2].ID != "impl-1" {
+		t.Fatalf("expected impl-1 at index 2, got %q", channels[2].ID)
+	}
+	if channels[3].ID != "reviewer" {
+		t.Fatalf("expected reviewer at index 3, got %q", channels[3].ID)
+	}
+}
+
+func TestProjectHeaderDefaultExpanded(t *testing.T) {
+	m := NewModel(nil)
+	// No explicit projectExpanded state - should default to expanded
+	m.agents = []repo.Agent{
+		{Project: "otto", Branch: "main", Name: "impl-1", Status: "busy"},
+	}
+
+	channels := m.channels()
+
+	// Expected structure (default expanded):
+	// 0: Main
+	// 1: otto/main header
+	// 2:   impl-1
+
+	expectedCount := 3
+	if len(channels) != expectedCount {
+		t.Fatalf("expected %d channels (default expanded), got %d", expectedCount, len(channels))
+	}
+
+	if channels[2].ID != "impl-1" {
+		t.Fatalf("expected impl-1 agent visible by default, got %q", channels[2].ID)
+	}
+}
+
+func TestArchivedSectionGroupsByProjectBranch(t *testing.T) {
+	m := NewModel(nil)
+	m.archivedExpanded = true
+	older := time.Now().Add(-2 * time.Hour)
+	newer := time.Now().Add(-1 * time.Hour)
+
+	m.agents = []repo.Agent{
+		{Project: "otto", Branch: "main", Name: "active-1", Status: "busy"},
+		{
+			Project:    "otto",
+			Branch:     "main",
+			Name:       "archived-1",
+			Status:     "complete",
+			ArchivedAt: sql.NullTime{Time: newer, Valid: true},
+		},
+		{
+			Project:    "other",
+			Branch:     "feature",
+			Name:       "archived-2",
+			Status:     "failed",
+			ArchivedAt: sql.NullTime{Time: older, Valid: true},
+		},
+	}
+
+	channels := m.channels()
+
+	// Expected structure:
+	// 0: Main
+	// 1: otto/main header
+	// 2:   active-1
+	// 3: Archived (2) header
+	// 4: other/feature header (archived)
+	// 5:   archived-2
+	// 6: otto/main header (archived)
+	// 7:   archived-1
+
+	expectedCount := 8
+	if len(channels) != expectedCount {
+		t.Fatalf("expected %d channels, got %d", expectedCount, len(channels))
+	}
+
+	// Verify archived header
+	if channels[3].ID != archivedChannelID {
+		t.Fatalf("expected archived header at index 3, got %q", channels[3].ID)
+	}
+
+	// Verify archived agents are grouped by project/branch with headers
+	if channels[4].Kind != "project_header" {
+		t.Fatalf("expected project_header at index 4 (archived section), got %q", channels[4].Kind)
+	}
+	if channels[4].ID != "other/feature" {
+		t.Fatalf("expected other/feature header at index 4, got %q", channels[4].ID)
+	}
+	if channels[5].ID != "archived-2" {
+		t.Fatalf("expected archived-2 at index 5, got %q", channels[5].ID)
+	}
+
+	if channels[6].Kind != "project_header" {
+		t.Fatalf("expected project_header at index 6 (archived section), got %q", channels[6].Kind)
+	}
+	if channels[6].ID != "otto/main" {
+		t.Fatalf("expected otto/main header at index 6, got %q", channels[6].ID)
+	}
+	if channels[7].ID != "archived-1" {
+		t.Fatalf("expected archived-1 at index 7, got %q", channels[7].ID)
+	}
+}
+
+func TestArchivedSectionRespectsProjectCollapse(t *testing.T) {
+	m := NewModel(nil)
+	m.archivedExpanded = true
+	m.projectExpanded = map[string]bool{"otto/main": false}
+	archivedAt := time.Now().Add(-time.Hour)
+
+	m.agents = []repo.Agent{
+		{
+			Project:    "otto",
+			Branch:     "main",
+			Name:       "archived-1",
+			Status:     "complete",
+			ArchivedAt: sql.NullTime{Time: archivedAt, Valid: true},
+		},
+		{
+			Project:    "otto",
+			Branch:     "main",
+			Name:       "archived-2",
+			Status:     "failed",
+			ArchivedAt: sql.NullTime{Time: archivedAt, Valid: true},
+		},
+	}
+
+	channels := m.channels()
+
+	// Expected structure (archived expanded but otto/main collapsed):
+	// 0: Main
+	// 1: Archived (2) header
+	// 2: otto/main header (collapsed in archived section)
+	// No agents shown under collapsed header
+
+	expectedCount := 3
+	if len(channels) != expectedCount {
+		t.Fatalf("expected %d channels (archived header collapsed), got %d", expectedCount, len(channels))
+	}
+
+	if channels[0].ID != mainChannelID {
+		t.Fatalf("expected Main first, got %q", channels[0].ID)
+	}
+	if channels[1].ID != archivedChannelID {
+		t.Fatalf("expected archived header at index 1, got %q", channels[1].ID)
+	}
+	if channels[2].ID != "otto/main" {
+		t.Fatalf("expected otto/main header at index 2, got %q", channels[2].ID)
+	}
+	if channels[2].Kind != "project_header" {
+		t.Fatalf("expected project_header kind at index 2, got %q", channels[2].Kind)
 	}
 }

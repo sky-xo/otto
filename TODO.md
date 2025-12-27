@@ -19,8 +19,9 @@ Based on `docs/plans/2025-12-25-super-orchestrator-v0-design.md`.
 | Session ID capture | ✅ Done | From `thread.started` event |
 | Structured log entries | ✅ Done | event_type, command, exit_code, etc. |
 | Tasks table | ✅ Done | Schema exists, repo functions work |
+| Git worktree support | ✅ Done | `RepoRoot()` uses `--git-common-dir` for main repo |
 
-### TUI (Phase 2) - PARTIAL
+### TUI (Phase 2) - COMPLETE
 
 | Feature | Status | Notes |
 |---------|--------|-------|
@@ -28,10 +29,11 @@ Based on `docs/plans/2025-12-25-super-orchestrator-v0-design.md`.
 | Archived agents section | ✅ Done | Collapsible |
 | Transcript view | ✅ Done | Formatting for reasoning, commands, input |
 | Mouse support | ✅ Done | Click to select, scroll wheel |
-| Keyboard navigation | ✅ Done | j/k, tab, enter, escape |
-| **Project/branch grouping** | ❌ Not done | Sidebar should group agents by project:branch |
-| **Activity feed panel** | ❌ Not done | Design shows top panel for status updates |
-| **Chat panel** | ❌ Not done | Design shows bottom panel for orchestrator chat |
+| Keyboard navigation | ✅ Done | j/k/up/down move cursor; Enter/h/l toggle/expand/collapse |
+| **Project/branch grouping** | ✅ Done | Sidebar groups agents by project:branch with headers |
+| **Global agent view** | ✅ Done | TUI shows ALL agents across all projects |
+| **Separators between groups** | ✅ Done | Visual separation between project groups |
+| **Chat panel** | ✅ Done | Bottom panel for orchestrator chat with @otto |
 
 ### Daemon/Wake-ups - NOT STARTED
 
@@ -48,18 +50,31 @@ All commands working: `spawn`, `status`, `peek`, `log`, `prompt`, `say`, `ask`, 
 
 ---
 
+## Session Notes (2025-12-27)
+
+### Just Completed
+- **TUI global view**: Shows all agents across all projects (not just current git context)
+- **Navigation UX fix**: Up/down just moves cursor, Enter/left/right toggles expand/collapse
+- **Removed "Main" channel**: Redundant now that each project header acts as orchestrator entry point
+- **Added separators**: Empty lines between project groups for visual clarity
+- **Git worktree fix**: `RepoRoot()` now correctly returns main repo root for worktrees
+
+### Commits (unpushed)
+```
+383e0ba feat(tui): show all projects globally, improve navigation
+3959084 fix(scope): handle git worktrees correctly in RepoRoot()
+```
+
+### Legacy Data to Clean Up
+Old agents with wrong project names from before worktree fix:
+- `default/main` - old test agents
+- `waitlist/waitlist`, `super/super`, `multicurrency/multicurrency` - worktree agents
+
+To archive: `sqlite3 ~/.otto/otto.db "UPDATE agents SET archived_at = datetime('now') WHERE project IN ('default', 'waitlist', 'super', 'multicurrency');"`
+
+---
+
 ## Remaining Work (Priority Order)
-
-### P1: Project/Branch Grouping in TUI (BLOCKING)
-
-**Why:** The sidebar needs project:branch headers as clickable targets. "Click project = orchestrator chat, click agent = transcript". Without headers, there's no way to select which orchestrator to chat with.
-
-**Plan:** `docs/plans/2025-12-27-tui-project-grouping-plan.md`
-
-**Key decisions:**
-- Orchestrator name: `@otto` (reserved, one per project/branch)
-- Lifecycle: On-demand (spawned when user sends first message)
-- 7 implementation tasks (TDD)
 
 ### P2: Agent Chat in TUI
 
@@ -67,11 +82,10 @@ All commands working: `spawn`, `status`, `peek`, `log`, `prompt`, `say`, `ask`, 
 
 **Scope:**
 - When agent selected: show input, send via `otto prompt <agent>`
-- (Orchestrator chat is now in P1 Task 7)
 
 ### P3: Daemon Wake-ups (Superorchestrator Core)
 
-**Why:** This is what makes Otto an orchestrator vs just a spawner. Depends on P1+P2.
+**Why:** This is what makes Otto an orchestrator vs just a spawner.
 
 **Scope:**
 - Wire `processWakeups` into TUI tick loop
@@ -90,17 +104,15 @@ All commands working: `spawn`, `status`, `peek`, `log`, `prompt`, `say`, `ask`, 
 
 ### P5: File Diffs in Agent Transcripts
 
-**Why:** TUI transcript shows file changes but not the actual diffs. Users need to see what code was modified.
+**Why:** TUI transcript shows file changes but not the actual diffs.
 
 **Design:** `docs/plans/2025-12-27-agent-diff-capture-design.md` (DRAFT)
 
-**Scope:**
-- Parse Claude Code JSON output (already emits diffs in `tool_use_result`)
-- For Codex: either use `codex app-server` protocol or compute via `git diff`
-- Store diffs in logs table (new `file_path`, `file_diff` columns?)
-- Display diffs in TUI transcript with syntax highlighting
-
-**Research (2025-12-27):** `codex app-server` provides `turn/diff/updated` events with unified diffs. It's JSON-RPC over stdio, experimental but used by VS Code extension. Uses same OAuth as `exec`. Consider for richer diff capture vs git-based approach.
+**Research (2025-12-27):**
+- `codex app-server` provides `turn/diff/updated` events with unified diffs
+- JSON-RPC over stdio, experimental but used by VS Code extension
+- Uses same OAuth as `exec`
+- Consider for richer diff capture vs git-based approach
 
 ---
 
@@ -116,9 +128,7 @@ All commands working: `spawn`, `status`, `peek`, `log`, `prompt`, `say`, `ask`, 
 
 **Design (current):**
 - `docs/plans/2025-12-25-super-orchestrator-v0-design.md` - Main design doc
-- `docs/plans/2025-12-25-super-orchestrator-v0-phase-1-plan.md` - Backend implementation
-- `docs/plans/2025-12-25-super-orchestrator-v0-phase-2-plan.md` - TUI implementation
-- `docs/plans/2025-12-24-skill-injection-design.md` - Skill re-injection
+- `docs/plans/2025-12-27-tui-project-grouping-plan.md` - P1 implementation (COMPLETE)
 - `docs/plans/2025-12-27-agent-diff-capture-design.md` - Capturing file diffs (DRAFT)
 
 **Reference:**

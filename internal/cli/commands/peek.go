@@ -63,6 +63,28 @@ func runPeek(db *sql.DB, agentID string, w io.Writer) error {
 	}
 
 	for _, entry := range logs {
+		// Handle item.started events
+		if entry.EventType == "item.started" {
+			if entry.Command.Valid && entry.Command.String != "" {
+				fmt.Fprintf(w, "[running] %s\n", entry.Command.String)
+			} else if entry.Content.Valid && entry.Content.String != "" {
+				fmt.Fprintf(w, "[starting] %s\n", entry.Content.String)
+			}
+			// Skip if both empty (edge case - shouldn't happen with Task 1 fix)
+			continue
+		}
+
+		// Handle turn events
+		if entry.EventType == "turn.started" {
+			fmt.Fprintf(w, "--- turn started ---\n")
+			continue
+		}
+		if entry.EventType == "turn.completed" {
+			fmt.Fprintf(w, "--- turn completed ---\n")
+			continue
+		}
+
+		// Handle all other events (existing behavior)
 		stream := ""
 		if entry.ToolName.Valid {
 			stream = fmt.Sprintf("[%s] ", entry.ToolName.String)

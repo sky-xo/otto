@@ -171,19 +171,27 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		// If chat input is visible and focused, handle input
 		if m.showChatInput() && m.focusedPanel == panelMessages {
+			// Check if otto is busy first
+			project, branch := parseProjectBranch(m.activeChannelID)
+			ottoBusy := m.isOttoBusy(project, branch)
+
 			switch msg.String() {
 			case "enter":
-				// Submit message
-				cmd := m.handleChatSubmit()
-				return m, cmd
+				// Submit message (blocked if otto is busy)
+				if !ottoBusy {
+					cmd := m.handleChatSubmit()
+					return m, cmd
+				}
 			case "esc":
 				// Clear input and blur
 				m.chatInput.SetValue("")
 				m.chatInput.Blur()
 			default:
-				// Pass to textinput
-				m.chatInput, cmd = m.chatInput.Update(msg)
-				return m, cmd
+				// Pass to textinput only if otto is not busy
+				if !ottoBusy {
+					m.chatInput, cmd = m.chatInput.Update(msg)
+					return m, cmd
+				}
 			}
 		}
 
@@ -207,16 +215,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.focusedPanel == panelAgents {
 				cmd = m.moveCursor(-1)
 				return m, cmd
-			} else if !m.showChatInput() {
-				// Only scroll viewport if chat input is not visible
+			} else {
 				m.viewport.LineUp(1)
 			}
 		case "down", "j":
 			if m.focusedPanel == panelAgents {
 				cmd = m.moveCursor(1)
 				return m, cmd
-			} else if !m.showChatInput() {
-				// Only scroll viewport if chat input is not visible
+			} else {
 				m.viewport.LineDown(1)
 			}
 		case "enter":
@@ -231,16 +237,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.chatInput.Blur()
 			m.updateViewportContent()
 		case "g":
-			if m.focusedPanel == panelMessages && !m.showChatInput() {
+			if m.focusedPanel == panelMessages {
 				m.viewport.GotoTop()
 			}
 		case "G":
-			if m.focusedPanel == panelMessages && !m.showChatInput() {
+			if m.focusedPanel == panelMessages {
 				m.viewport.GotoBottom()
 			}
 		default:
 			// Pass other keys to viewport for scrolling (pgup, pgdn, etc)
-			if m.focusedPanel == panelMessages && !m.showChatInput() {
+			if m.focusedPanel == panelMessages {
 				m.viewport, cmd = m.viewport.Update(msg)
 				return m, cmd
 			}
@@ -390,9 +396,11 @@ func (m model) View() string {
 		// Render chat input with status hint
 		var inputLine string
 		if m.isOttoBusy(project, branch) {
-			// Otto is busy - show disabled input
-			disabledStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
-			inputLine = disabledStyle.Render("Otto is working...")
+			// Otto is busy - show grayed input with hint
+			disabledInputStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+			disabledInput := m.chatInput.View()
+			hint := " (Otto is working...)"
+			inputLine = disabledInputStyle.Render(disabledInput + hint)
 		} else {
 			// Normal input
 			inputLine = m.chatInput.View()

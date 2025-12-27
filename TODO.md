@@ -6,28 +6,23 @@ What's next. For detailed design, see `docs/plans/`.
 
 ## Up Next (Implementation Order)
 
-### 1. Codex Event Logging
+### ~~1. Codex Event Logging~~ ✅ DONE
 
-**Why:** Give Claude visibility into what Codex agents are doing in real-time.
+Completed - see commits `727ef67`, `00d4d8e`, etc.
 
-**Design:** `docs/plans/2025-12-27-codex-event-logging-plan.md` (Ready)
+### 2. Unified Chat Stream ⬅️ IN PROGRESS
 
-**Scope:**
-- Log `item.started` events (not just `item.completed`)
-- Log `turn.started` / `turn.completed` events
-- Update `otto peek` to format these nicely
+**Status:** Design complete, implementation plan ready
 
-### 2. Unified Chat Stream
+**Next Action:** Implement Phase 1 (Two-Focus Keyboard Model) using subagent-driven development
 
-**Why:** Fix keyboard shortcuts capturing keys in chat input. Simplify right panel to Slack-style chat.
+**Implementation Plan:** `docs/plans/2025-12-27-unified-chat-stream-design.md` - has detailed TDD tasks
 
-**Design:** `docs/plans/2025-12-27-unified-chat-stream-design.md` (Ready)
-
-**Scope:**
-- Three-focus keyboard model (agents, stream, chat input)
-- Store user messages as `chat` type
-- Render messages Slack-style (name on own line, body below)
-- Hide noise (exit events, redundant spawn messages)
+**Phases:**
+- Phase 1: Two-focus keyboard model (3 tasks) ← START HERE
+- Phase 2: User message storage (2 tasks)
+- Phase 3: Message rendering (Slack-style)
+- Phase 4: Polish
 
 ### 3. Agent Chat in TUI
 

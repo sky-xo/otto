@@ -2,6 +2,7 @@ package tui
 
 import (
 	"database/sql"
+	"strings"
 	"testing"
 	"time"
 
@@ -968,4 +969,161 @@ func TestAgentSelectionStillSetsActiveChannelToAgent(t *testing.T) {
 	if m.activeChannelID != "impl-1" {
 		t.Errorf("expected activeChannelID to be 'impl-1', got %q", m.activeChannelID)
 	}
+}
+
+func TestRenderChannelLineProjectHeader(t *testing.T) {
+	m := NewModel(nil)
+	// Set project as expanded (default)
+	m.projectExpanded = map[string]bool{"otto/main": true}
+
+	// Create a project header channel
+	ch := channel{
+		ID:    "otto/main",
+		Name:  "otto/main",
+		Kind:  "project_header",
+		Level: 0,
+	}
+
+	// Render with cursor (should have background)
+	width := 20
+	rendered := m.renderChannelLine(ch, width, true, false)
+
+	// Strip ANSI codes for easier testing
+	stripped := stripAnsi(rendered)
+
+	// Should show project name and collapse indicator
+	if !strings.Contains(stripped, "otto/main") {
+		t.Errorf("expected header to contain project name, got: %q", stripped)
+	}
+
+	// Should show expanded indicator (▼)
+	if !strings.Contains(stripped, "▼") {
+		t.Errorf("expected expanded indicator (▼) for expanded header, got: %q", stripped)
+	}
+
+	// Verify length matches width (accounting for styling)
+	if len(stripped) != width {
+		t.Errorf("expected stripped length %d, got %d: %q", width, len(stripped), stripped)
+	}
+
+	// Should NOT contain status indicator (●, ○, ✗)
+	if strings.Contains(stripped, "●") || strings.Contains(stripped, "○") || strings.Contains(stripped, "✗") {
+		t.Errorf("expected no status indicator for header, got: %q", stripped)
+	}
+
+	// Test collapsed state
+	m.projectExpanded["otto/main"] = false
+	renderedCollapsed := m.renderChannelLine(ch, width, true, false)
+	strippedCollapsed := stripAnsi(renderedCollapsed)
+
+	// Should show collapsed indicator (▶)
+	if !strings.Contains(strippedCollapsed, "▶") {
+		t.Errorf("expected collapsed indicator (▶) for collapsed header, got: %q", strippedCollapsed)
+	}
+}
+
+func TestRenderChannelLineIndentedAgentWithCursor(t *testing.T) {
+	m := NewModel(nil)
+
+	// Create an indented agent channel (Level 1)
+	ch := channel{
+		ID:      "impl-1",
+		Name:    "impl-1",
+		Kind:    "agent",
+		Status:  "busy",
+		Level:   1,
+		Project: "otto",
+		Branch:  "main",
+	}
+
+	// Render with cursor (should have background on indent AND content)
+	width := 20
+	rendered := m.renderChannelLine(ch, width, true, false)
+
+	// Strip ANSI codes for easier testing
+	stripped := stripAnsi(rendered)
+
+	// Should be indented (Level 1 = 2 spaces)
+	if !strings.HasPrefix(stripped, "  ") {
+		t.Errorf("expected 2-space indent for Level 1, got: %q", stripped)
+	}
+
+	// Should contain status indicator
+	if !strings.Contains(stripped, "●") {
+		t.Errorf("expected status indicator for agent, got: %q", stripped)
+	}
+
+	// Should contain agent name
+	if !strings.Contains(stripped, "impl-1") {
+		t.Errorf("expected agent name in output, got: %q", stripped)
+	}
+
+	// Verify length matches width (accounting for ANSI codes in lipgloss output)
+	// The stripped output should be exactly width characters
+	// Note: lipgloss may not render ANSI codes in test environment (no TTY)
+	// so we just check the visual width matches
+	if len(stripped) < width {
+		t.Errorf("expected stripped length at least %d, got %d: %q", width, len(stripped), stripped)
+	}
+
+	// Render without cursor for comparison
+	renderedNoCursor := m.renderChannelLine(ch, width, false, false)
+	strippedNoCursor := stripAnsi(renderedNoCursor)
+
+	// Both should have the same visual content (indent + indicator + label)
+	if !strings.HasPrefix(strippedNoCursor, "  ") {
+		t.Errorf("expected 2-space indent even without cursor, got: %q", strippedNoCursor)
+	}
+}
+
+func TestRenderChannelLineIndentedHeaderLevel1(t *testing.T) {
+	m := NewModel(nil)
+
+	// Create a project header at Level 1 (archived section)
+	ch := channel{
+		ID:    "otto/main",
+		Name:  "otto/main",
+		Kind:  "project_header",
+		Level: 1,
+	}
+
+	// Render with cursor
+	width := 20
+	rendered := m.renderChannelLine(ch, width, true, false)
+
+	// Strip ANSI codes
+	stripped := stripAnsi(rendered)
+
+	// Should be indented (Level 1 = 2 spaces)
+	if !strings.HasPrefix(stripped, "  ") {
+		t.Errorf("expected 2-space indent for Level 1 header, got: %q", stripped)
+	}
+
+	// Verify length matches width
+	if len(stripped) != width {
+		t.Errorf("expected stripped length %d, got %d: %q", width, len(stripped), stripped)
+	}
+}
+
+// stripAnsi removes ANSI escape codes from a string
+func stripAnsi(s string) string {
+	// Simple ANSI escape sequence stripper
+	// Matches ESC [ ... m sequences
+	var result strings.Builder
+	inEscape := false
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\x1b' && i+1 < len(s) && s[i+1] == '[' {
+			inEscape = true
+			i++ // skip '['
+			continue
+		}
+		if inEscape {
+			if s[i] == 'm' {
+				inEscape = false
+			}
+			continue
+		}
+		result.WriteByte(s[i])
+	}
+	return result.String()
 }

@@ -647,17 +647,38 @@ func (m model) renderChannelLine(ch channel, width int, cursor, active bool) str
 	}
 
 	// Calculate indentation based on Level
-	indent := strings.Repeat(" ", ch.Level*2)
-	indentWidth := len(indent)
+	indentWidth := ch.Level * 2
+	indent := strings.Repeat(" ", indentWidth)
+	// Style indent with background if cursor is active
+	styledIndent := bgStyle.Render(indent)
+
 	availableWidth := width - indentWidth
 	if availableWidth < 1 {
 		availableWidth = 1
+	}
+
+	// For project headers, add collapse/expand indicator
+	var headerIndicator string
+	if ch.Kind == "project_header" || ch.Kind == "archived_header" {
+		if ch.Kind == "project_header" {
+			// Check if this project is expanded
+			if m.isProjectExpanded(ch.ID) {
+				headerIndicator = "▼ "
+			} else {
+				headerIndicator = "▶ "
+			}
+		}
 	}
 
 	label := ch.Name
 	labelWidth := availableWidth
 	if ch.Kind == "agent" {
 		labelWidth = availableWidth - 2 // Account for "● " prefix
+		if labelWidth < 1 {
+			labelWidth = 1
+		}
+	} else if ch.Kind == "project_header" {
+		labelWidth = availableWidth - len(headerIndicator)
 		if labelWidth < 1 {
 			labelWidth = 1
 		}
@@ -676,8 +697,8 @@ func (m model) renderChannelLine(ch channel, width int, cursor, active bool) str
 	// For agents, render indicator separately to preserve its color
 	if ch.Kind == "agent" {
 		indicator, indicatorStyle := channelIndicator(ch)
-		// Indicator keeps its foreground color always
-		styledIndicator := indicatorStyle.Render(indicator)
+		// Indicator keeps its foreground color, but gets background if cursor
+		styledIndicator := bgStyle.Inherit(indicatorStyle).Render(indicator)
 		// Label gets background if cursor, keeps its style
 		styledLabel := bgStyle.Inherit(labelStyle).Render(label)
 		// Pad the remaining space with background
@@ -686,17 +707,29 @@ func (m model) renderChannelLine(ch channel, width int, cursor, active bool) str
 		if usedWidth < width {
 			padding = bgStyle.Render(strings.Repeat(" ", width-usedWidth))
 		}
-		return indent + styledIndicator + " " + styledLabel + padding
+		return styledIndent + styledIndicator + " " + styledLabel + padding
 	}
 
-	// For main, project_header, and archived_header, apply background to entire line
+	// For project headers with collapse/expand indicator
+	if ch.Kind == "project_header" {
+		styledHeaderIndicator := bgStyle.Inherit(labelStyle).Render(headerIndicator)
+		styledLabel := bgStyle.Inherit(labelStyle).Render(label)
+		usedWidth := indentWidth + len(headerIndicator) + len(label)
+		padding := ""
+		if usedWidth < width {
+			padding = bgStyle.Render(strings.Repeat(" ", width-usedWidth))
+		}
+		return styledIndent + styledHeaderIndicator + styledLabel + padding
+	}
+
+	// For main and archived_header, apply background to entire line
 	styledLabel := bgStyle.Inherit(labelStyle).Render(label)
 	usedWidth := indentWidth + len(label)
 	padding := ""
 	if usedWidth < width {
 		padding = bgStyle.Render(strings.Repeat(" ", width-usedWidth))
 	}
-	return indent + styledLabel + padding
+	return styledIndent + styledLabel + padding
 }
 
 func (m *model) moveCursor(delta int) tea.Cmd {

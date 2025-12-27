@@ -183,44 +183,429 @@ CREATE TABLE messages (
 
 ### Phase 1: Two-Focus Keyboard Model
 
-1. Keep existing `focusedPanel` with `panelAgents` and `panelMessages`
-2. Tab toggles between them (already works)
-3. When `focusedPanel == panelMessages`: route ALL keys to textinput except Esc/Tab
-4. Esc from right panel → switches to sidebar (not just blur)
-5. Remove viewport keyboard scrolling (j/k/g/G) from right panel - mouse only
-6. Tests for focus behavior and key capture
+#### Task 1.1: Right panel sends all keys to chat input
+
+Files: Modify `internal/tui/watch.go`; Test `internal/tui/watch_test.go`
+
+Step 1: Write failing test (with code)
+```go
+func TestRightPanelRoutesKeysToInput(t *testing.T) {
+	db := newTestDB(t)
+	m := NewModel(db)
+	m.focusedPanel = panelMessages
+
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")}
+	next, _ := m.Update(msg)
+	model := next.(Model)
+
+	if model.chatInput.Value() != "j" {
+		t.Fatalf("expected chat input to capture key, got %q", model.chatInput.Value())
+	}
+}
+```
+
+Step 2: Run test, expect FAIL
+```sh
+go test ./internal/tui -run TestRightPanelRoutesKeysToInput
+```
+
+Step 3: Write implementation (with code)
+```go
+case panelMessages:
+	switch key := msg.(type) {
+	case tea.KeyMsg:
+		if key.Type != tea.KeyEsc && key.Type != tea.KeyTab {
+			m.chatInput, cmd = m.chatInput.Update(key)
+			return m, cmd
+		}
+	}
+```
+
+Step 4: Run test, expect PASS
+```sh
+go test ./internal/tui -run TestRightPanelRoutesKeysToInput
+```
+
+Step 5: Commit
+```sh
+git commit -am "tui: route right-panel keys to chat input"
+```
+
+#### Task 1.2: Esc/Tab from right panel returns to sidebar
+
+Files: Modify `internal/tui/watch.go`; Test `internal/tui/watch_test.go`
+
+Step 1: Write failing test (with code)
+```go
+func TestRightPanelEscReturnsToSidebar(t *testing.T) {
+	db := newTestDB(t)
+	m := NewModel(db)
+	m.focusedPanel = panelMessages
+
+	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	model := next.(Model)
+
+	if model.focusedPanel != panelAgents {
+		t.Fatalf("expected sidebar focus, got %v", model.focusedPanel)
+	}
+}
+```
+
+Step 2: Run test, expect FAIL
+```sh
+go test ./internal/tui -run TestRightPanelEscReturnsToSidebar
+```
+
+Step 3: Write implementation (with code)
+```go
+if key.Type == tea.KeyEsc || key.Type == tea.KeyTab {
+	m.focusedPanel = panelAgents
+	return m, nil
+}
+```
+
+Step 4: Run test, expect PASS
+```sh
+go test ./internal/tui -run TestRightPanelEscReturnsToSidebar
+```
+
+Step 5: Commit
+```sh
+git commit -am "tui: allow esc/tab to return focus to sidebar"
+```
+
+#### Task 1.3: Remove keyboard scrolling from right panel
+
+Files: Modify `internal/tui/watch.go`; Test `internal/tui/watch_test.go`
+
+Step 1: Write failing test (with code)
+```go
+func TestRightPanelIgnoresScrollKeys(t *testing.T) {
+	db := newTestDB(t)
+	m := NewModel(db)
+	m.focusedPanel = panelMessages
+	m.viewport.YPosition = 5
+
+	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("k")})
+	model := next.(Model)
+
+	if model.viewport.YPosition != 5 {
+		t.Fatalf("expected no keyboard scroll in right panel")
+	}
+}
+```
+
+Step 2: Run test, expect FAIL
+```sh
+go test ./internal/tui -run TestRightPanelIgnoresScrollKeys
+```
+
+Step 3: Write implementation (with code)
+```go
+// Remove j/k/g/G handlers when focusedPanel == panelMessages.
+// Keep viewport scrolling only in mouse handlers.
+```
+
+Step 4: Run test, expect PASS
+```sh
+go test ./internal/tui -run TestRightPanelIgnoresScrollKeys
+```
+
+Step 5: Commit
+```sh
+git commit -am "tui: disable keyboard scrolling in right panel"
+```
 
 ### Phase 2: User Message Storage
 
-1. Add `chat` message type constant
-2. Before spawn/prompt, TUI stores message:
-   ```go
-   msg := repo.Message{
-       FromAgent: "you",
-       ToAgent:   "otto",
-       Type:      "chat",
-       Content:   userInput,  // raw message, no "spawned" prefix
-   }
-   repo.CreateMessage(db, msg)
-   ```
-3. Then trigger spawn/prompt in background (existing code)
+#### Task 2.1: Add chat message type constant
+
+Files: Modify `internal/repo/messages.go`; Test `internal/repo/messages_test.go`
+
+Step 1: Write failing test (with code)
+```go
+func TestMessageTypeChatConstant(t *testing.T) {
+	if MessageTypeChat == "" {
+		t.Fatal("expected MessageTypeChat to be defined")
+	}
+}
+```
+
+Step 2: Run test, expect FAIL
+```sh
+go test ./internal/repo -run TestMessageTypeChatConstant
+```
+
+Step 3: Write implementation (with code)
+```go
+const MessageTypeChat = "chat"
+```
+
+Step 4: Run test, expect PASS
+```sh
+go test ./internal/repo -run TestMessageTypeChatConstant
+```
+
+Step 5: Commit
+```sh
+git commit -am "repo: add chat message type"
+```
+
+#### Task 2.2: Store user chat message before spawn
+
+Files: Modify `internal/cli/commands/watch.go`; Test `internal/cli/commands/watch_test.go`
+
+Step 1: Write failing test (with code)
+```go
+func TestWatchStoresChatMessageBeforeSpawn(t *testing.T) {
+	db := newTestDB(t)
+	err := runWatchOnce(db, "hello")
+	if err != nil {
+		t.Fatalf("runWatchOnce: %v", err)
+	}
+	msgs := mustListMessages(t, db)
+	if msgs[0].Type != repo.MessageTypeChat || msgs[0].Content != "hello" {
+		t.Fatalf("expected chat message first, got %#v", msgs[0])
+	}
+}
+```
+
+Step 2: Run test, expect FAIL
+```sh
+go test ./internal/cli/commands -run TestWatchStoresChatMessageBeforeSpawn
+```
+
+Step 3: Write implementation (with code)
+```go
+msg := repo.Message{
+	FromAgent: "you",
+	ToAgent:   "otto",
+	Type:      repo.MessageTypeChat,
+	Content:   userInput,
+}
+if err := repo.CreateMessage(db, msg); err != nil {
+	return err
+}
+```
+
+Step 4: Run test, expect PASS
+```sh
+go test ./internal/cli/commands -run TestWatchStoresChatMessageBeforeSpawn
+```
+
+Step 5: Commit
+```sh
+git commit -am "watch: store chat message before spawn"
+```
 
 ### Phase 3: Message Rendering
 
-1. Update `formatMessage()` and `mainContentLines()` for new display:
-   - `type: "chat"` → Slack-style user message
-   - `type: "complete"` from otto → Slack-style otto response
-   - `type: "prompt"` from otto to sub-agent → activity line
-   - `type: "exit"` → hide
-   - `type: "prompt"` to otto → hide (redundant with chat message)
-2. Add blank line after every item (chat or activity)
-3. Name on own line, message body below
+#### Task 3.1: Render chat and otto completions as Slack-style blocks
+
+Files: Modify `internal/tui/watch.go`; Test `internal/tui/watch_test.go`
+
+Step 1: Write failing test (with code)
+```go
+func TestFormatMessageChatBlock(t *testing.T) {
+	msg := repo.Message{
+		FromAgent: "you",
+		Type:      repo.MessageTypeChat,
+		Content:   "hey there",
+	}
+	lines := formatMessage(msg)
+	got := strings.Join(lines, "\n")
+	want := "you\nhey there\n"
+	if !strings.Contains(got, want) {
+		t.Fatalf("expected chat block, got:\n%s", got)
+	}
+}
+```
+
+Step 2: Run test, expect FAIL
+```sh
+go test ./internal/tui -run TestFormatMessageChatBlock
+```
+
+Step 3: Write implementation (with code)
+```go
+case repo.MessageTypeChat:
+	return []string{msg.FromAgent, msg.Content, ""}
+case repo.MessageTypeComplete:
+	if msg.FromAgent == "otto" {
+		return []string{"otto", msg.Content, ""}
+	}
+```
+
+Step 4: Run test, expect PASS
+```sh
+go test ./internal/tui -run TestFormatMessageChatBlock
+```
+
+Step 5: Commit
+```sh
+git commit -am "tui: render chat and otto completion blocks"
+```
+
+#### Task 3.2: Render activity lines and hide noise
+
+Files: Modify `internal/tui/watch.go`; Test `internal/tui/watch_test.go`
+
+Step 1: Write failing test (with code)
+```go
+func TestFormatMessageHidesPromptToOtto(t *testing.T) {
+	msg := repo.Message{FromAgent: "orchestrator", ToAgent: "otto", Type: repo.MessageTypePrompt}
+	lines := formatMessage(msg)
+	if len(lines) != 0 {
+		t.Fatalf("expected prompt-to-otto to be hidden")
+	}
+}
+```
+
+Step 2: Run test, expect FAIL
+```sh
+go test ./internal/tui -run TestFormatMessageHidesPromptToOtto
+```
+
+Step 3: Write implementation (with code)
+```go
+case repo.MessageTypePrompt:
+	if msg.ToAgent == "otto" {
+		return nil
+	}
+	return []string{fmt.Sprintf("%s spawned %s — %q", msg.FromAgent, msg.ToAgent, msg.Content), ""}
+case repo.MessageTypeExit:
+	return nil
+```
+
+Step 4: Run test, expect PASS
+```sh
+go test ./internal/tui -run TestFormatMessageHidesPromptToOtto
+```
+
+Step 5: Commit
+```sh
+git commit -am "tui: render activity lines and hide noise"
+```
 
 ### Phase 4: Polish
 
-1. Color scheme (you=white, otto=blue, sub-agents=green, activity=dim)
-2. Word wrapping improvements
-3. Scroll-to-bottom on new messages
+#### Task 4.1: Apply color styles for chat and activity lines
+
+Files: Modify `internal/tui/watch.go`; Test `internal/tui/watch_test.go`
+
+Step 1: Write failing test (with code)
+```go
+func TestMessageStyles(t *testing.T) {
+	if messageStyle("otto") == "" {
+		t.Fatal("expected non-empty style for otto")
+	}
+}
+```
+
+Step 2: Run test, expect FAIL
+```sh
+go test ./internal/tui -run TestMessageStyles
+```
+
+Step 3: Write implementation (with code)
+```go
+var (
+	styleYou  = lipgloss.NewStyle().Foreground(lipgloss.Color("7"))
+	styleOtto = lipgloss.NewStyle().Foreground(lipgloss.Color("4"))
+	styleDim  = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+)
+```
+
+Step 4: Run test, expect PASS
+```sh
+go test ./internal/tui -run TestMessageStyles
+```
+
+Step 5: Commit
+```sh
+git commit -am "tui: add message color styles"
+```
+
+#### Task 4.2: Improve word wrapping for chat blocks
+
+Files: Modify `internal/tui/watch.go`; Test `internal/tui/watch_test.go`
+
+Step 1: Write failing test (with code)
+```go
+func TestChatWrapsToViewportWidth(t *testing.T) {
+	m := NewModel(nil)
+	m.width = 40
+	lines := wrapChat("otto", strings.Repeat("a", 120), m.width)
+	for _, line := range lines {
+		if len(line) > 40 {
+			t.Fatalf("expected wrapped line, got %q", line)
+		}
+	}
+}
+```
+
+Step 2: Run test, expect FAIL
+```sh
+go test ./internal/tui -run TestChatWrapsToViewportWidth
+```
+
+Step 3: Write implementation (with code)
+```go
+func wrapChat(name, body string, width int) []string {
+	return append([]string{name}, wordwrap.String(body, width))
+}
+```
+
+Step 4: Run test, expect PASS
+```sh
+go test ./internal/tui -run TestChatWrapsToViewportWidth
+```
+
+Step 5: Commit
+```sh
+git commit -am "tui: wrap chat blocks to viewport width"
+```
+
+#### Task 4.3: Scroll to bottom on new messages
+
+Files: Modify `internal/tui/watch.go`; Test `internal/tui/watch_test.go`
+
+Step 1: Write failing test (with code)
+```go
+func TestScrollToBottomOnNewMessages(t *testing.T) {
+	m := NewModel(nil)
+	m.viewport.Height = 10
+	m.messages = []repo.Message{{Content: "a"}, {Content: "b"}}
+	m.viewport.YPosition = 0
+
+	m = m.refreshViewport()
+	if m.viewport.YPosition == 0 {
+		t.Fatal("expected viewport to scroll to bottom")
+	}
+}
+```
+
+Step 2: Run test, expect FAIL
+```sh
+go test ./internal/tui -run TestScrollToBottomOnNewMessages
+```
+
+Step 3: Write implementation (with code)
+```go
+if m.viewport.YPosition < m.viewport.ScrollPercent()*float64(m.viewport.TotalLineCount()) {
+	m.viewport.GotoBottom()
+}
+```
+
+Step 4: Run test, expect PASS
+```sh
+go test ./internal/tui -run TestScrollToBottomOnNewMessages
+```
+
+Step 5: Commit
+```sh
+git commit -am "tui: scroll to bottom on new messages"
+```
 
 ## Review Decisions
 

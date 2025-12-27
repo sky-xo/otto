@@ -280,3 +280,108 @@ func countRows(t *testing.T, conn *sql.DB, query string) int {
 	}
 	return count
 }
+
+func TestConcurrentAccess(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "otto.db")
+
+	// Open first connection to create schema
+	conn1, err := Open(path)
+	if err != nil {
+		t.Fatalf("open first connection: %v", err)
+	}
+	defer conn1.Close()
+
+	// Verify WAL mode is enabled
+	var journalMode string
+	err = conn1.QueryRow("PRAGMA journal_mode").Scan(&journalMode)
+	if err != nil {
+		t.Fatalf("query journal_mode: %v", err)
+	}
+	if journalMode != "wal" {
+		t.Fatalf("expected WAL mode, got %q", journalMode)
+	}
+
+	// Open second connection (simulating TUI or another agent)
+	conn2, err := Open(path)
+	if err != nil {
+		t.Fatalf("open second connection: %v", err)
+	}
+	defer conn2.Close()
+
+	// Test concurrent writes from multiple connections
+	// This simulates: TUI polling + multiple agents writing logs
+	errChan := make(chan error, 100)
+	done := make(chan bool)
+
+	// Writer 1: Insert agents (simulating agent spawn)
+	// Use conn1 which is safe for concurrent use from multiple goroutines
+	go func() {
+		for i := 0; i < 50; i++ {
+			_, err := conn1.Exec(
+				`INSERT INTO agents (project, branch, name, type, task, status) VALUES (?, ?, ?, ?, ?, ?)`,
+				"proj", "main", "agent-"+time.Now().Format("20060102150405.000000000"), "codex", "task", "busy",
+			)
+			if err != nil {
+				errChan <- err
+				return
+			}
+			time.Sleep(1 * time.Millisecond)
+		}
+		done <- true
+	}()
+
+	// Writer 2: Insert messages (simulating agent communication)
+	// Use conn1 (db connections are safe for concurrent use)
+	go func() {
+		for i := 0; i < 50; i++ {
+			_, err := conn1.Exec(
+				`INSERT INTO messages (id, project, branch, from_agent, type, content) VALUES (?, ?, ?, ?, ?, ?)`,
+				"msg-"+time.Now().Format("20060102150405.000000000"), "proj", "main", "orchestrator", "note", "test message",
+			)
+			if err != nil {
+				errChan <- err
+				return
+			}
+			time.Sleep(1 * time.Millisecond)
+		}
+		done <- true
+	}()
+
+	// Reader: Query status (simulating TUI polling)
+	// Use conn2 to simulate multiple processes accessing the same database file
+	go func() {
+		for i := 0; i < 50; i++ {
+			var count int
+			err := conn2.QueryRow(`SELECT COUNT(*) FROM agents WHERE status = 'busy'`).Scan(&count)
+			if err != nil {
+				errChan <- err
+				return
+			}
+			time.Sleep(1 * time.Millisecond)
+		}
+		done <- true
+	}()
+
+	// Wait for all goroutines
+	completedCount := 0
+	timeout := time.After(10 * time.Second)
+	for completedCount < 3 {
+		select {
+		case err := <-errChan:
+			t.Fatalf("concurrent access error: %v", err)
+		case <-done:
+			completedCount++
+		case <-timeout:
+			t.Fatalf("test timed out waiting for concurrent operations")
+		}
+	}
+
+	// Verify data was written successfully
+	if countRows(t, conn1, "SELECT COUNT(*) FROM agents") < 10 {
+		t.Errorf("expected multiple agents to be inserted")
+	}
+	if countRows(t, conn2, "SELECT COUNT(*) FROM messages") < 10 {
+		t.Errorf("expected multiple messages to be inserted")
+	}
+}

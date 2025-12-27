@@ -94,10 +94,24 @@ CREATE INDEX IF NOT EXISTS idx_messages_to ON messages(to_agent, created_at);
 `
 
 func Open(path string) (*sql.DB, error) {
-	conn, err := sql.Open("sqlite", path)
+	// Configure SQLite for concurrent access via connection string
+	// _pragma parameters are applied to each connection in the pool
+	//
+	// Key settings to prevent "database is locked" errors:
+	// - journal_mode=WAL: Allows multiple readers + one writer concurrently
+	// - busy_timeout=5000: Retry for 5 seconds instead of failing immediately
+	// - synchronous=NORMAL: Balance between safety and performance in WAL mode
+	dsn := path + "?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=synchronous(NORMAL)"
+	conn, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, err
 	}
+
+	// Limit connection pool size for embedded SQLite
+	// WAL mode allows multiple readers, but only one writer at a time
+	conn.SetMaxOpenConns(10)
+	conn.SetMaxIdleConns(5)
+
 	if err := ensureSchema(conn); err != nil {
 		_ = conn.Close()
 		return nil, err

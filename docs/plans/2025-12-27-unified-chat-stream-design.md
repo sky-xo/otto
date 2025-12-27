@@ -1,6 +1,6 @@
 # Unified Chat Stream & Focus Model Design
 
-**Status:** Draft
+**Status:** Ready
 **Date:** 2025-12-27
 
 ## Overview
@@ -67,7 +67,7 @@ Good point. For the viewport we could...
 
 - Name on its own line (bold/colored)
 - Message body below, word-wrapped
-- Blank line between messages from different senders
+- Blank line after every item (chat or activity) for consistent spacing
 - Full horizontal width for message content
 
 **Activity notifications (compact, single line):**
@@ -216,7 +216,7 @@ CREATE TABLE messages (
    - `type: "prompt"` from otto to sub-agent → activity line
    - `type: "exit"` → hide
    - `type: "prompt"` to otto → hide (redundant with chat message)
-2. Add blank line between different senders
+2. Add blank line after every item (chat or activity)
 3. Name on own line, message body below
 
 ### Phase 4: Polish
@@ -224,6 +224,44 @@ CREATE TABLE messages (
 1. Color scheme (you=white, otto=blue, sub-agents=green, activity=dim)
 2. Word wrapping improvements
 3. Scroll-to-bottom on new messages
+
+## Review Decisions
+
+Based on Codex review feedback and discussion:
+
+### 1. Spawn Failure Visibility
+
+**Problem:** If spawn fails after storing the `chat` message, user sees their message but no error.
+
+**Decision:** Show an error line in the stream:
+```
+you
+hey there
+
+⚠ Failed to start otto: exec: "codex": executable file not found
+```
+
+### 2. Two-Phase Completion ("finishing" status)
+
+**Problem:** Agent calls `otto complete` but process continues outputting for 10-30 more seconds. Status shows "complete" while still talking.
+
+**Decision:** Add `finishing` status:
+- `otto complete` sets status to `finishing` (not `complete`)
+- Status changes to `complete` on process exit
+- `finishing` blocks new input (like `busy`)
+- Visual: ● gray filled (between green busy and hollow complete)
+
+**Status indicators:**
+| Status | Symbol | Color |
+|--------|--------|-------|
+| `busy` | ● | Green |
+| `finishing` | ● | Gray |
+| `complete` | ○ | Gray |
+| `failed` | ✗ | Red |
+
+### 3. `complete` Message Content
+
+**Confirmed:** The `complete` message content IS the agent's response (whatever they pass to `otto complete "..."`). Render otto's completions as Slack-style chat messages, not activity lines.
 
 ## Alternatives Considered
 

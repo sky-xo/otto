@@ -8,6 +8,25 @@
 
 ---
 
+## Implementation Progress
+
+| Task | Status | Commit | Notes |
+|------|--------|--------|-------|
+| Task 1: Project/branch grouping | ✅ Done | `8f15606` | Extended channel struct, grouped agents |
+| Task 2: Collapse state + archived grouping | ✅ Done | `f8be031` | Added projectExpanded map, archived grouping |
+| Task 3: Selection behavior | ✅ Done | `2ef75ac` | Set activeChannelID for headers |
+| Task 4: Rendering + indentation | ✅ Done | `fb2102f` | Added ▼/▶ indicators, fixed indent bg |
+| Task 5: Project-scoped messages | ✅ Done | `7e0b3b7` | parseProjectBranch, fetchMessagesCmd |
+| Task 6: Navigation polish | ✅ Done | `566f7a8` | Tests only - existing code worked |
+| Task 7: Chat input + spawning | ❌ Pending | - | Add textinput, spawn @otto |
+
+**Base commit:** `40b9e81` (before this feature)
+**Current HEAD:** `566f7a8`
+
+**To resume:** Start with Task 7 implementation following TDD pattern below.
+
+---
+
 ## Design Decisions
 
 | Decision | Choice | Rationale |
@@ -317,3 +336,55 @@ Expected: PASS
 - Orchestrator is always named `@otto` (reserved name).
 - Chat input only appears when a project header is selected, not when viewing agent transcripts.
 - **CLI change:** `otto prompt` should check agent status and fail with error if agent is busy (prevents double-prompting same session).
+
+---
+
+## Deferred Concerns (From Code Reviews)
+
+These issues were identified during implementation but deferred for future work:
+
+### Important (Should Address Eventually)
+
+1. **Global message state when switching projects** (Task 5)
+   - `m.messages` and `m.lastMessageID` are global, but fetch scope can change per project header
+   - Switching projects may show stale messages from previous project
+   - **Future fix:** Scope message lists and lastMessageID per `project/branch`, or reset when selecting different project header
+
+2. **`isProjectHeader()` may misclassify agent names with `/`** (Task 5)
+   - Any channel ID containing `/` is treated as project header
+   - If agent names ever include `/`, they'd route to orchestrator chat instead of transcripts
+   - **Current mitigation:** Agent names don't typically contain `/`
+   - **Future fix:** Check against actual channel list or use explicit `Kind` field
+
+3. **Unicode width handling uses `len()` not display width** (Task 4)
+   - `▼`/`▶` indicators are multibyte but display as single char
+   - Width calculations use byte length, may cause visual misalignment
+   - **Current mitigation:** Works in most terminals, pre-existing pattern
+   - **Future fix:** Use `lipgloss.Width()` or `runewidth` for sizing
+
+4. **Archived ordering changed from recency to alphabetical** (Task 2)
+   - Archived agents now grouped by project/branch, sorted alphabetically
+   - Previously sorted by recency across all projects
+   - **Decision:** Intentional - consistency with active grouping
+
+### Minor (Low Priority)
+
+5. **Indent background highlight gap** (Task 1)
+   - Fixed in Task 4 with `styledIndent`
+
+6. **Collapse state shared between active/archived sections** (Task 2)
+   - Same `projectExpanded` map controls both sections
+   - Collapsing otto/main hides agents in both active and archived
+   - **Decision:** Intentional - simpler mental model
+
+7. **Missing test for `activateSelection()` toggle** (Task 2)
+   - No explicit test that clicking header toggles `projectExpanded`
+   - Covered implicitly by other tests
+
+8. **Project/Branch fields populated for agents** (Task 1)
+   - Spec only asked for header fields, agents also got them
+   - **Decision:** Harmless, useful for future features
+
+9. **Empty project/branch yields "/" header** (Task 1)
+   - Edge case if agent has no project/branch
+   - **Current mitigation:** Agents should always have scope from git context

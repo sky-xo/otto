@@ -5,7 +5,7 @@
 
 ## Overview
 
-Redesign the TUI right panel to be a unified chat stream (Slack/Discord style) with three-focus keyboard handling. This replaces the original P4 plan (Activity Feed + Chat Split) with a simpler, chat-centric approach.
+Redesign the TUI right panel to be a unified chat stream (Slack/Discord style) with two-focus keyboard handling. This replaces the original P4 plan (Activity Feed + Chat Split) with a simpler, chat-centric approach.
 
 ## Goals
 
@@ -17,34 +17,30 @@ Redesign the TUI right panel to be a unified chat stream (Slack/Discord style) w
 
 ### Layout & Focus Model
 
-Three distinct focus targets, Tab cycles between them:
+Two focus targets, Tab toggles between them:
 
 ```
-Tab →  Tab →  Tab →
-  ↓      ↓      ↓
 ┌────────────┬─────────────────────────────────┐
 │            │                                 │
-│  Agents    │  Unified Stream                 │
-│  [focus 1] │  [focus 2]                      │
-│            │                                 │
+│  Sidebar   │  Content (mouse scroll)         │
+│  [focus 1] │                                 │
 │            ├─────────────────────────────────┤
-│            │  Chat input  [focus 3]          │
+│            │  Chat input [focus 2]           │
 └────────────┴─────────────────────────────────┘
 ```
 
 **Focus behavior:**
 
-| Focus | Area | Keys |
-|-------|------|------|
-| 1 | Agents panel | j/k navigate, Enter expand/collapse, g/G top/bottom |
-| 2 | Stream viewport | j/k/g/G scroll, Enter on activity → select agent |
-| 3 | Chat input | ALL keys go to textinput, only Esc/Tab escape |
+| Focus | Keys |
+|-------|------|
+| Sidebar | j/k/↑/↓ navigate, Enter select/expand, Tab → right panel |
+| Right panel | All keys → chat input, Esc → sidebar, Tab → sidebar |
 
-**Key insight:** When chat input has focus, it captures everything. No shortcuts leak through.
+**Key insight:** When right panel is focused, chat input captures everything. Content scrolling is mouse-only (no keyboard shortcuts needed).
 
 **Visual indicators:**
-- Focused area gets highlighted border
-- Chat cursor only visible when focus 3 active
+- Focused panel gets highlighted border
+- Chat cursor visible when right panel focused
 
 ### Message Formatting
 
@@ -185,13 +181,14 @@ CREATE TABLE messages (
 
 ## Implementation Plan
 
-### Phase 1: Three-Focus Keyboard Model
+### Phase 1: Two-Focus Keyboard Model
 
-1. Add `focusedArea` enum: `areaAgents`, `areaContent`, `areaChat`
-2. Update Tab handling to cycle through all three
-3. When `focusedArea == areaChat`: route ALL keys to textinput except Esc/Tab
-4. Update visual indicators (border highlighting)
-5. Tests for focus cycling and key capture
+1. Keep existing `focusedPanel` with `panelAgents` and `panelMessages`
+2. Tab toggles between them (already works)
+3. When `focusedPanel == panelMessages`: route ALL keys to textinput except Esc/Tab
+4. Esc from right panel → switches to sidebar (not just blur)
+5. Remove viewport keyboard scrolling (j/k/g/G) from right panel - mouse only
+6. Tests for focus behavior and key capture
 
 ### Phase 2: User Message Storage
 
@@ -265,13 +262,14 @@ hey there
 
 ## Alternatives Considered
 
-1. **Modifier shortcuts (Ctrl+g, Ctrl+j)** — Rejected: less ergonomic, terminal conflicts
-2. **Vim-style modes (i to type, Esc to exit)** — Rejected: confusing for non-Vim users
-3. **Three panels on right (activity/chat/input)** — Rejected: too cluttered
-4. **Input-first routing (2 focus targets)** — Considered: simpler but less explicit
+1. **Three-focus model (agents/viewport/chat)** — Rejected: two Tabs to reach chat from sidebar, overengineered
+2. **Modifier shortcuts (Ctrl+j/k for viewport scroll)** — Rejected: not needed, mouse scroll is fine
+3. **Vim-style modes (i to type, Esc to exit)** — Rejected: confusing for non-Vim users
+4. **Three panels on right (activity/chat/input)** — Rejected: too cluttered
 
 ## Not In Scope
 
+- Keyboard scrolling for content viewport (mouse is sufficient)
 - Full agent transcripts in stream (click agent in sidebar)
 - Expandable activity lines
 - Timestamps

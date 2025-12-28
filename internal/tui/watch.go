@@ -180,18 +180,22 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		// Right panel: route all keys to chat input (except Esc/Tab)
+		// Right panel: route all keys to chat input (except Esc/Tab/Enter)
 		if m.focusedPanel == panelMessages {
-			if msg.Type != tea.KeyEsc && msg.Type != tea.KeyTab {
-				m.chatInput, cmd = m.chatInput.Update(msg)
+			// Enter: submit chat message
+			if msg.Type == tea.KeyEnter {
+				cmd = m.handleChatSubmit()
 				return m, cmd
 			}
-			// Esc/Tab in right panel: return to sidebar
+			// Esc/Tab: return to sidebar
 			if msg.Type == tea.KeyEsc || msg.Type == tea.KeyTab {
 				m.focusedPanel = panelAgents
 				m.chatInput.Blur()
 				return m, nil
 			}
+			// All other keys: send to chat input
+			m.chatInput, cmd = m.chatInput.Update(msg)
+			return m, cmd
 		}
 
 		// Global key handling

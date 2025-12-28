@@ -81,10 +81,19 @@ var (
 )
 
 // usernameColor returns a consistent ANSI color for a given username
-// using hash-based selection from a palette
+// using hash-based selection from a palette, with special cases for key users
 func usernameColor(name string) lipgloss.Color {
-	// Palette: cyan (6), green (2), yellow (3), magenta (5), blue (4), red (1)
-	palette := []string{"6", "2", "3", "5", "4", "1"}
+	// Special cases for consistent branding (per design doc)
+	switch name {
+	case "you":
+		return lipgloss.Color("7") // white/default
+	case "otto":
+		return lipgloss.Color("4") // blue
+	}
+
+	// For other agents, use hash-based selection
+	// Palette: cyan (6), green (2), yellow (3), magenta (5)
+	palette := []string{"6", "2", "3", "5"}
 
 	// Hash the name
 	h := fnv.New32a()
@@ -547,7 +556,7 @@ func (m model) mainContentLines(width int) []string {
 				// Activity line format: "{FromAgent} spawned {ToAgent} — "{Content}""
 				activityLine := fmt.Sprintf("%s spawned %s — \"%s\"",
 					msg.FromAgent, msg.ToAgent.String, msg.Content)
-				lines = append(lines, messageStyle.Render(activityLine))
+				lines = append(lines, mutedStyle.Render(activityLine))
 				lines = append(lines, "") // Blank line after activity
 				continue
 			}

@@ -12,7 +12,7 @@ Completed - see commits `727ef67`, `00d4d8e`, etc.
 
 ### 2. Unified Chat Stream ⬅️ IN PROGRESS
 
-**Status:** Phase 2 complete, Phase 3 next
+**Status:** Phase 3 complete, Phase 4 (polish) next
 
 **Progress:**
 - ✅ Task 1.1: Right panel sends all keys to chat input (commit `ea21dd7`)
@@ -20,21 +20,17 @@ Completed - see commits `727ef67`, `00d4d8e`, etc.
 - ✅ Task 1.3: Remove keyboard scrolling from right panel (commit `3207675`)
 - ✅ Task 2.1: Add chat message type constant (commit `8855749`)
 - ✅ Task 2.2: Store user chat message before spawn (commit `3113fce`)
-- ⬅️ Task 3.1: Render chat and otto completions as Slack-style blocks (NEXT)
-- Task 3.2: Render activity lines and hide noise
+- ✅ Task 3.1: Render chat and otto completions as Slack-style blocks (commit `9c6a64b`)
+- ✅ Task 3.2: Render activity lines and hide noise (commit `e0621a0`)
+- ⬅️ Phase 4: Polish tasks (optional)
 
 **Implementation Plan:** `docs/plans/2025-12-27-unified-chat-stream-design.md` - has detailed TDD tasks
 
 **Phases:**
 - ✅ Phase 1: Two-focus keyboard model (3 tasks) - COMPLETE
 - ✅ Phase 2: User message storage (2 tasks) - COMPLETE
-- Phase 3: Message rendering (Slack-style) ← NEXT
-- Phase 4: Polish
-
-**IMPORTANT - Anti-pattern discovered:**
-When using `otto spawn codex`, do NOT use BashOutput to poll for completion.
-Use `otto peek <agent>` instead - it's cursor-based (no repeats) and parses the JSON.
-See `.claude/skills/otto-orchestrate/SKILL.md` for the proper pattern.
+- ✅ Phase 3: Message rendering (Slack-style) - COMPLETE
+- Phase 4: Polish ← OPTIONAL
 
 ### 3. Agent Chat in TUI
 

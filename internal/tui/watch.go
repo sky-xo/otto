@@ -18,6 +18,7 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/google/uuid"
 )
 
 const (
@@ -1420,6 +1421,20 @@ func (m *model) handleChatSubmit() tea.Cmd {
 	if action == "none" {
 		// Otto is busy - ignore submit
 		return nil
+	}
+
+	// Store the user's chat message in the database before executing the command
+	chatMsg := repo.Message{
+		ID:        uuid.New().String(),
+		Project:   project,
+		Branch:    branch,
+		FromAgent: "you",
+		ToAgent:   sql.NullString{String: "otto", Valid: true},
+		Type:      repo.MessageTypeChat,
+		Content:   message,
+	}
+	if err := repo.CreateMessage(m.db, chatMsg); err != nil {
+		return func() tea.Msg { return err }
 	}
 
 	// Clear input immediately

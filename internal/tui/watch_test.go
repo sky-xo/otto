@@ -1963,3 +1963,82 @@ func TestRightPanelIgnoresScrollKeys(t *testing.T) {
 		t.Fatalf("expected viewport YOffset to remain 5 after 'G' key, got %d", updated.viewport.YOffset)
 	}
 }
+
+func TestHandleChatSubmitStoresChatMessage(t *testing.T) {
+	// Create in-memory database with schema
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatalf("failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	// Manually create messages table schema
+	schemaSQL := `
+		CREATE TABLE IF NOT EXISTS messages (
+			id TEXT PRIMARY KEY,
+			project TEXT NOT NULL,
+			branch TEXT NOT NULL,
+			from_agent TEXT NOT NULL,
+			to_agent TEXT,
+			type TEXT NOT NULL,
+			content TEXT NOT NULL,
+			mentions TEXT,
+			requires_human BOOLEAN DEFAULT FALSE,
+			read_by TEXT DEFAULT '[]',
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			from_id TEXT
+		);
+	`
+	if _, err := db.Exec(schemaSQL); err != nil {
+		t.Fatalf("failed to create schema: %v", err)
+	}
+
+	// Create model with test db
+	m := NewModel(db)
+	m.agents = []repo.Agent{
+		{Project: "otto", Branch: "main", Name: "impl-1", Status: "busy"},
+	}
+
+	// Set activeChannelID to project header
+	m.activeChannelID = "otto/main"
+
+	// Set chat input value
+	m.chatInput.SetValue("hello otto")
+
+	// Call handleChatSubmit
+	_ = m.handleChatSubmit()
+
+	// Query messages from db
+	messages, err := repo.ListMessages(db, repo.MessageFilter{
+		Project: "otto",
+		Branch:  "main",
+	})
+	if err != nil {
+		t.Fatalf("failed to list messages: %v", err)
+	}
+
+	// Verify a chat message was stored
+	if len(messages) != 1 {
+		t.Fatalf("expected 1 message to be stored, got %d", len(messages))
+	}
+
+	msg := messages[0]
+	if msg.Type != repo.MessageTypeChat {
+		t.Errorf("expected message type %q, got %q", repo.MessageTypeChat, msg.Type)
+	}
+	if msg.FromAgent != "you" {
+		t.Errorf("expected FromAgent to be 'you', got %q", msg.FromAgent)
+	}
+	if msg.ToAgent.Valid && msg.ToAgent.String != "otto" {
+		t.Errorf("expected ToAgent to be 'otto', got %q", msg.ToAgent.String)
+	}
+	if msg.Content != "hello otto" {
+		t.Errorf("expected Content to be 'hello otto', got %q", msg.Content)
+	}
+	if msg.Project != "otto" {
+		t.Errorf("expected Project to be 'otto', got %q", msg.Project)
+	}
+	if msg.Branch != "main" {
+		t.Errorf("expected Branch to be 'main', got %q", msg.Branch)
+	}
+}

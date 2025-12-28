@@ -11,9 +11,9 @@ Spawn and coordinate Codex agents for implementation work.
 
 You coordinate, you don't implement. Dispatch agents to do the work.
 
-## Spawning Agents (IMPORTANT)
+## Spawning Agents
 
-**Use `run_in_background: true` with the Bash tool - NOT `--detach`:**
+**Use `run_in_background: true` - you'll be notified automatically when the agent completes:**
 
 ```
 Bash tool call:
@@ -21,16 +21,14 @@ Bash tool call:
   run_in_background: true
 ```
 
-This gives you **automatic notification** when the agent completes. No polling needed.
+**That's it.** Claude Code notifies you when the agent finishes. No polling needed.
 
-Then use `BashOutput` to retrieve results when ready:
+When notified (or when you're ready to wait), retrieve results:
 ```
 BashOutput tool call:
   bash_id: <id from spawn>
-  block: true  # waits for completion
+  block: true  # waits if still running
 ```
-
-**Why not --detach?** With `--detach` you must manually poll with `otto status` and `otto peek`. With `run_in_background`, Claude Code notifies you automatically.
 
 ### Spawn Options
 
@@ -38,27 +36,25 @@ BashOutput tool call:
 - `--files <paths>` - Attach relevant files (keep minimal)
 - `--context <text>` - Extra context
 
-## Monitoring (IMPORTANT)
+## You Don't Need to Poll
 
-**DO NOT repeatedly poll `BashOutput`** - it returns verbose JSON and may burn context quickly.
+You'll be **automatically notified** when agents complete. So there's no need to:
+- Run `otto status` to check if an agent is done
+- Run `otto peek` repeatedly while waiting
 
-Instead, use Otto's incremental monitoring:
+Just wait, or do other work. The notification will come.
+
+## Checking Progress (Optional)
+
+If things seem to be taking a while and you want to see what's happening:
 
 ```bash
-otto status                  # Check if agent is done (busy/complete/failed)
-otto peek <agent>            # Incremental output since last peek (cursor-based)
-otto log <agent>             # Full history (use sparingly)
-otto log <agent> --tail 20   # Last 20 entries
+otto peek <agent>            # Incremental output since last peek
+otto status                  # See all agent states
+otto log <agent> --tail 20   # Recent log entries
 ```
 
-**Recommended pattern:**
-
-1. Spawn with `run_in_background: true`
-2. Check `otto status` to see when agent completes
-3. Use `otto peek <agent>` for incremental progress (not BashOutput)
-4. Only use `BashOutput block: true` once at the end to confirm completion
-
-**Why?** BashOutput returns raw Codex JSON which is verbose. `otto peek` returns parsed, human-readable transcript and uses a cursor so you never see the same content twice.
+This is fine for curiosity or if something feels stuck—just know it's not required.
 
 ## Re-awakening Agents (IMPORTANT)
 
@@ -124,20 +120,18 @@ Rules:
 - Stop after Task 1 and report" --name task-1
 run_in_background: true
 
-# 2. Check status periodically (Bash tool)
-otto status
+# 2. Do other work or just wait - you'll be notified when done
 
-# 3. Get incremental progress if needed (Bash tool)
-otto peek task-1
+# 3. When notified, retrieve results (BashOutput tool)
+bash_id: <id from step 1>
+block: true
 
-# 4. When complete, review and answer questions if needed
+# 4. If agent needs guidance, respond and wait again
 otto prompt task-1 "Use UUID for the ID field"
 
 # 5. Clean up when done
 otto archive task-1
 ```
-
-**Avoid:** Repeatedly calling `BashOutput` on the spawn command - use `otto peek` instead.
 
 ## Scope Control
 
@@ -152,10 +146,10 @@ otto archive task-1
 | Action | How |
 |--------|-----|
 | Spawn | Bash tool: `otto spawn codex "task" --name x` with `run_in_background: true` |
-| Check status | `otto status` |
-| Incremental progress | `otto peek <agent>` (preferred over BashOutput) |
-| Full log | `otto log <agent>` |
+| Wait for completion | Do nothing—you'll be notified automatically |
+| Get results | `BashOutput` with `bash_id` from spawn, `block: true` |
 | Send message | `otto prompt <agent> "msg"` |
 | Check channel | `otto messages` |
 | Kill | `otto kill <agent>` |
 | Archive | `otto archive <agent>` |
+| *(Optional)* See progress | `otto peek <agent>` or `otto status` |

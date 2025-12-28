@@ -73,10 +73,9 @@ See `.claude/skills/otto-orchestrate/SKILL.md` for full details.
 
 **Key pattern:**
 1. Spawn with `run_in_background: true`
-2. Check status: `otto status`
-3. Get incremental progress: `otto peek <agent>` (cursor-based, no repeats)
-4. Only use BashOutput once at the end with `block: true`
+2. Wait—you'll be notified automatically when the agent completes
+3. Use `BashOutput` with `block: true` to retrieve results
 
-**DO NOT** repeatedly call BashOutput to poll - it returns verbose JSON and burns context. Use `otto peek` instead.
+You don't need to poll with `otto status` or `otto peek`—the notification comes automatically. But if things seem slow, feel free to check progress with `otto peek <agent>`.
 
 **Progress:** Task 1.1 complete (commit ea21dd7, spec review passed). Next: Task 1.2.

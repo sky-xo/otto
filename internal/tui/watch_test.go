@@ -2772,3 +2772,61 @@ func TestMultipleChatMessagesAllWrapCorrectly(t *testing.T) {
 	}
 }
 
+func TestScrollToBottomOnNewMessages(t *testing.T) {
+	// Create model without database (we don't need to persist messages)
+	m := NewModel(nil)
+	m.width = 80
+	m.height = 24
+	m.activeChannelID = mainChannelID
+	m.updateViewportDimensions()
+
+	// Add enough content to make viewport scrollable
+	// Viewport height is about 20 lines (24 - borders/header/footer)
+	// Add many messages to exceed viewport height
+	messages := make([]repo.Message, 30)
+	for i := 0; i < 30; i++ {
+		messages[i] = repo.Message{
+			ID:        fmt.Sprintf("msg-%d", i+1),
+			Project:   "otto",
+			Branch:    "main",
+			FromAgent: "you",
+			ToAgent:   sql.NullString{String: "otto", Valid: true},
+			Type:      repo.MessageTypeChat,
+			Content:   fmt.Sprintf("Message %d with some content to make it visible", i+1),
+		}
+	}
+
+	// Simulate receiving messages
+	updated, _ := m.Update(messagesMsg(messages))
+	m = updated.(model)
+
+	// User scrolls up (not at bottom)
+	m.viewport.YOffset = 0
+
+	// Verify we're not at bottom after scrolling up
+	if m.viewport.AtBottom() {
+		t.Fatal("expected viewport to not be at bottom after scrolling up")
+	}
+
+	// Now receive new messages - this should scroll to bottom
+	newMessages := []repo.Message{
+		{
+			ID:        "msg-new-1",
+			Project:   "otto",
+			Branch:    "main",
+			FromAgent: "otto",
+			ToAgent:   sql.NullString{String: "you", Valid: true},
+			Type:      "complete",
+			Content:   "New message that should trigger scroll to bottom",
+		},
+	}
+
+	updated, _ = m.Update(messagesMsg(newMessages))
+	m = updated.(model)
+
+	// Verify viewport scrolled to bottom
+	if !m.viewport.AtBottom() {
+		t.Fatal("expected viewport to scroll to bottom on new messages")
+	}
+}
+

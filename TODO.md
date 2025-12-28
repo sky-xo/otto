@@ -12,7 +12,7 @@ Completed - see commits `727ef67`, `00d4d8e`, etc.
 
 ### 2. Unified Chat Stream ⬅️ IN PROGRESS
 
-**Status:** Phase 3 complete, Phase 4 (polish) next
+**Status:** Phase 4 in progress (polish tasks)
 
 **Progress:**
 - ✅ Task 1.1: Right panel sends all keys to chat input (commit `ea21dd7`)
@@ -22,7 +22,9 @@ Completed - see commits `727ef67`, `00d4d8e`, etc.
 - ✅ Task 2.2: Store user chat message before spawn (commit `3113fce`)
 - ✅ Task 3.1: Render chat and otto completions as Slack-style blocks (commit `9c6a64b`)
 - ✅ Task 3.2: Render activity lines and hide noise (commit `e0621a0`)
-- ⬅️ Phase 4: Polish tasks (optional)
+- ✅ Task 4.1: Apply color styles for chat and activity lines (commit `d53e1de`)
+- ✅ Task 4.2: Improve word wrapping for chat blocks (commit `5ed007d`)
+- ⬅️ Task 4.3: Scroll to bottom on new messages (NEXT)
 
 **Implementation Plan:** `docs/plans/2025-12-27-unified-chat-stream-design.md` - has detailed TDD tasks
 
@@ -30,7 +32,7 @@ Completed - see commits `727ef67`, `00d4d8e`, etc.
 - ✅ Phase 1: Two-focus keyboard model (3 tasks) - COMPLETE
 - ✅ Phase 2: User message storage (2 tasks) - COMPLETE
 - ✅ Phase 3: Message rendering (Slack-style) - COMPLETE
-- Phase 4: Polish ← OPTIONAL
+- ⬅️ Phase 4: Polish (2/3 done, Task 4.3 next)
 
 ### 3. Agent Chat in TUI
 

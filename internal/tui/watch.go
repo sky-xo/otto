@@ -367,30 +367,24 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case messagesMsg:
 		if len(msg) > 0 {
-			atBottom := m.viewport.AtBottom()
 			m.messages = append(m.messages, msg...)
 			m.lastMessageID = msg[len(msg)-1].ID
 			// Update viewport if we're viewing orchestrator chat (Main or a project header)
 			showingOrchestratorChat := m.activeChannelID == mainChannelID || isProjectHeader(m.activeChannelID)
-			if atBottom && showingOrchestratorChat {
+			if showingOrchestratorChat {
 				m.updateViewportContent()
 				m.viewport.GotoBottom()
-			} else if showingOrchestratorChat {
-				m.updateViewportContent()
 			}
 		}
 
 	case transcriptsMsg:
 		if len(msg.entries) > 0 {
 			current := m.transcripts[msg.agentID]
-			atBottom := m.viewport.AtBottom()
 			m.transcripts[msg.agentID] = append(current, msg.entries...)
 			m.lastTranscriptIDs[msg.agentID] = msg.entries[len(msg.entries)-1].ID
-			if atBottom && m.activeChannelID == msg.agentID {
+			if m.activeChannelID == msg.agentID {
 				m.updateViewportContent()
 				m.viewport.GotoBottom()
-			} else if m.activeChannelID == msg.agentID {
-				m.updateViewportContent()
 			}
 		}
 

@@ -2177,3 +2177,177 @@ func TestFormatNonChatMessageKeepsOldFormat(t *testing.T) {
 		// This is ok for now - we're only changing chat/complete types
 	}
 }
+
+// Task 3.2 tests
+
+func TestPromptToOttoIsHidden(t *testing.T) {
+	m := NewModel(nil)
+	m.width = 80
+
+	// Create a prompt-to-otto message (should be hidden)
+	messages := []repo.Message{
+		{
+			FromAgent: "you",
+			ToAgent:   sql.NullString{String: "otto", Valid: true},
+			Type:      "prompt",
+			Content:   "do something",
+		},
+	}
+
+	m.messages = messages
+	lines := m.mainContentLines(80)
+
+	// Should have only the "Waiting for messages..." line or be empty
+	// since the prompt-to-otto message should be hidden
+	if len(lines) != 1 {
+		t.Errorf("expected 1 line (waiting message), got %d lines", len(lines))
+		for i, line := range lines {
+			t.Logf("Line %d: %q", i, stripAnsi(line))
+		}
+	}
+
+	// The only line should be the "Waiting for messages..." placeholder
+	if len(lines) > 0 {
+		firstLine := stripAnsi(lines[0])
+		if !strings.Contains(firstLine, "Waiting for messages") {
+			t.Errorf("expected only 'Waiting for messages' line, got: %q", firstLine)
+		}
+	}
+}
+
+func TestExitMessageIsHidden(t *testing.T) {
+	m := NewModel(nil)
+	m.width = 80
+
+	// Create an exit message (should be hidden)
+	messages := []repo.Message{
+		{
+			FromAgent: "agent-1",
+			Type:      "exit",
+			Content:   "process finished",
+		},
+	}
+
+	m.messages = messages
+	lines := m.mainContentLines(80)
+
+	// Should have only the "Waiting for messages..." line
+	// since the exit message should be hidden
+	if len(lines) != 1 {
+		t.Errorf("expected 1 line (waiting message), got %d lines", len(lines))
+		for i, line := range lines {
+			t.Logf("Line %d: %q", i, stripAnsi(line))
+		}
+	}
+
+	// The only line should be the "Waiting for messages..." placeholder
+	if len(lines) > 0 {
+		firstLine := stripAnsi(lines[0])
+		if !strings.Contains(firstLine, "Waiting for messages") {
+			t.Errorf("expected only 'Waiting for messages' line, got: %q", firstLine)
+		}
+	}
+}
+
+func TestPromptToOtherAgentRendersAsActivityLine(t *testing.T) {
+	m := NewModel(nil)
+	m.width = 80
+
+	// Create a prompt from otto to reviewer (should render as activity line)
+	messages := []repo.Message{
+		{
+			FromAgent: "otto",
+			ToAgent:   sql.NullString{String: "reviewer", Valid: true},
+			Type:      "prompt",
+			Content:   "Review the code and check for bugs",
+		},
+	}
+
+	m.messages = messages
+	lines := m.mainContentLines(80)
+
+	// Should have the activity line + blank line
+	if len(lines) < 1 {
+		t.Fatal("expected at least 1 line")
+	}
+
+	firstLine := stripAnsi(lines[0])
+
+	// Should be formatted as: "otto spawned reviewer — "Review...""
+	if !strings.Contains(firstLine, "otto") {
+		t.Errorf("expected activity line to contain sender 'otto', got: %q", firstLine)
+	}
+	if !strings.Contains(firstLine, "spawned") {
+		t.Errorf("expected activity line to contain 'spawned', got: %q", firstLine)
+	}
+	if !strings.Contains(firstLine, "reviewer") {
+		t.Errorf("expected activity line to contain target 'reviewer', got: %q", firstLine)
+	}
+	if !strings.Contains(firstLine, "Review the code") {
+		t.Errorf("expected activity line to contain content, got: %q", firstLine)
+	}
+}
+
+func TestMixedMessagesWithHiddenAndActivityLines(t *testing.T) {
+	m := NewModel(nil)
+	m.width = 80
+
+	// Create a mix of messages: chat, prompt-to-otto (hidden), prompt-to-agent (activity), exit (hidden)
+	messages := []repo.Message{
+		{
+			FromAgent: "you",
+			Type:      repo.MessageTypeChat,
+			Content:   "hello",
+		},
+		{
+			FromAgent: "you",
+			ToAgent:   sql.NullString{String: "otto", Valid: true},
+			Type:      "prompt",
+			Content:   "this should be hidden",
+		},
+		{
+			FromAgent: "otto",
+			ToAgent:   sql.NullString{String: "reviewer", Valid: true},
+			Type:      "prompt",
+			Content:   "Review this",
+		},
+		{
+			FromAgent: "reviewer",
+			Type:      "exit",
+			Content:   "process finished",
+		},
+	}
+
+	m.messages = messages
+	lines := m.mainContentLines(80)
+
+	output := strings.Join(lines, "\n")
+
+	// Should have:
+	// - "you" on its own line (Slack style)
+	// - "hello" on next line
+	// - blank line
+	// - "otto spawned reviewer — "Review this"" (activity line)
+	// - blank line
+	// Should NOT have the prompt-to-otto or exit messages
+
+	if strings.Contains(output, "this should be hidden") {
+		t.Error("expected prompt-to-otto message to be hidden")
+	}
+
+	if strings.Contains(output, "process finished") {
+		t.Error("expected exit message to be hidden")
+	}
+
+	if !strings.Contains(output, "hello") {
+		t.Error("expected chat message to be visible")
+	}
+
+	if !strings.Contains(output, "spawned") {
+		t.Error("expected activity line for prompt-to-agent")
+	}
+
+	if !strings.Contains(output, "Review this") {
+		t.Error("expected activity line content to be visible")
+	}
+}

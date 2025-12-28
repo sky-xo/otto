@@ -530,6 +530,28 @@ func (m model) mainContentLines(width int) []string {
 			// Blank line after each block
 			lines = append(lines, "")
 		} else {
+			// Task 3.2: Filter noisy messages and format prompts as activity lines
+
+			// Hide prompt-to-otto messages (user's chat message already shows this intent)
+			if msg.Type == "prompt" && msg.ToAgent.Valid && msg.ToAgent.String == "otto" {
+				continue // Skip this message
+			}
+
+			// Hide exit messages (implementation detail, not user-facing)
+			if msg.Type == "exit" {
+				continue // Skip this message
+			}
+
+			// Format prompts to other agents as activity lines
+			if msg.Type == "prompt" && msg.ToAgent.Valid && msg.ToAgent.String != "otto" {
+				// Activity line format: "{FromAgent} spawned {ToAgent} — "{Content}""
+				activityLine := fmt.Sprintf("%s spawned %s — \"%s\"",
+					msg.FromAgent, msg.ToAgent.String, msg.Content)
+				lines = append(lines, messageStyle.Render(activityLine))
+				lines = append(lines, "") // Blank line after activity
+				continue
+			}
+
 			// Old inline format for other message types
 			fromStyle := lipgloss.NewStyle().Foreground(usernameColor(msg.FromAgent)).Bold(true)
 			fromText := padRight(fromStyle.Render(msg.FromAgent), fromWidth)
@@ -558,6 +580,12 @@ func (m model) mainContentLines(width int) []string {
 			}
 		}
 	}
+
+	// If all messages were filtered out, show the waiting message
+	if len(lines) == 0 {
+		return []string{messageStyle.Render("Waiting for messages...")}
+	}
+
 	return lines
 }
 

@@ -60,10 +60,41 @@ otto log <agent> --tail 20   # Last 20 entries
 
 **Why?** BashOutput returns raw Codex JSON which is verbose. `otto peek` returns parsed, human-readable transcript and uses a cursor so you never see the same content twice.
 
+## Re-awakening Agents (IMPORTANT)
+
+**Use `otto prompt` to continue work with the SAME agent for the SAME role.**
+
+```bash
+# ✅ GOOD: Re-awaken spec reviewer for re-review after fixes
+otto prompt spec-1 "Issues were fixed. Re-review the changes."
+
+# ✅ GOOD: Re-awaken quality reviewer for re-review after fixes
+otto prompt quality-1 "Issues were fixed. Re-review the changes."
+
+# ❌ BAD: Spawning new agent for re-review of same role
+otto spawn codex "Re-review..." --name spec-1-re  # Wasteful!
+
+# ❌ BAD: Prompting agent to change roles
+otto prompt spec-1 "Now do quality review"  # Wrong! Different role = different agent
+```
+
+**When to prompt vs spawn:**
+- **Prompt**: Re-reviews after fixes (same agent, same role)
+- **Spawn**: Different task OR different role (spec vs quality vs implementation)
+
+**Key insight:** Spec reviewer and quality reviewer are DIFFERENT ROLES requiring SEPARATE agents.
+The re-awakening pattern is for when the SAME reviewer needs to verify fixes.
+
+**Benefits of prompting for re-reviews:**
+- Agent retains context from initial review
+- Knows what issues it found previously
+- Can verify fixes were actually made
+- More efficient than explaining context to new agent
+
 ## Communication
 
 ```bash
-otto prompt <agent> "message"   # Send followup to agent
+otto prompt <agent> "message"   # Send followup to agent (also re-awakens completed agents)
 otto say "status update"        # Post to shared channel
 ```
 

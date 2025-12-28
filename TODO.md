@@ -12,19 +12,23 @@ Completed - see commits `727ef67`, `00d4d8e`, etc.
 
 ### 2. Unified Chat Stream ⬅️ IN PROGRESS
 
-**Status:** Phase 1 in progress
+**Status:** Phase 2 complete, Phase 3 next
 
 **Progress:**
-- ✅ Task 1.1: Right panel sends all keys to chat input (commit `ea21dd7`, spec review passed)
-- ⬅️ Task 1.2: Esc/Tab from right panel returns to sidebar (NEXT)
-- Task 1.3: Remove keyboard scrolling from right panel
+- ✅ Task 1.1: Right panel sends all keys to chat input (commit `ea21dd7`)
+- ✅ Task 1.2: Esc/Tab from right panel returns to sidebar (commit `93a05e3`)
+- ✅ Task 1.3: Remove keyboard scrolling from right panel (commit `3207675`)
+- ✅ Task 2.1: Add chat message type constant (commit `8855749`)
+- ✅ Task 2.2: Store user chat message before spawn (commit `3113fce`)
+- ⬅️ Task 3.1: Render chat and otto completions as Slack-style blocks (NEXT)
+- Task 3.2: Render activity lines and hide noise
 
 **Implementation Plan:** `docs/plans/2025-12-27-unified-chat-stream-design.md` - has detailed TDD tasks
 
 **Phases:**
-- Phase 1: Two-focus keyboard model (3 tasks) ← IN PROGRESS
-- Phase 2: User message storage (2 tasks)
-- Phase 3: Message rendering (Slack-style)
+- ✅ Phase 1: Two-focus keyboard model (3 tasks) - COMPLETE
+- ✅ Phase 2: User message storage (2 tasks) - COMPLETE
+- Phase 3: Message rendering (Slack-style) ← NEXT
 - Phase 4: Polish
 
 **IMPORTANT - Anti-pattern discovered:**

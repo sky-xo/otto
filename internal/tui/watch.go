@@ -822,7 +822,19 @@ func (m model) sidebarItems() []SidebarItem {
 
 				// If this project's archived section is expanded, show the archived agents
 				if m.isArchivedExpanded(key) {
-					ordered := sortArchivedAgents(archivedForProject, map[string]time.Time{})
+					// Collect agent names and fetch last activity times
+					activityMap := map[string]time.Time{}
+					if m.db != nil {
+						agentNames := make([]string, len(archivedForProject))
+						for i, agent := range archivedForProject {
+							agentNames[i] = agent.Name
+						}
+						project, branch := parseProjectBranch(key)
+						if result, err := repo.GetAgentLastActivity(m.db, project, branch, agentNames); err == nil && result != nil {
+							activityMap = result
+						}
+					}
+					ordered := sortArchivedAgents(archivedForProject, activityMap)
 					for _, agent := range ordered {
 						channels = append(channels, SidebarItem{
 							ID:      agent.Name,

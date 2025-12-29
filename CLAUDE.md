@@ -35,7 +35,7 @@ make test     # Run all tests
 | `otto` | Launch TUI (same as `otto watch`) |
 | `spawn <type> "<task>"` | Spawn claude/codex agent |
 | `prompt <agent> "<msg>"` | Send message to agent |
-| `say/ask/complete` | Agent messaging |
+| `dm/ask/complete` | Agent messaging |
 | `messages/status` | View messages and agent states |
 
 ## Coding Conventions
@@ -74,7 +74,7 @@ See `.claude/skills/otto-orchestrate/SKILL.md` for full details.
 **Key pattern:**
 1. Spawn with `run_in_background: true`
 2. Wait—you'll be notified automatically when the agent completes
-3. Use `BashOutput` with `block: true` to retrieve results
+3. Use `BashOutput` to retrieve results
 
 You don't need to poll with `otto status` or `otto peek`—the notification comes automatically. But if things seem slow, feel free to check progress with `otto peek <agent>`.
 

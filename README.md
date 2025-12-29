@@ -53,7 +53,7 @@ otto
 | `otto prompt <agent> "<msg>"` | Send prompt to an agent |
 | `otto attach <agent>` | Get command to attach to agent session |
 | `otto archive <agent>` | Archive a completed/failed agent |
-| `otto say "<msg>"` | Post message as orchestrator |
+| `otto dm --from <agent> --to <recipient> "<msg>"` | Post direct message |
 | `otto ask --id <agent> "<q>"` | Agent asks a question |
 | `otto complete --id <agent> "<summary>"` | Agent marks task done |
 

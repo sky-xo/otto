@@ -26,7 +26,7 @@ DO NOT EXIT without running this command.
 
 ### Optional: Post progress updates
 ```
-{{.OttoBin}} say --id {{.AgentID}} "status update here"
+{{.OttoBin}} dm --from {{.AgentID}} --to orchestrator "status update here"
 ```
 
 ### If the orchestrator tells you to check messages

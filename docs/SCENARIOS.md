@@ -84,8 +84,8 @@ This document explores how otto would be used in real-world scenarios, testing o
 │ [orchestrator] @agent-backend - reviewer found CSRF issue.          │
 │                Can you fix?                                         │
 │                                                                     │
-│ [agent-backend] On it. → otto say --id agent-backend "Fixed         │
-│                 CSRF, added token to callback"                      │
+│ [agent-backend] On it. Fixing CSRF issue and adding token to        │
+│                 callback.                                           │
 │                                                                     │
 │ [agent-review] Re-reviewed. ✓ CSRF fixed. Approved.                 │
 │                                                                     │
@@ -117,9 +117,9 @@ otto spawn codex "Implement OAuth frontend: login form, token storage..."
 otto spawn claude "Review OAuth implementation for security issues"
 
 # Agents communicate
-otto say --id agent-backend "@agent-frontend backend ready for integration"
+otto dm --from agent-backend --to agent-frontend "backend ready for integration"
 otto ask --id agent-backend --human "Should I use passport.js or custom JWT?"
-otto say --id agent-frontend "Login form complete, starting token flow"
+otto dm --from agent-frontend --to orchestrator "Login form complete, starting token flow"
 otto complete --id agent-backend "Backend done. PR ready."
 
 # Orchestrator routes messages
@@ -173,7 +173,7 @@ otto status
 │                or should I spawn a separate implementation agent?   │
 │                                                                     │
 │ [agent-debug] I'll send findings to the channel for handoff.        │
-│   → otto say --id agent-debug "Root cause: ... fix instructions."   │
+│   → otto dm --from agent-debug --to orchestrator "Root cause: ..."  │
 │                                                                     │
 │ [orchestrator] → otto spawn codex "Fix connection pool leak..."     │
 │                  --context "Root cause: [agent-debug's findings]"   │

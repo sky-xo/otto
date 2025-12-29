@@ -156,7 +156,7 @@ CREATE TABLE agents (
 CREATE TABLE messages (
   id TEXT PRIMARY KEY,
   from_id TEXT NOT NULL,        -- agent ID or 'orchestrator' or 'human'
-  type TEXT NOT NULL,           -- 'say', 'question', 'complete'
+  type TEXT NOT NULL,           -- 'dm', 'question', 'complete'
   content TEXT NOT NULL,
   mentions TEXT,                -- JSON array: ["agent-def", "orchestrator"]
   requires_human BOOLEAN DEFAULT FALSE,
@@ -187,7 +187,7 @@ All agents share a single message stream - like a shared chat room:
 
 ### Message Types
 
-- `say` - general message to the channel
+- `dm` - direct message to specific recipient(s)
 - `question` - needs a response (sets agent to WAITING)
 - `complete` - task finished, here's the result
 
@@ -214,10 +214,10 @@ Use @mentions to direct attention to specific agents.
 IMPORTANT: Always include your ID (--id <agent-id>) in every command.
 
 ### Commands
-otto messages --id <agent-id>              # check unread
-otto say --id <agent-id> "message"         # post message
-otto ask --id <agent-id> "question"        # ask (sets WAITING)
-otto complete --id <agent-id> "summary"    # mark done
+otto messages --id <agent-id>                           # check unread
+otto dm --from <agent-id> --to <recipient> "message"    # post message
+otto ask --id <agent-id> "question"                     # ask (sets WAITING)
+otto complete --id <agent-id> "summary"                 # mark done
 
 ## Guidelines
 

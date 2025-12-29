@@ -30,6 +30,7 @@ Options:
 ```bash
 otto status                  # List all agents and their status
 otto peek <agent>            # New output since last peek (advances cursor)
+                             # For completed/failed agents, shows full log (capped at 100 lines)
 otto log <agent>             # Full history
 otto log <agent> --tail 20   # Last 20 entries
 otto messages                # Shared message channel
@@ -38,8 +39,9 @@ otto messages                # Shared message channel
 ### Communication
 
 ```bash
-otto prompt <agent> "message"   # Send followup to agent
-otto say "status update"        # Post to shared channel
+otto prompt <agent> "message"                           # Send followup to agent
+otto dm --from <sender> --to <recipient> "message"      # Send direct message between agents
+                                                        # Supports cross-branch: --to feature/login:frontend
 ```
 
 ### Lifecycle
@@ -53,7 +55,7 @@ otto archive <agent>         # Archive completed/failed agent
 ## Agent Communication
 
 Spawned agents use these to communicate back:
-- `otto say "update"` - Post status to channel
+- `otto dm --from <self> --to <recipient> "message"` - Send direct message to another agent or orchestrator
 - `otto ask "question?"` - Set status to WAITING, block for answer
 - `otto complete` - Signal task is done
 
@@ -99,6 +101,7 @@ otto archive task-1
 | New output | `otto peek <agent>` |
 | Full log | `otto log <agent>` |
 | Send message | `otto prompt <agent> "msg"` |
+| Agent-to-agent msg | `otto dm --from <sender> --to <recipient> "msg"` |
 | Check channel | `otto messages` |
 | Kill | `otto kill <agent>` |
 | Archive | `otto archive <agent>` |

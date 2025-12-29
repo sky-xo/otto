@@ -27,7 +27,6 @@ When notified (or when you're ready to wait), retrieve results:
 ```
 BashOutput tool call:
   bash_id: <id from spawn>
-  block: true  # waits if still running
 ```
 
 ### Spawn Options
@@ -50,6 +49,7 @@ If things seem to be taking a while and you want to see what's happening:
 
 ```bash
 otto peek <agent>            # Incremental output since last peek
+                             # For completed/failed agents, shows full log (capped at 100 lines)
 otto status                  # See all agent states
 otto log <agent> --tail 20   # Recent log entries
 ```
@@ -90,8 +90,9 @@ The re-awakening pattern is for when the SAME reviewer needs to verify fixes.
 ## Communication
 
 ```bash
-otto prompt <agent> "message"   # Send followup to agent (also re-awakens completed agents)
-otto say "status update"        # Post to shared channel
+otto prompt <agent> "message"                           # Send followup to agent (also re-awakens completed agents)
+otto dm --from <sender> --to <recipient> "message"      # Send direct message between agents
+                                                        # Supports cross-branch: --to feature/login:frontend
 ```
 
 ## Lifecycle
@@ -105,7 +106,7 @@ otto archive <agent>         # Archive completed/failed agent
 ## Agent Communication
 
 Spawned agents use these to communicate back:
-- `otto say "update"` - Post status to channel
+- `otto dm --from <self> --to <recipient> "message"` - Send direct message to another agent or orchestrator
 - `otto ask "question?"` - Set status to WAITING, block for answer
 - `otto complete` - Signal task is done
 
@@ -124,7 +125,6 @@ run_in_background: true
 
 # 3. When notified, retrieve results (BashOutput tool)
 bash_id: <id from step 1>
-block: true
 
 # 4. If agent needs guidance, respond and wait again
 otto prompt task-1 "Use UUID for the ID field"
@@ -147,8 +147,9 @@ otto archive task-1
 |--------|-----|
 | Spawn | Bash tool: `otto spawn codex "task" --name x` with `run_in_background: true` |
 | Wait for completion | Do nothing—you'll be notified automatically |
-| Get results | `BashOutput` with `bash_id` from spawn, `block: true` |
+| Get results | `BashOutput` with `bash_id` from spawn |
 | Send message | `otto prompt <agent> "msg"` |
+| Agent-to-agent msg | `otto dm --from <sender> --to <recipient> "msg"` |
 | Check channel | `otto messages` |
 | Kill | `otto kill <agent>` |
 | Archive | `otto archive <agent>` |

@@ -80,11 +80,11 @@ Completed - see commits `727ef67`, `00d4d8e`, etc.
 
 Stumbling Blocks
 
-1. ~~Name collision on spawn~~ ❌ NOT ADDRESSED
+1. ~~Name collision on spawn~~ ✅ RESOLVED
 
 First spawn failed with UNIQUE constraint failed because plan-reviewer already existed. Had to guess a unique name db-workflow-review-1.
 
-**Status:** Still an issue - see Bugs section below.
+**Status:** Tested and confirmed working. Auto-increment (`-2`, `-3`, etc.) prevents collisions. Original bug likely from older version.
 
 2. ~~block parameter doesn't exist~~ ✅ ADDRESSED (was documentation bug)
 
@@ -115,11 +115,12 @@ What Would Be Ideal
 2. ~~otto status with preview~~ ✅ ADDRESSED - `otto peek` provides this
 3. ~~Clearer output separation~~ ✅ ADDRESSED - `otto peek` shows completion messages separately
 4. ~~Waiting mechanism~~ ✅ ADDRESSED - Documentation corrected (agents notify on completion automatically)
-5. ❌ Name uniqueness help - Either auto-suffix names or show existing agents when there's a collision - REMAINS OPEN
+5. ✅ Name uniqueness help - Auto-suffix (`-2`, `-3`, etc.) already implemented and working
 
 ## Bugs
 
-- agent names conflict across different projects. the unique constraint on the db should be tied to project/branch-name/agent-name not just to agent-name
+None currently tracked. Previous issues resolved:
+- ~~Agent name collisions~~ - Fixed: Primary key is `(project, branch, name)` and auto-increment prevents duplicates
 
 ## Backlog (Deferred Items)
 

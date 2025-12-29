@@ -17,12 +17,12 @@ func TestProjectHeaderSelectionSetsActiveChannel(t *testing.T) {
 		{Project: "other", Branch: "feature", Name: "worker", Status: "complete"},
 	}
 
-	channels := m.channels()
+	channels := m.sidebarItems()
 
 	// Find the otto/main header
 	headerIndex := -1
 	for i, ch := range channels {
-		if ch.ID == "otto/main" && ch.Kind == "project_header" {
+		if ch.ID == "otto/main" && ch.Kind == SidebarChannelHeader {
 			headerIndex = i
 			break
 		}
@@ -47,12 +47,12 @@ func TestProjectHeaderSelectionTogglesExpanded(t *testing.T) {
 		{Project: "otto", Branch: "main", Name: "impl-1", Status: "busy"},
 	}
 
-	channels := m.channels()
+	channels := m.sidebarItems()
 
 	// Find the otto/main header
 	headerIndex := -1
 	for i, ch := range channels {
-		if ch.ID == "otto/main" && ch.Kind == "project_header" {
+		if ch.ID == "otto/main" && ch.Kind == SidebarChannelHeader {
 			headerIndex = i
 			break
 		}
@@ -86,12 +86,12 @@ func TestAgentSelectionStillSetsActiveChannelToAgent(t *testing.T) {
 		{Project: "otto", Branch: "main", Name: "impl-1", Status: "busy"},
 	}
 
-	channels := m.channels()
+	channels := m.sidebarItems()
 
 	// Find the agent
 	agentIndex := -1
 	for i, ch := range channels {
-		if ch.ID == "impl-1" && ch.Kind == "agent" {
+		if ch.ID == "impl-1" && ch.Kind == SidebarAgentRow {
 			agentIndex = i
 			break
 		}
@@ -116,10 +116,10 @@ func TestRenderChannelLineProjectHeader(t *testing.T) {
 	m.projectExpanded = map[string]bool{"otto/main": true}
 
 	// Create a project header channel
-	ch := channel{
+	ch := SidebarItem{
 		ID:    "otto/main",
 		Name:  "otto/main",
-		Kind:  "project_header",
+		Kind:  SidebarChannelHeader,
 		Level: 0,
 	}
 
@@ -165,10 +165,10 @@ func TestRenderChannelLineIndentedAgentWithCursor(t *testing.T) {
 	m := NewModel(nil)
 
 	// Create an indented agent channel (Level 1)
-	ch := channel{
+	ch := SidebarItem{
 		ID:      "impl-1",
 		Name:    "impl-1",
-		Kind:    "agent",
+		Kind:    SidebarAgentRow,
 		Status:  "busy",
 		Level:   1,
 		Project: "otto",
@@ -219,10 +219,10 @@ func TestRenderChannelLineIndentedHeaderLevel1(t *testing.T) {
 	m := NewModel(nil)
 
 	// Create a project header at Level 1 (archived section)
-	ch := channel{
+	ch := SidebarItem{
 		ID:    "otto/main",
 		Name:  "otto/main",
-		Kind:  "project_header",
+		Kind:  SidebarChannelHeader,
 		Level: 1,
 	}
 
@@ -350,7 +350,7 @@ func TestProjectHeaderMouseClick(t *testing.T) {
 		{Project: "other", Branch: "feature", Name: "worker", Status: "complete"},
 	}
 
-	channels := m.channels()
+	channels := m.sidebarItems()
 	// Expected structure:
 	// 0: Main
 	// 1: other/feature header
@@ -363,7 +363,7 @@ func TestProjectHeaderMouseClick(t *testing.T) {
 	// Find the otto/main header index
 	headerIndex := -1
 	for i, ch := range channels {
-		if ch.ID == "otto/main" && ch.Kind == "project_header" {
+		if ch.ID == "otto/main" && ch.Kind == SidebarChannelHeader {
 			headerIndex = i
 			break
 		}
@@ -409,7 +409,7 @@ func TestNavigationSkipsCollapsedAgents(t *testing.T) {
 		{Project: "other", Branch: "feature", Name: "worker", Status: "complete"},
 	}
 
-	channels := m.channels()
+	channels := m.sidebarItems()
 	// Expected structure (otto/main collapsed, other/feature expanded):
 	// 0: other/feature header
 	// 1:   worker
@@ -470,7 +470,7 @@ func TestEnsureSelectionHandlesCollapsedAgents(t *testing.T) {
 	}
 
 	// Start with expanded project, cursor on impl-1 (index 4)
-	channels := m.channels()
+	channels := m.sidebarItems()
 	impl1Index := -1
 	for i, ch := range channels {
 		if ch.ID == "impl-1" {
@@ -492,7 +492,7 @@ func TestEnsureSelectionHandlesCollapsedAgents(t *testing.T) {
 	m.ensureSelection()
 
 	// Cursor should be adjusted to valid index
-	channels = m.channels()
+	channels = m.sidebarItems()
 	if m.cursorIndex >= len(channels) {
 		t.Errorf("expected cursor index < %d after collapse, got %d", len(channels), m.cursorIndex)
 	}
@@ -510,7 +510,7 @@ func TestNavigationRespectsChannelListLength(t *testing.T) {
 		{Project: "otto", Branch: "main", Name: "impl-1", Status: "busy"},
 	}
 
-	channels := m.channels()
+	channels := m.sidebarItems()
 	// Expected: otto/main header, impl-1 (2 channels)
 
 	if len(channels) != 2 {

@@ -100,11 +100,11 @@ func TestTabKeySwitchesPanels(t *testing.T) {
 		{Project: "otto", Branch: "main", Name: "impl-1", Status: "busy"},
 	}
 
-	channels := m.channels()
+	channels := m.sidebarItems()
 	// Find project header index
 	headerIndex := -1
 	for i, ch := range channels {
-		if ch.ID == "otto/main" && ch.Kind == "project_header" {
+		if ch.ID == "otto/main" && ch.Kind == SidebarChannelHeader {
 			headerIndex = i
 			break
 		}
@@ -144,10 +144,10 @@ func TestProjectHeaderClickFocusesChatInput(t *testing.T) {
 		{Project: "otto", Branch: "main", Name: "impl-1", Status: "busy"},
 	}
 
-	channels := m.channels()
+	channels := m.sidebarItems()
 	headerIndex := -1
 	for i, ch := range channels {
-		if ch.ID == "otto/main" && ch.Kind == "project_header" {
+		if ch.ID == "otto/main" && ch.Kind == SidebarChannelHeader {
 			headerIndex = i
 			break
 		}
@@ -186,10 +186,10 @@ func TestCaretClickTogglesExpand(t *testing.T) {
 		{Project: "otto", Branch: "main", Name: "impl-1", Status: "busy"},
 	}
 
-	channels := m.channels()
+	channels := m.sidebarItems()
 	headerIndex := -1
 	for i, ch := range channels {
-		if ch.ID == "otto/main" && ch.Kind == "project_header" {
+		if ch.ID == "otto/main" && ch.Kind == SidebarChannelHeader {
 			headerIndex = i
 			break
 		}

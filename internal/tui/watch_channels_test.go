@@ -37,12 +37,12 @@ func TestChannelsIncludeProjectHeaderFirst(t *testing.T) {
 		{Project: "test", Branch: "main", Name: "agent-1", Status: "busy"},
 	}
 
-	channels := m.channels()
+	channels := m.sidebarItems()
 	// Expected: test/main header, agent-1 (busy first), agent-2
 	if len(channels) != 3 {
 		t.Fatalf("expected 3 channels, got %d", len(channels))
 	}
-	if channels[0].Kind != "project_header" {
+	if channels[0].Kind != SidebarChannelHeader {
 		t.Fatalf("expected project_header at index 0, got %q", channels[0].Kind)
 	}
 	if channels[0].ID != "test/main" {
@@ -68,18 +68,18 @@ func TestArchivedAgentsHiddenByDefault(t *testing.T) {
 		},
 	}
 
-	channels := m.channels()
+	channels := m.sidebarItems()
 	// Expected: test/main header, agent-1, archived_count indicator (collapsed)
 	if len(channels) != 3 {
 		t.Fatalf("expected 3 channels, got %d", len(channels))
 	}
-	if channels[0].Kind != "project_header" {
+	if channels[0].Kind != SidebarChannelHeader {
 		t.Fatalf("expected project_header at index 0, got %q", channels[0].Kind)
 	}
 	if channels[1].ID != "agent-1" {
 		t.Fatalf("expected active agent at index 1, got %q", channels[1].ID)
 	}
-	if channels[2].Kind != "archived_count" {
+	if channels[2].Kind != SidebarArchivedSection {
 		t.Fatalf("expected archived_count at index 2, got %q", channels[2].Kind)
 	}
 	if channels[2].Name != "1 archived" {
@@ -110,18 +110,18 @@ func TestArchivedAgentsAppearWhenExpanded(t *testing.T) {
 	}
 	m.archivedExpanded["test/main"] = true
 
-	channels := m.channels()
+	channels := m.sidebarItems()
 	// Expected: test/main header, agent-1, archived_count indicator, agent-3, agent-2
 	if len(channels) != 5 {
 		t.Fatalf("expected 5 channels, got %d", len(channels))
 	}
-	if channels[0].Kind != "project_header" {
+	if channels[0].Kind != SidebarChannelHeader {
 		t.Fatalf("expected project_header at index 0, got %q", channels[0].Kind)
 	}
 	if channels[1].ID != "agent-1" {
 		t.Fatalf("expected active agent at index 1, got %q", channels[1].ID)
 	}
-	if channels[2].Kind != "archived_count" {
+	if channels[2].Kind != SidebarArchivedSection {
 		t.Fatalf("expected archived_count at index 2, got %q", channels[2].Kind)
 	}
 	if channels[2].Name != "2 archived" {
@@ -146,10 +146,10 @@ func TestArchivedEnterTogglesExpanded(t *testing.T) {
 		},
 	}
 
-	channels := m.channels()
+	channels := m.sidebarItems()
 	archivedCountIndex := -1
 	for i, ch := range channels {
-		if ch.Kind == "archived_count" {
+		if ch.Kind == SidebarArchivedSection {
 			archivedCountIndex = i
 			break
 		}
@@ -182,7 +182,7 @@ func TestChannelsGroupByProjectBranch(t *testing.T) {
 		{Project: "app", Branch: "dev", Name: "tester", Status: "busy"},
 	}
 
-	channels := m.channels()
+	channels := m.sidebarItems()
 
 	// Expected structure:
 	// 0: app/dev header
@@ -205,7 +205,7 @@ func TestChannelsGroupByProjectBranch(t *testing.T) {
 	if channels[0].ID != "app/dev" {
 		t.Fatalf("expected 'app/dev' header at index 0, got %q", channels[0].ID)
 	}
-	if channels[0].Kind != "project_header" {
+	if channels[0].Kind != SidebarChannelHeader {
 		t.Fatalf("expected 'project_header' kind at index 0, got %q", channels[0].Kind)
 	}
 	if channels[0].Name != "app/dev" {
@@ -216,7 +216,7 @@ func TestChannelsGroupByProjectBranch(t *testing.T) {
 	}
 
 	// separator at index 2
-	if channels[2].Kind != "separator" {
+	if channels[2].Kind != SidebarDivider {
 		t.Fatalf("expected 'separator' kind at index 2, got %q", channels[2].Kind)
 	}
 
@@ -224,12 +224,12 @@ func TestChannelsGroupByProjectBranch(t *testing.T) {
 	if channels[3].ID != "other/feature" {
 		t.Fatalf("expected 'other/feature' header at index 3, got %q", channels[3].ID)
 	}
-	if channels[3].Kind != "project_header" {
+	if channels[3].Kind != SidebarChannelHeader {
 		t.Fatalf("expected 'project_header' kind at index 3, got %q", channels[3].Kind)
 	}
 
 	// separator at index 5
-	if channels[5].Kind != "separator" {
+	if channels[5].Kind != SidebarDivider {
 		t.Fatalf("expected 'separator' kind at index 5, got %q", channels[5].Kind)
 	}
 
@@ -237,7 +237,7 @@ func TestChannelsGroupByProjectBranch(t *testing.T) {
 	if channels[6].ID != "otto/main" {
 		t.Fatalf("expected 'otto/main' header at index 6, got %q", channels[6].ID)
 	}
-	if channels[6].Kind != "project_header" {
+	if channels[6].Kind != SidebarChannelHeader {
 		t.Fatalf("expected 'project_header' kind at index 6, got %q", channels[6].Kind)
 	}
 
@@ -246,7 +246,7 @@ func TestChannelsGroupByProjectBranch(t *testing.T) {
 	if channels[1].ID != "tester" {
 		t.Fatalf("expected 'tester' at index 1, got %q", channels[1].ID)
 	}
-	if channels[1].Kind != "agent" {
+	if channels[1].Kind != SidebarAgentRow {
 		t.Fatalf("expected 'agent' kind at index 1, got %q", channels[1].Kind)
 	}
 	if channels[1].Level != 1 {
@@ -296,7 +296,7 @@ func TestChannelsGroupingWithArchived(t *testing.T) {
 		},
 	}
 
-	channels := m.channels()
+	channels := m.sidebarItems()
 
 	// Expected structure (with per-project archived sections):
 	// 0: other/feature header
@@ -312,18 +312,18 @@ func TestChannelsGroupingWithArchived(t *testing.T) {
 	}
 
 	// Verify active agents are grouped
-	if channels[0].Kind != "project_header" {
+	if channels[0].Kind != SidebarChannelHeader {
 		t.Fatalf("expected project header at index 0, got %q", channels[0].Kind)
 	}
-	if channels[2].Kind != "separator" {
+	if channels[2].Kind != SidebarDivider {
 		t.Fatalf("expected separator at index 2, got %q", channels[2].Kind)
 	}
-	if channels[3].Kind != "project_header" {
+	if channels[3].Kind != SidebarChannelHeader {
 		t.Fatalf("expected project header at index 3, got %q", channels[3].Kind)
 	}
 
 	// Verify archived count indicator is shown for otto/main
-	if channels[5].Kind != "archived_count" {
+	if channels[5].Kind != SidebarArchivedSection {
 		t.Fatalf("expected 'archived_count' kind at index 5, got %q", channels[5].Kind)
 	}
 	if channels[5].Name != "1 archived" {
@@ -339,7 +339,7 @@ func TestProjectHeaderCollapseHidesAgents(t *testing.T) {
 		{Project: "otto", Branch: "main", Name: "reviewer", Status: "blocked"},
 	}
 
-	channels := m.channels()
+	channels := m.sidebarItems()
 
 	// Expected structure when collapsed:
 	// 0: otto/main header (collapsed)
@@ -353,7 +353,7 @@ func TestProjectHeaderCollapseHidesAgents(t *testing.T) {
 	if channels[0].ID != "otto/main" {
 		t.Fatalf("expected otto/main header at index 0, got %q", channels[0].ID)
 	}
-	if channels[0].Kind != "project_header" {
+	if channels[0].Kind != SidebarChannelHeader {
 		t.Fatalf("expected project_header kind, got %q", channels[0].Kind)
 	}
 }
@@ -366,7 +366,7 @@ func TestProjectHeaderExpandedShowsAgents(t *testing.T) {
 		{Project: "otto", Branch: "main", Name: "reviewer", Status: "blocked"},
 	}
 
-	channels := m.channels()
+	channels := m.sidebarItems()
 
 	// Expected structure when expanded:
 	// 0: otto/main header (expanded)
@@ -396,7 +396,7 @@ func TestProjectHeaderDefaultExpanded(t *testing.T) {
 		{Project: "otto", Branch: "main", Name: "impl-1", Status: "busy"},
 	}
 
-	channels := m.channels()
+	channels := m.sidebarItems()
 
 	// Expected structure (default expanded):
 	// 0: otto/main header
@@ -437,7 +437,7 @@ func TestArchivedSectionGroupsByProjectBranch(t *testing.T) {
 		},
 	}
 
-	channels := m.channels()
+	channels := m.sidebarItems()
 
 	// Expected structure (with per-project archived sections):
 	// 0: other/feature header
@@ -455,10 +455,10 @@ func TestArchivedSectionGroupsByProjectBranch(t *testing.T) {
 	}
 
 	// Verify other/feature section
-	if channels[0].Kind != "project_header" {
+	if channels[0].Kind != SidebarChannelHeader {
 		t.Fatalf("expected project_header at index 0, got %q", channels[0].Kind)
 	}
-	if channels[1].Kind != "archived_count" {
+	if channels[1].Kind != SidebarArchivedSection {
 		t.Fatalf("expected archived_count at index 1, got %q", channels[1].Kind)
 	}
 	if channels[2].ID != "archived-2" {
@@ -466,18 +466,18 @@ func TestArchivedSectionGroupsByProjectBranch(t *testing.T) {
 	}
 
 	// Verify separator
-	if channels[3].Kind != "separator" {
+	if channels[3].Kind != SidebarDivider {
 		t.Fatalf("expected separator at index 3, got %q", channels[3].Kind)
 	}
 
 	// Verify otto/main section
-	if channels[4].Kind != "project_header" {
+	if channels[4].Kind != SidebarChannelHeader {
 		t.Fatalf("expected project_header at index 4, got %q", channels[4].Kind)
 	}
 	if channels[5].ID != "active-1" {
 		t.Fatalf("expected active-1 at index 5, got %q", channels[5].ID)
 	}
-	if channels[6].Kind != "archived_count" {
+	if channels[6].Kind != SidebarArchivedSection {
 		t.Fatalf("expected archived_count at index 6, got %q", channels[6].Kind)
 	}
 	if channels[7].ID != "archived-1" {
@@ -508,7 +508,7 @@ func TestArchivedSectionRespectsProjectCollapse(t *testing.T) {
 		},
 	}
 
-	channels := m.channels()
+	channels := m.sidebarItems()
 
 	// Expected structure (project collapsed, so no archived section shows):
 	// 0: otto/main header (collapsed)
@@ -522,7 +522,7 @@ func TestArchivedSectionRespectsProjectCollapse(t *testing.T) {
 	if channels[0].ID != "otto/main" {
 		t.Fatalf("expected otto/main header at index 0, got %q", channels[0].ID)
 	}
-	if channels[0].Kind != "project_header" {
+	if channels[0].Kind != SidebarChannelHeader {
 		t.Fatalf("expected project_header kind at index 0, got %q", channels[0].Kind)
 	}
 }
@@ -549,12 +549,12 @@ func TestPerProjectArchivedIndicator(t *testing.T) {
 		},
 	}
 
-	channels := m.channels()
+	channels := m.sidebarItems()
 
 	// Find the archived_count indicator
 	archivedCountIndex := -1
 	for i, ch := range channels {
-		if ch.Kind == "archived_count" {
+		if ch.Kind == SidebarArchivedSection {
 			archivedCountIndex = i
 			break
 		}
@@ -595,7 +595,7 @@ func TestPerProjectArchivedIndicator(t *testing.T) {
 	}
 
 	// Re-fetch channels and verify archived agents are shown
-	channels = m.channels()
+	channels = m.sidebarItems()
 	archivedAgentCount = 0
 	for _, ch := range channels {
 		if ch.ID == "archived-1" || ch.ID == "archived-2" {

@@ -3,6 +3,7 @@ package commands
 import (
 	"bytes"
 	"database/sql"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -307,5 +308,126 @@ func TestRunPeek_MixedEventTypes(t *testing.T) {
 			t.Errorf("expected %q to appear after previous item, but found at index %d (last was %d)", expected, index, lastIndex)
 		}
 		lastIndex = index
+	}
+}
+
+func TestRunPeek_CompletedAgentShowsFullLog(t *testing.T) {
+	conn, _ := db.Open(":memory:")
+	defer conn.Close()
+	ctx := testCtx()
+
+	// Create COMPLETED agent
+	agent := repo.Agent{Project: ctx.Project, Branch: ctx.Branch, Name: "test-agent", Type: "codex", Task: "test", Status: "complete"}
+	repo.CreateAgent(conn, agent)
+
+	// Create log entries
+	for i := 1; i <= 5; i++ {
+		repo.CreateLogEntry(conn, repo.LogEntry{
+			Project:   ctx.Project,
+			Branch:    ctx.Branch,
+			AgentName: "test-agent",
+			AgentType: "codex",
+			EventType: "output",
+			Content:   sql.NullString{String: fmt.Sprintf("line %d", i), Valid: true},
+		})
+	}
+
+	// Advance cursor past first 3 entries (simulating earlier peeks)
+	logs, _ := repo.ListLogs(conn, ctx.Project, ctx.Branch, "test-agent", "")
+	repo.UpdateAgentPeekCursor(conn, ctx.Project, ctx.Branch, "test-agent", logs[2].ID)
+
+	var buf bytes.Buffer
+
+	// Peek on completed agent should show FULL log, not just since cursor
+	err := runPeek(conn, "test-agent", &buf)
+	if err != nil {
+		t.Fatalf("runPeek failed: %v", err)
+	}
+
+	output := buf.String()
+	// Should contain header
+	if !strings.Contains(output, "[agent complete") {
+		t.Errorf("expected '[agent complete' header, got: %s", output)
+	}
+	// Should contain ALL lines, not just since cursor
+	if !strings.Contains(output, "line 1") {
+		t.Errorf("expected 'line 1' (full log), got: %s", output)
+	}
+	if !strings.Contains(output, "line 5") {
+		t.Errorf("expected 'line 5', got: %s", output)
+	}
+}
+
+func TestRunPeek_CompletedAgentCapsAt100(t *testing.T) {
+	conn, _ := db.Open(":memory:")
+	defer conn.Close()
+	ctx := testCtx()
+
+	agent := repo.Agent{Project: ctx.Project, Branch: ctx.Branch, Name: "test-agent", Type: "codex", Task: "test", Status: "complete"}
+	repo.CreateAgent(conn, agent)
+
+	// Create 150 log entries
+	for i := 1; i <= 150; i++ {
+		repo.CreateLogEntry(conn, repo.LogEntry{
+			Project:   ctx.Project,
+			Branch:    ctx.Branch,
+			AgentName: "test-agent",
+			AgentType: "codex",
+			EventType: "output",
+			Content:   sql.NullString{String: fmt.Sprintf("line %d", i), Valid: true},
+		})
+	}
+
+	var buf bytes.Buffer
+	err := runPeek(conn, "test-agent", &buf)
+	if err != nil {
+		t.Fatalf("runPeek failed: %v", err)
+	}
+
+	output := buf.String()
+	// Should show capped message
+	if !strings.Contains(output, "showing last 100 lines") {
+		t.Errorf("expected 'showing last 100 lines', got: %s", output)
+	}
+	// Should show footer with full count
+	if !strings.Contains(output, "full log: 150 lines") {
+		t.Errorf("expected 'full log: 150 lines', got: %s", output)
+	}
+	// Should NOT contain early lines (line 1-50)
+	if strings.Contains(output, "line 1\n") {
+		t.Errorf("should not contain 'line 1' (capped), got: %s", output)
+	}
+	// Should contain later lines (line 100+)
+	if !strings.Contains(output, "line 150") {
+		t.Errorf("expected 'line 150', got: %s", output)
+	}
+}
+
+func TestRunPeek_FailedAgentShowsFullLog(t *testing.T) {
+	conn, _ := db.Open(":memory:")
+	defer conn.Close()
+	ctx := testCtx()
+
+	agent := repo.Agent{Project: ctx.Project, Branch: ctx.Branch, Name: "test-agent", Type: "codex", Task: "test", Status: "failed"}
+	repo.CreateAgent(conn, agent)
+
+	repo.CreateLogEntry(conn, repo.LogEntry{
+		Project:   ctx.Project,
+		Branch:    ctx.Branch,
+		AgentName: "test-agent",
+		AgentType: "codex",
+		EventType: "output",
+		Content:   sql.NullString{String: "error happened", Valid: true},
+	})
+
+	var buf bytes.Buffer
+	err := runPeek(conn, "test-agent", &buf)
+	if err != nil {
+		t.Fatalf("runPeek failed: %v", err)
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "[agent failed") {
+		t.Errorf("expected '[agent failed' header, got: %s", output)
 	}
 }

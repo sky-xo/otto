@@ -122,10 +122,12 @@ const (
 	SidebarDivider                               // Visual separator between channels
 )
 
-type channel struct {
+// SidebarItem represents a single row in the TUI sidebar.
+// This is a view model - the domain model is repo.Agent.
+type SidebarItem struct {
 	ID      string
 	Name    string
-	Kind    string
+	Kind    SidebarItemKind
 	Status  string
 	Level   int
 	Project string
@@ -317,13 +319,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// Calculate which agent was clicked based on msg.Y
 				// Subtract 2 for border + title row
 				clickedIndex := msg.Y - 2
-				channels := m.channels()
+				channels := m.sidebarItems()
 				if clickedIndex >= 0 && clickedIndex < len(channels) {
 					m.cursorIndex = clickedIndex
 					ch := channels[clickedIndex]
 
 					// Check if clicking on a caret (▼/▶) for project or archived_count headers
-					if ch.Kind == "project_header" || ch.Kind == "archived_count" {
+					if ch.Kind == SidebarChannelHeader || ch.Kind == SidebarArchivedSection {
 						// Calculate caret X position based on level and border
 						// Border is at X=0, content starts at X=1
 						// Level 0: caret at X=1-2 (no indent)
@@ -339,7 +341,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 					// Otherwise, activate the selection
 					// For project headers, also focus the right panel
-					if ch.Kind == "project_header" {
+					if ch.Kind == SidebarChannelHeader {
 						m.focusedPanel = panelMessages
 						m.chatInput.Focus()
 					}
@@ -497,7 +499,7 @@ func (m model) View() string {
 }
 
 func (m model) renderChannels(width, height int) string {
-	channels := m.channels()
+	channels := m.sidebarItems()
 	if len(channels) == 0 || height <= 0 {
 		return ""
 	}
@@ -714,8 +716,8 @@ func (m model) transcriptContentLines(agentID string, width int) []string {
 	return lines
 }
 
-func (m model) channels() []channel {
-	channels := []channel{}
+func (m model) sidebarItems() []SidebarItem {
+	channels := []SidebarItem{}
 	if len(m.agents) == 0 {
 		return channels
 	}
@@ -764,14 +766,14 @@ func (m model) channels() []channel {
 	for i, key := range groupKeys {
 		// Add separator between project groups (not before first)
 		if i > 0 {
-			channels = append(channels, channel{Kind: "separator"})
+			channels = append(channels, SidebarItem{Kind: SidebarDivider})
 		}
 
 		// Add project/branch header
-		channels = append(channels, channel{
+		channels = append(channels, SidebarItem{
 			ID:    key,
 			Name:  key,
-			Kind:  "project_header",
+			Kind:  SidebarChannelHeader,
 			Level: 0,
 		})
 
@@ -780,10 +782,10 @@ func (m model) channels() []channel {
 			agents := groupedActiveAgents[key]
 			ordered := sortAgentsByStatus(agents)
 			for _, agent := range ordered {
-				channels = append(channels, channel{
+				channels = append(channels, SidebarItem{
 					ID:      agent.Name,
 					Name:    agent.Name,
-					Kind:    "agent",
+					Kind:    SidebarAgentRow,
 					Status:  agent.Status,
 					Level:   1,
 					Project: agent.Project,
@@ -796,10 +798,10 @@ func (m model) channels() []channel {
 			if len(archivedForProject) > 0 {
 				// Create archived_count channel ID as "archived:<project/branch>"
 				archivedCountID := "archived:" + key
-				channels = append(channels, channel{
+				channels = append(channels, SidebarItem{
 					ID:    archivedCountID,
 					Name:  fmt.Sprintf("%d archived", len(archivedForProject)),
-					Kind:  "archived_count",
+					Kind:  SidebarArchivedSection,
 					Level: 1,
 				})
 
@@ -807,10 +809,10 @@ func (m model) channels() []channel {
 				if m.isArchivedExpanded(key) {
 					ordered := sortArchivedAgents(archivedForProject)
 					for _, agent := range ordered {
-						channels = append(channels, channel{
+						channels = append(channels, SidebarItem{
 							ID:      agent.Name,
 							Name:    agent.Name,
-							Kind:    "agent",
+							Kind:    SidebarAgentRow,
 							Status:  agent.Status,
 							Level:   2,
 							Project: agent.Project,
@@ -873,9 +875,9 @@ func (m model) activeChannelLabel() string {
 	return m.activeChannelID
 }
 
-func (m model) renderChannelLine(ch channel, width int, cursor, active bool) string {
+func (m model) renderChannelLine(ch SidebarItem, width int, cursor, active bool) string {
 	// Separator renders as empty line
-	if ch.Kind == "separator" {
+	if ch.Kind == SidebarDivider {
 		return ""
 	}
 
@@ -898,14 +900,14 @@ func (m model) renderChannelLine(ch channel, width int, cursor, active bool) str
 
 	// For project headers and archived_count, add collapse/expand indicator
 	var headerIndicator string
-	if ch.Kind == "project_header" {
+	if ch.Kind == SidebarChannelHeader {
 		// Check if this project is expanded
 		if m.isProjectExpanded(ch.ID) {
 			headerIndicator = "▼ "
 		} else {
 			headerIndicator = "▶ "
 		}
-	} else if ch.Kind == "archived_count" {
+	} else if ch.Kind == SidebarArchivedSection {
 		// Extract project key from "archived:<project/branch>" ID
 		projectKey := strings.TrimPrefix(ch.ID, "archived:")
 		if m.isArchivedExpanded(projectKey) {
@@ -917,12 +919,12 @@ func (m model) renderChannelLine(ch channel, width int, cursor, active bool) str
 
 	label := ch.Name
 	labelWidth := availableWidth
-	if ch.Kind == "agent" {
+	if ch.Kind == SidebarAgentRow {
 		labelWidth = availableWidth - 2 // Account for "● " prefix
 		if labelWidth < 1 {
 			labelWidth = 1
 		}
-	} else if ch.Kind == "project_header" || ch.Kind == "archived_count" {
+	} else if ch.Kind == SidebarChannelHeader || ch.Kind == SidebarArchivedSection {
 		labelWidth = availableWidth - len(headerIndicator)
 		if labelWidth < 1 {
 			labelWidth = 1
@@ -935,12 +937,12 @@ func (m model) renderChannelLine(ch channel, width int, cursor, active bool) str
 	if active {
 		labelStyle = channelActiveStyle
 	}
-	if ch.Kind == "project_header" || ch.Kind == "archived_count" {
+	if ch.Kind == SidebarChannelHeader || ch.Kind == SidebarArchivedSection {
 		labelStyle = mutedStyle
 	}
 
 	// For agents, render indicator separately to preserve its color
-	if ch.Kind == "agent" {
+	if ch.Kind == SidebarAgentRow {
 		indicator, indicatorStyle := channelIndicator(ch)
 		// Indicator keeps its foreground color, but gets background if cursor
 		styledIndicator := bgStyle.Inherit(indicatorStyle).Render(indicator)
@@ -956,7 +958,7 @@ func (m model) renderChannelLine(ch channel, width int, cursor, active bool) str
 	}
 
 	// For project headers and archived_count with collapse/expand indicator
-	if ch.Kind == "project_header" || ch.Kind == "archived_count" {
+	if ch.Kind == SidebarChannelHeader || ch.Kind == SidebarArchivedSection {
 		styledHeaderIndicator := bgStyle.Inherit(labelStyle).Render(headerIndicator)
 		styledLabel := bgStyle.Inherit(labelStyle).Render(label)
 		usedWidth := indentWidth + len(headerIndicator) + len(label)
@@ -978,7 +980,7 @@ func (m model) renderChannelLine(ch channel, width int, cursor, active bool) str
 }
 
 func (m *model) moveCursor(delta int) tea.Cmd {
-	channels := m.channels()
+	channels := m.sidebarItems()
 	if len(channels) == 0 {
 		m.cursorIndex = 0
 		return nil
@@ -991,7 +993,7 @@ func (m *model) moveCursor(delta int) tea.Cmd {
 		m.cursorIndex = len(channels) - 1
 	}
 	// Skip separator channels
-	for m.cursorIndex >= 0 && m.cursorIndex < len(channels) && channels[m.cursorIndex].Kind == "separator" {
+	for m.cursorIndex >= 0 && m.cursorIndex < len(channels) && channels[m.cursorIndex].Kind == SidebarDivider {
 		m.cursorIndex += delta
 	}
 	// Clamp again after skipping
@@ -1007,15 +1009,15 @@ func (m *model) moveCursor(delta int) tea.Cmd {
 
 // activateSelection updates activeChannelID when cursor moves (no toggle)
 func (m *model) activateSelection() tea.Cmd {
-	channels := m.channels()
+	channels := m.sidebarItems()
 	if len(channels) == 0 || m.cursorIndex >= len(channels) {
 		return nil
 	}
 	selected := channels[m.cursorIndex]
-	if selected.Kind == "separator" {
+	if selected.Kind == SidebarDivider {
 		return nil
 	}
-	if selected.Kind == "project_header" {
+	if selected.Kind == SidebarChannelHeader {
 		// Just set activeChannelID (no toggle on cursor move)
 		// Note: Focus change happens only on click, not on keyboard nav
 		m.activeChannelID = selected.ID
@@ -1023,7 +1025,7 @@ func (m *model) activateSelection() tea.Cmd {
 		m.updateViewportContent()
 		return nil
 	}
-	if selected.Kind == "archived_count" {
+	if selected.Kind == SidebarArchivedSection {
 		// Don't change activeChannelID for archived count indicator
 		return nil
 	}
@@ -1037,7 +1039,7 @@ func (m *model) activateSelection() tea.Cmd {
 	// Update viewport content when switching channels
 	m.updateViewportContent()
 
-	if selected.Kind == "agent" {
+	if selected.Kind == SidebarAgentRow {
 		return fetchTranscriptsCmd(m.db, selected.ID, m.lastTranscriptIDs[selected.ID])
 	}
 	return nil
@@ -1045,18 +1047,18 @@ func (m *model) activateSelection() tea.Cmd {
 
 // toggleSelection toggles expand/collapse for headers (Enter/left/right)
 func (m *model) toggleSelection() tea.Cmd {
-	channels := m.channels()
+	channels := m.sidebarItems()
 	if len(channels) == 0 || m.cursorIndex >= len(channels) {
 		return nil
 	}
 	selected := channels[m.cursorIndex]
-	if selected.Kind == "archived_count" {
+	if selected.Kind == SidebarArchivedSection {
 		// Extract project key from "archived:<project/branch>" ID
 		projectKey := strings.TrimPrefix(selected.ID, "archived:")
 		m.archivedExpanded[projectKey] = !m.isArchivedExpanded(projectKey)
 		return nil
 	}
-	if selected.Kind == "project_header" {
+	if selected.Kind == SidebarChannelHeader {
 		m.projectExpanded[selected.ID] = !m.isProjectExpanded(selected.ID)
 		return nil
 	}
@@ -1066,36 +1068,36 @@ func (m *model) toggleSelection() tea.Cmd {
 
 // collapseSelection collapses the current header (left arrow)
 func (m *model) collapseSelection() {
-	channels := m.channels()
+	channels := m.sidebarItems()
 	if len(channels) == 0 || m.cursorIndex >= len(channels) {
 		return
 	}
 	selected := channels[m.cursorIndex]
-	if selected.Kind == "archived_count" {
+	if selected.Kind == SidebarArchivedSection {
 		projectKey := strings.TrimPrefix(selected.ID, "archived:")
 		m.archivedExpanded[projectKey] = false
-	} else if selected.Kind == "project_header" {
+	} else if selected.Kind == SidebarChannelHeader {
 		m.projectExpanded[selected.ID] = false
 	}
 }
 
 // expandSelection expands the current header (right arrow)
 func (m *model) expandSelection() {
-	channels := m.channels()
+	channels := m.sidebarItems()
 	if len(channels) == 0 || m.cursorIndex >= len(channels) {
 		return
 	}
 	selected := channels[m.cursorIndex]
-	if selected.Kind == "archived_count" {
+	if selected.Kind == SidebarArchivedSection {
 		projectKey := strings.TrimPrefix(selected.ID, "archived:")
 		m.archivedExpanded[projectKey] = true
-	} else if selected.Kind == "project_header" {
+	} else if selected.Kind == SidebarChannelHeader {
 		m.projectExpanded[selected.ID] = true
 	}
 }
 
 func (m *model) ensureSelection() {
-	channels := m.channels()
+	channels := m.sidebarItems()
 	if len(channels) == 0 {
 		m.cursorIndex = 0
 		m.activeChannelID = mainChannelID
@@ -1107,11 +1109,11 @@ func (m *model) ensureSelection() {
 		// Select the first valid channel (skip separators)
 		m.cursorIndex = 0
 		for i, ch := range channels {
-			if ch.Kind != "separator" {
+			if ch.Kind != SidebarDivider {
 				m.cursorIndex = i
 				m.activeChannelID = ch.ID
 				// If selecting a project header and focus is on messages panel, focus chat input
-				if ch.Kind == "project_header" && m.focusedPanel == panelMessages {
+				if ch.Kind == SidebarChannelHeader && m.focusedPanel == panelMessages {
 					m.chatInput.Focus()
 				}
 				break
@@ -1188,8 +1190,8 @@ func (m model) layout() (leftWidth, rightWidth, panelHeight, contentHeight int) 
 	return leftWidth, rightWidth, panelHeight, contentHeight
 }
 
-func channelIndicator(ch channel) (string, lipgloss.Style) {
-	if ch.Kind == "main" {
+func channelIndicator(ch SidebarItem) (string, lipgloss.Style) {
+	if ch.Kind == SidebarChannelHeader {
 		return "●", statusCompleteStyle
 	}
 	status := strings.ToLower(ch.Status)
@@ -1253,7 +1255,7 @@ func sortArchivedAgents(agents []repo.Agent) []repo.Agent {
 	return ordered
 }
 
-func channelExists(channels []channel, id string) bool {
+func channelExists(channels []SidebarItem, id string) bool {
 	for _, ch := range channels {
 		if ch.ID == id {
 			return true

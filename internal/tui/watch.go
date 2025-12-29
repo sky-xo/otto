@@ -23,7 +23,6 @@ import (
 
 const (
 	mainChannelID    = "main"
-	archivedChannelID = "__archived__"
 	channelListWidth = 20
 
 	// Panel focus indices (future-proof for 3-panel layout)
@@ -123,6 +122,18 @@ type channel struct {
 	Branch  string
 }
 
+// CommandRunner executes shell commands. Can be overridden for testing.
+type CommandRunner func(name string, args ...string) error
+
+// defaultCommandRunner executes commands using exec.Command
+func defaultCommandRunner(name string, args ...string) error {
+	cmd := exec.Command(name, args...)
+	cmd.Stdin = nil
+	cmd.Stdout = nil
+	cmd.Stderr = nil
+	return cmd.Start()
+}
+
 type model struct {
 	db                *sql.DB
 	messages          []repo.Message
@@ -134,14 +145,15 @@ type model struct {
 	height            int
 	cursorIndex       int
 	activeChannelID   string
-	archivedExpanded  bool
 	projectExpanded   map[string]bool // Tracks expanded/collapsed state for project/branch headers
+	archivedExpanded  map[string]bool // Tracks expanded/collapsed state for per-project archived sections
 	focusedPanel      int             // Panel index (panelAgents, panelMessages, etc.)
 	mouseX            int             // Mouse X position for hover detection
 	mouseY            int             // Mouse Y position for hover detection
 	err               error
 	viewport          viewport.Model
 	chatInput         textinput.Model // Text input for sending messages to @otto
+	runCommand        CommandRunner   // Injected command runner (for testing)
 }
 
 func NewModel(db *sql.DB) model {
@@ -158,11 +170,12 @@ func NewModel(db *sql.DB) model {
 		transcripts:       map[string][]repo.LogEntry{},
 		lastTranscriptIDs: map[string]string{},
 		activeChannelID:   mainChannelID,
-		archivedExpanded:  false,
 		projectExpanded:   map[string]bool{}, // Default: all projects expanded
+		archivedExpanded:  map[string]bool{}, // Default: all archived sections collapsed
 		focusedPanel:      panelMessages,      // Default to content panel
 		viewport:          vp,
 		chatInput:         ti,
+		runCommand:        defaultCommandRunner,
 	}
 }
 
@@ -299,8 +312,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.cursorIndex = clickedIndex
 					ch := channels[clickedIndex]
 
-					// Check if clicking on a caret (▼/▶) for project or archived headers
-					if ch.Kind == "project_header" || ch.Kind == "archived_header" {
+					// Check if clicking on a caret (▼/▶) for project or archived_count headers
+					if ch.Kind == "project_header" || ch.Kind == "archived_count" {
 						// Calculate caret X position based on level and border
 						// Border is at X=0, content starts at X=1
 						// Level 0: caret at X=1-2 (no indent)
@@ -708,15 +721,31 @@ func (m model) channels() []channel {
 	}
 
 	// Group active agents by project/branch
-	groupedAgents := make(map[string][]repo.Agent)
+	groupedActiveAgents := make(map[string][]repo.Agent)
 	for _, agent := range activeAgents {
 		key := projectBranchKey(agent.Project, agent.Branch)
-		groupedAgents[key] = append(groupedAgents[key], agent)
+		groupedActiveAgents[key] = append(groupedActiveAgents[key], agent)
 	}
 
-	// Sort group keys alphabetically
+	// Group archived agents by project/branch
+	groupedArchivedAgents := make(map[string][]repo.Agent)
+	for _, agent := range archivedAgents {
+		key := projectBranchKey(agent.Project, agent.Branch)
+		groupedArchivedAgents[key] = append(groupedArchivedAgents[key], agent)
+	}
+
+	// Get all unique project/branch keys (from both active and archived)
+	uniqueKeys := make(map[string]bool)
+	for key := range groupedActiveAgents {
+		uniqueKeys[key] = true
+	}
+	for key := range groupedArchivedAgents {
+		uniqueKeys[key] = true
+	}
+
+	// Sort keys alphabetically
 	var groupKeys []string
-	for key := range groupedAgents {
+	for key := range uniqueKeys {
 		groupKeys = append(groupKeys, key)
 	}
 	sort.Strings(groupKeys)
@@ -736,9 +765,9 @@ func (m model) channels() []channel {
 			Level: 0,
 		})
 
-		// Add agents under this header only if expanded
+		// Add active agents under this header only if expanded
 		if m.isProjectExpanded(key) {
-			agents := groupedAgents[key]
+			agents := groupedActiveAgents[key]
 			ordered := sortAgentsByStatus(agents)
 			for _, agent := range ordered {
 				channels = append(channels, channel{
@@ -751,47 +780,22 @@ func (m model) channels() []channel {
 					Branch:  agent.Branch,
 				})
 			}
-		}
-	}
 
-	// Archived section at the bottom, grouped by project/branch when expanded
-	if len(archivedAgents) > 0 {
-		// Add separator before archived section
-		channels = append(channels, channel{Kind: "separator"})
-		channels = append(channels, channel{
-			ID:   archivedChannelID,
-			Name: fmt.Sprintf("Archived (%d)", len(archivedAgents)),
-			Kind: "archived_header",
-		})
-		if m.archivedExpanded {
-			// Group archived agents by project/branch
-			groupedArchived := make(map[string][]repo.Agent)
-			for _, agent := range archivedAgents {
-				key := projectBranchKey(agent.Project, agent.Branch)
-				groupedArchived[key] = append(groupedArchived[key], agent)
-			}
-
-			// Sort group keys alphabetically
-			var archivedGroupKeys []string
-			for key := range groupedArchived {
-				archivedGroupKeys = append(archivedGroupKeys, key)
-			}
-			sort.Strings(archivedGroupKeys)
-
-			// Build channels with headers and grouped archived agents
-			for _, key := range archivedGroupKeys {
-				// Add project/branch header for archived section
+			// Add archived indicator for this project if there are archived agents
+			archivedForProject := groupedArchivedAgents[key]
+			if len(archivedForProject) > 0 {
+				// Create archived_count channel ID as "archived:<project/branch>"
+				archivedCountID := "archived:" + key
 				channels = append(channels, channel{
-					ID:    key,
-					Name:  key,
-					Kind:  "project_header",
+					ID:    archivedCountID,
+					Name:  fmt.Sprintf("%d archived", len(archivedForProject)),
+					Kind:  "archived_count",
 					Level: 1,
 				})
 
-				// Add archived agents under this header only if expanded
-				if m.isProjectExpanded(key) {
-					agents := groupedArchived[key]
-					ordered := sortArchivedAgents(agents)
+				// If this project's archived section is expanded, show the archived agents
+				if m.isArchivedExpanded(key) {
+					ordered := sortArchivedAgents(archivedForProject)
 					for _, agent := range ordered {
 						channels = append(channels, channel{
 							ID:      agent.Name,
@@ -807,6 +811,7 @@ func (m model) channels() []channel {
 			}
 		}
 	}
+
 	return channels
 }
 
@@ -841,6 +846,16 @@ func (m model) isProjectExpanded(key string) bool {
 	return expanded
 }
 
+// isArchivedExpanded checks if a project/branch archived section is expanded
+// Default is collapsed (false) if not explicitly set
+func (m model) isArchivedExpanded(key string) bool {
+	expanded, exists := m.archivedExpanded[key]
+	if !exists {
+		return false // Default to collapsed
+	}
+	return expanded
+}
+
 func (m model) activeChannelLabel() string {
 	if m.activeChannelID == mainChannelID {
 		return "Main"
@@ -871,16 +886,22 @@ func (m model) renderChannelLine(ch channel, width int, cursor, active bool) str
 		availableWidth = 1
 	}
 
-	// For project headers, add collapse/expand indicator
+	// For project headers and archived_count, add collapse/expand indicator
 	var headerIndicator string
-	if ch.Kind == "project_header" || ch.Kind == "archived_header" {
-		if ch.Kind == "project_header" {
-			// Check if this project is expanded
-			if m.isProjectExpanded(ch.ID) {
-				headerIndicator = "▼ "
-			} else {
-				headerIndicator = "▶ "
-			}
+	if ch.Kind == "project_header" {
+		// Check if this project is expanded
+		if m.isProjectExpanded(ch.ID) {
+			headerIndicator = "▼ "
+		} else {
+			headerIndicator = "▶ "
+		}
+	} else if ch.Kind == "archived_count" {
+		// Extract project key from "archived:<project/branch>" ID
+		projectKey := strings.TrimPrefix(ch.ID, "archived:")
+		if m.isArchivedExpanded(projectKey) {
+			headerIndicator = "▼ "
+		} else {
+			headerIndicator = "▶ "
 		}
 	}
 
@@ -891,7 +912,7 @@ func (m model) renderChannelLine(ch channel, width int, cursor, active bool) str
 		if labelWidth < 1 {
 			labelWidth = 1
 		}
-	} else if ch.Kind == "project_header" {
+	} else if ch.Kind == "project_header" || ch.Kind == "archived_count" {
 		labelWidth = availableWidth - len(headerIndicator)
 		if labelWidth < 1 {
 			labelWidth = 1
@@ -904,7 +925,7 @@ func (m model) renderChannelLine(ch channel, width int, cursor, active bool) str
 	if active {
 		labelStyle = channelActiveStyle
 	}
-	if ch.Kind == "archived_header" || ch.Kind == "project_header" {
+	if ch.Kind == "project_header" || ch.Kind == "archived_count" {
 		labelStyle = mutedStyle
 	}
 
@@ -924,8 +945,8 @@ func (m model) renderChannelLine(ch channel, width int, cursor, active bool) str
 		return styledIndent + styledIndicator + " " + styledLabel + padding
 	}
 
-	// For project headers with collapse/expand indicator
-	if ch.Kind == "project_header" {
+	// For project headers and archived_count with collapse/expand indicator
+	if ch.Kind == "project_header" || ch.Kind == "archived_count" {
 		styledHeaderIndicator := bgStyle.Inherit(labelStyle).Render(headerIndicator)
 		styledLabel := bgStyle.Inherit(labelStyle).Render(label)
 		usedWidth := indentWidth + len(headerIndicator) + len(label)
@@ -936,7 +957,7 @@ func (m model) renderChannelLine(ch channel, width int, cursor, active bool) str
 		return styledIndent + styledHeaderIndicator + styledLabel + padding
 	}
 
-	// For main and archived_header, apply background to entire line
+	// For other kinds, apply background to entire line
 	styledLabel := bgStyle.Inherit(labelStyle).Render(label)
 	usedWidth := indentWidth + len(label)
 	padding := ""
@@ -992,8 +1013,8 @@ func (m *model) activateSelection() tea.Cmd {
 		m.updateViewportContent()
 		return nil
 	}
-	if selected.Kind == "archived_header" {
-		// Don't change activeChannelID for archived header
+	if selected.Kind == "archived_count" {
+		// Don't change activeChannelID for archived count indicator
 		return nil
 	}
 	m.activeChannelID = selected.ID
@@ -1019,8 +1040,10 @@ func (m *model) toggleSelection() tea.Cmd {
 		return nil
 	}
 	selected := channels[m.cursorIndex]
-	if selected.Kind == "archived_header" {
-		m.archivedExpanded = !m.archivedExpanded
+	if selected.Kind == "archived_count" {
+		// Extract project key from "archived:<project/branch>" ID
+		projectKey := strings.TrimPrefix(selected.ID, "archived:")
+		m.archivedExpanded[projectKey] = !m.isArchivedExpanded(projectKey)
 		return nil
 	}
 	if selected.Kind == "project_header" {
@@ -1038,8 +1061,9 @@ func (m *model) collapseSelection() {
 		return
 	}
 	selected := channels[m.cursorIndex]
-	if selected.Kind == "archived_header" {
-		m.archivedExpanded = false
+	if selected.Kind == "archived_count" {
+		projectKey := strings.TrimPrefix(selected.ID, "archived:")
+		m.archivedExpanded[projectKey] = false
 	} else if selected.Kind == "project_header" {
 		m.projectExpanded[selected.ID] = false
 	}
@@ -1052,8 +1076,9 @@ func (m *model) expandSelection() {
 		return
 	}
 	selected := channels[m.cursorIndex]
-	if selected.Kind == "archived_header" {
-		m.archivedExpanded = true
+	if selected.Kind == "archived_count" {
+		projectKey := strings.TrimPrefix(selected.ID, "archived:")
+		m.archivedExpanded[projectKey] = true
 	} else if selected.Kind == "project_header" {
 		m.projectExpanded[selected.ID] = true
 	}
@@ -1518,23 +1543,16 @@ func (m *model) handleChatSubmit() tea.Cmd {
 		return func() tea.Msg { return err }
 	}
 
-	// Execute command in background (non-blocking)
-	var cmd *exec.Cmd
+	// Execute command in background (non-blocking) using injected runner
 	if action == "spawn" {
-		cmd = exec.Command(ottoBin, "spawn", "codex", message, "--name", "otto")
+		if err := m.runCommand(ottoBin, "spawn", "codex", message, "--name", "otto"); err != nil {
+			return func() tea.Msg { return err }
+		}
 	} else {
 		// action == "prompt"
-		cmd = exec.Command(ottoBin, "prompt", "otto", message)
-	}
-
-	// Detach from terminal - don't inherit stdin/stdout/stderr
-	cmd.Stdin = nil
-	cmd.Stdout = nil
-	cmd.Stderr = nil
-
-	// Start in background (non-blocking)
-	if err := cmd.Start(); err != nil {
-		return func() tea.Msg { return err }
+		if err := m.runCommand(ottoBin, "prompt", "otto", message); err != nil {
+			return func() tea.Msg { return err }
+		}
 	}
 
 	// Return a command to immediately fetch messages so the user message appears without delay

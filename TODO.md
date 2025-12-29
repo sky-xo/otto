@@ -35,15 +35,7 @@ Completed - see commits `727ef67`, `00d4d8e`, etc.
 - ✅ Phase 3: Message rendering (Slack-style) - COMPLETE
 - ✅ Phase 4: Polish (3 tasks) - COMPLETE
 
-### 3. Agent Chat in TUI ⬅️ NEXT
-
-**Why:** Currently only orchestrator chat works. This adds chat with individual agents.
-
-**Scope:**
-- When agent selected: show input, send via `otto prompt <agent>`
-- Builds on unified chat stream's keyboard model
-
-### 4. Daemon Wake-ups (Superorchestrator Core)
+### 3. Daemon Wake-ups (Superorchestrator Core) ⬅️ NEXT
 
 **Why:** This is what makes Otto an orchestrator vs just a spawner.
 
@@ -52,6 +44,14 @@ Completed - see commits `727ef67`, `00d4d8e`, etc.
 - On @mention: wake mentioned agent with context
 - On agent exit: notify orchestrator
 - After compaction: re-inject skills
+
+### 4. Agent Chat in TUI
+
+**Why:** Currently only orchestrator chat works. This adds chat with individual agents.
+
+**Scope:**
+- When agent selected: show input, send via `otto prompt <agent>`
+- Builds on unified chat stream's keyboard model
 
 ### 5. File Diffs in Agent Transcripts
 

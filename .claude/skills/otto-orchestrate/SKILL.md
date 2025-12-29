@@ -103,6 +103,27 @@ otto interrupt <agent>       # Pause agent (can resume later)
 otto archive <agent>         # Archive completed/failed agent
 ```
 
+## When to Archive
+
+**Don't archive during active work.** Keep agents around while:
+- Still working through a multi-step task
+- Reviewing results or debugging issues
+- Might need follow-up (`otto prompt` for fixes or clarification)
+
+**Archive when work is complete:**
+1. **User signals satisfaction** - "looks good", "ship it", "done", ready to push/merge
+2. **Starting unrelated work** - Before pivoting to a new task, clean up agents from the previous one
+
+```bash
+# After user approves the work and you're ready to commit/push:
+otto archive planner
+otto archive impl-1
+otto archive reviewer
+# ... archive all agents from this task
+```
+
+**Why this matters:** Archiving too early loses context you might need. Archiving too late clutters the agent list. Archive at natural boundaries when work is truly done.
+
 ## Agent Communication
 
 Spawned agents use these to communicate back:
@@ -129,8 +150,13 @@ bash_id: <id from step 1>
 # 4. If agent needs guidance, respond and wait again
 otto prompt task-1 "Use UUID for the ID field"
 
-# 5. Clean up when done
+# 5. Continue with more tasks, reviews, etc.
+# Keep agents around - you might need to reference or prompt them
+
+# 6. When user is satisfied and ready to push/merge:
 otto archive task-1
+otto archive reviewer
+# ... archive all agents from this work
 ```
 
 ## Scope Control

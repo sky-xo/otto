@@ -33,12 +33,6 @@ const (
 
 // Styling
 var (
-	panelTitleStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("6")).
-			Background(lipgloss.Color("0")).
-			Padding(0, 1)
-
 	messageStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("7"))
 
@@ -77,7 +71,76 @@ var (
 	unfocusedBorderStyle = lipgloss.NewStyle().
 				Border(lipgloss.RoundedBorder()).
 				BorderForeground(lipgloss.Color("8")) // Dim
+
+	focusedBorderColor   = lipgloss.Color("6") // Cyan
+	unfocusedBorderColor = lipgloss.Color("8") // Dim
 )
+
+// renderPanelWithTitle renders a panel with the title embedded in the top border
+// like: ╭─ Title ────────╮
+func renderPanelWithTitle(title, content string, width, height int, borderColor lipgloss.Color) string {
+	// Border characters (rounded)
+	topLeft := "╭"
+	topRight := "╮"
+	bottomLeft := "╰"
+	bottomRight := "╯"
+	horizontal := "─"
+	vertical := "│"
+
+	borderStyle := lipgloss.NewStyle().Foreground(borderColor)
+	titleStyle := lipgloss.NewStyle().Foreground(borderColor).Bold(true)
+
+	// Build top border with embedded title: ╭─ Title ─────╮
+	// Content width is width - 2 (for left and right borders)
+	contentWidth := width - 2
+	titleText := " " + title + " "
+	titleLen := len([]rune(titleText))
+
+	// Calculate dashes on each side of title
+	remainingWidth := contentWidth - titleLen
+	leftDashes := 1 // At least one dash after corner
+	rightDashes := remainingWidth - leftDashes
+	if rightDashes < 0 {
+		rightDashes = 0
+	}
+
+	topBorder := borderStyle.Render(topLeft+strings.Repeat(horizontal, leftDashes)) +
+		titleStyle.Render(titleText) +
+		borderStyle.Render(strings.Repeat(horizontal, rightDashes)+topRight)
+
+	// Build bottom border: ╰──────────────╯
+	bottomBorder := borderStyle.Render(bottomLeft + strings.Repeat(horizontal, contentWidth) + bottomRight)
+
+	// Split content into lines and pad/truncate to fit
+	lines := strings.Split(content, "\n")
+	contentLines := height - 2 // Subtract top and bottom borders
+	if contentLines < 0 {
+		contentLines = 0
+	}
+
+	// Render middle lines with side borders
+	var middleLines []string
+	for i := 0; i < contentLines; i++ {
+		var line string
+		if i < len(lines) {
+			line = lines[i]
+		}
+		// Pad line to content width (use lipgloss.Width for visual width, handles ANSI codes)
+		visualWidth := lipgloss.Width(line)
+		if visualWidth < contentWidth {
+			line = line + strings.Repeat(" ", contentWidth-visualWidth)
+		}
+		// Note: we don't truncate here since content is already rendered at correct width
+		middleLines = append(middleLines, borderStyle.Render(vertical)+line+borderStyle.Render(vertical))
+	}
+
+	// Join all parts
+	allLines := []string{topBorder}
+	allLines = append(allLines, middleLines...)
+	allLines = append(allLines, bottomBorder)
+
+	return strings.Join(allLines, "\n")
+}
 
 // usernameColor returns a consistent ANSI color for a given username
 // using hash-based selection from a palette, with special cases for key users
@@ -450,22 +513,20 @@ func (m model) View() string {
 
 	leftWidth, rightWidth, panelHeight, contentHeight := m.layout()
 
-	// Left panel: Channels
-	channelsTitle := panelTitleStyle.Width(leftWidth - 2).Render("Channels")
-	channelsContent := m.renderChannels(leftWidth, contentHeight)
-
-	leftBorderStyle := unfocusedBorderStyle
+	// Left panel: Channels (title embedded in border)
+	leftBorderColor := unfocusedBorderColor
 	if m.focusedPanel == panelAgents {
-		leftBorderStyle = focusedBorderStyle
+		leftBorderColor = focusedBorderColor
 	}
-	leftPanel := leftBorderStyle.
-		Width(leftWidth).
-		Height(panelHeight).
-		Render(channelsTitle + "\n" + channelsContent)
+	channelsContent := m.renderChannels(leftWidth-2, contentHeight)
+	leftPanel := renderPanelWithTitle("Channels", channelsContent, leftWidth, panelHeight, leftBorderColor)
 
-	// Right panel: Content using viewport
+	// Right panel: Content using viewport (title embedded in border)
+	rightBorderColor := unfocusedBorderColor
+	if m.focusedPanel == panelMessages {
+		rightBorderColor = focusedBorderColor
+	}
 	activeLabel := m.activeChannelLabel()
-	rightTitle := panelTitleStyle.Width(rightWidth - 2).Render(activeLabel)
 
 	// Build right panel content
 	var rightContent string
@@ -492,14 +553,7 @@ func (m model) View() string {
 		rightContent = m.viewport.View()
 	}
 
-	rightBorderStyle := unfocusedBorderStyle
-	if m.focusedPanel == panelMessages {
-		rightBorderStyle = focusedBorderStyle
-	}
-	rightPanel := rightBorderStyle.
-		Width(rightWidth).
-		Height(panelHeight).
-		Render(rightTitle + "\n" + rightContent)
+	rightPanel := renderPanelWithTitle(activeLabel, rightContent, rightWidth, panelHeight, rightBorderColor)
 
 	panels := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel)
 
@@ -1205,8 +1259,8 @@ func (m model) layout() (leftWidth, rightWidth, panelHeight, contentHeight int) 
 		leftWidth = availableWidth - rightWidth
 	}
 
-	// Content height inside panel (1 for title row)
-	contentHeight = panelHeight - 1
+	// Content height inside panel (2 for top/bottom borders, title is now in border)
+	contentHeight = panelHeight - 2
 	// If chat input is shown, reserve 1 line for it
 	if m.showChatInput() {
 		contentHeight = contentHeight - 1

@@ -140,9 +140,9 @@ func TestRenderChannelLineProjectHeader(t *testing.T) {
 		t.Errorf("expected expanded indicator (▼) for expanded header, got: %q", stripped)
 	}
 
-	// Verify length matches width (accounting for styling)
-	if len(stripped) != width {
-		t.Errorf("expected stripped length %d, got %d: %q", width, len(stripped), stripped)
+	// Verify display width matches expected width (use rune count, not byte length)
+	if len([]rune(stripped)) != width {
+		t.Errorf("expected stripped display width %d, got %d: %q", width, len([]rune(stripped)), stripped)
 	}
 
 	// Should NOT contain status indicator (●, ○, ✗)
@@ -201,8 +201,8 @@ func TestRenderChannelLineIndentedAgentWithCursor(t *testing.T) {
 	// The stripped output should be exactly width characters
 	// Note: lipgloss may not render ANSI codes in test environment (no TTY)
 	// so we just check the visual width matches
-	if len(stripped) < width {
-		t.Errorf("expected stripped length at least %d, got %d: %q", width, len(stripped), stripped)
+	if len([]rune(stripped)) < width {
+		t.Errorf("expected stripped display width at least %d, got %d: %q", width, len([]rune(stripped)), stripped)
 	}
 
 	// Render without cursor for comparison
@@ -238,9 +238,9 @@ func TestRenderChannelLineIndentedHeaderLevel1(t *testing.T) {
 		t.Errorf("expected 2-space indent for Level 1 header, got: %q", stripped)
 	}
 
-	// Verify length matches width
-	if len(stripped) != width {
-		t.Errorf("expected stripped length %d, got %d: %q", width, len(stripped), stripped)
+	// Verify display width matches expected width (use rune count, not byte length)
+	if len([]rune(stripped)) != width {
+		t.Errorf("expected stripped display width %d, got %d: %q", width, len([]rune(stripped)), stripped)
 	}
 }
 

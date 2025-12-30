@@ -23,7 +23,7 @@ import (
 
 const (
 	mainChannelID    = "main"
-	channelListWidth = 20
+	channelListWidth = 23
 
 	// Panel focus indices (future-proof for 3-panel layout)
 	panelAgents   = 0 // Left: channel/agent list
@@ -452,7 +452,7 @@ func (m model) View() string {
 
 	// Left panel: Channels
 	channelsTitle := panelTitleStyle.Width(leftWidth - 2).Render("Channels")
-	channelsContent := m.renderChannels(leftWidth-2, contentHeight)
+	channelsContent := m.renderChannels(leftWidth, contentHeight)
 
 	leftBorderStyle := unfocusedBorderStyle
 	if m.focusedPanel == panelAgents {
@@ -952,7 +952,7 @@ func (m model) renderChannelLine(ch SidebarItem, width int, cursor, active bool)
 			labelWidth = 1
 		}
 	} else if ch.Kind == SidebarChannelHeader || ch.Kind == SidebarArchivedSection {
-		labelWidth = availableWidth - len(headerIndicator)
+		labelWidth = availableWidth - len([]rune(headerIndicator))
 		if labelWidth < 1 {
 			labelWidth = 1
 		}
@@ -976,7 +976,7 @@ func (m model) renderChannelLine(ch SidebarItem, width int, cursor, active bool)
 		// Label gets background if cursor, keeps its style
 		styledLabel := bgStyle.Inherit(labelStyle).Render(label)
 		// Pad the remaining space with background
-		usedWidth := indentWidth + 2 + len(label) // indent + "● " + label
+		usedWidth := indentWidth + 2 + len([]rune(label)) // indent + "● " + label
 		padding := ""
 		if usedWidth < width {
 			padding = bgStyle.Render(strings.Repeat(" ", width-usedWidth))
@@ -988,7 +988,7 @@ func (m model) renderChannelLine(ch SidebarItem, width int, cursor, active bool)
 	if ch.Kind == SidebarChannelHeader || ch.Kind == SidebarArchivedSection {
 		styledHeaderIndicator := bgStyle.Inherit(labelStyle).Render(headerIndicator)
 		styledLabel := bgStyle.Inherit(labelStyle).Render(label)
-		usedWidth := indentWidth + len(headerIndicator) + len(label)
+		usedWidth := indentWidth + len([]rune(headerIndicator)) + len([]rune(label))
 		padding := ""
 		if usedWidth < width {
 			padding = bgStyle.Render(strings.Repeat(" ", width-usedWidth))
@@ -998,7 +998,7 @@ func (m model) renderChannelLine(ch SidebarItem, width int, cursor, active bool)
 
 	// For other kinds, apply background to entire line
 	styledLabel := bgStyle.Inherit(labelStyle).Render(label)
-	usedWidth := indentWidth + len(label)
+	usedWidth := indentWidth + len([]rune(label))
 	padding := ""
 	if usedWidth < width {
 		padding = bgStyle.Render(strings.Repeat(" ", width-usedWidth))
@@ -1352,10 +1352,10 @@ func truncateString(s string, max int) string {
 	if len(runes) <= max {
 		return s
 	}
-	if max <= 3 {
+	if max <= 1 {
 		return string(runes[:max])
 	}
-	return string(runes[:max-3]) + "..."
+	return string(runes[:max-1]) + "…"
 }
 
 // wrapText wraps text to fit within the specified width, breaking on word boundaries

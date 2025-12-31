@@ -92,45 +92,89 @@ func TestIsOttoBusy(t *testing.T) {
 	}
 }
 
+// createTestDBWithAgents creates an in-memory database with agents table and optional agents
+func createTestDBWithAgents(t *testing.T, agents []repo.Agent) *sql.DB {
+	t.Helper()
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatalf("failed to open database: %v", err)
+	}
+
+	// Create agents table schema
+	agentsSchemaSQL := `
+		CREATE TABLE IF NOT EXISTS agents (
+			project TEXT NOT NULL,
+			branch TEXT NOT NULL,
+			name TEXT NOT NULL,
+			type TEXT NOT NULL,
+			task TEXT NOT NULL,
+			status TEXT NOT NULL,
+			session_id TEXT,
+			pid INTEGER,
+			compacted_at DATETIME,
+			last_seen_message_id TEXT,
+			peek_cursor TEXT,
+			completed_at DATETIME,
+			archived_at DATETIME,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			id TEXT,
+			PRIMARY KEY (project, branch, name)
+		);
+	`
+	if _, err := db.Exec(agentsSchemaSQL); err != nil {
+		t.Fatalf("failed to create agents schema: %v", err)
+	}
+
+	// Insert agents
+	for _, agent := range agents {
+		if err := repo.CreateAgent(db, agent); err != nil {
+			t.Fatalf("failed to create agent %s: %v", agent.Name, err)
+		}
+	}
+
+	return db
+}
+
 func TestGetChatSubmitAction(t *testing.T) {
 	tests := []struct {
 		name           string
-		agents         []repo.Agent
+		dbAgents       []repo.Agent // Agents in the database
 		project        string
 		branch         string
 		expectedAction string // "none", "spawn", "prompt"
 	}{
 		{
 			name:           "otto is busy - no action",
-			agents:         []repo.Agent{{Project: "p", Branch: "b", Name: "otto", Status: "busy"}},
+			dbAgents:       []repo.Agent{{Project: "p", Branch: "b", Name: "otto", Type: "codex", Task: "test", Status: "busy"}},
 			project:        "p",
 			branch:         "b",
 			expectedAction: "none",
 		},
 		{
 			name:           "otto complete - prompt",
-			agents:         []repo.Agent{{Project: "p", Branch: "b", Name: "otto", Status: "complete"}},
+			dbAgents:       []repo.Agent{{Project: "p", Branch: "b", Name: "otto", Type: "codex", Task: "test", Status: "complete"}},
 			project:        "p",
 			branch:         "b",
 			expectedAction: "prompt",
 		},
 		{
 			name:           "otto failed - prompt",
-			agents:         []repo.Agent{{Project: "p", Branch: "b", Name: "otto", Status: "failed"}},
+			dbAgents:       []repo.Agent{{Project: "p", Branch: "b", Name: "otto", Type: "codex", Task: "test", Status: "failed"}},
 			project:        "p",
 			branch:         "b",
 			expectedAction: "prompt",
 		},
 		{
 			name:           "no otto - spawn",
-			agents:         []repo.Agent{{Project: "p", Branch: "b", Name: "impl-1", Status: "busy"}},
+			dbAgents:       []repo.Agent{{Project: "p", Branch: "b", Name: "impl-1", Type: "codex", Task: "test", Status: "busy"}},
 			project:        "p",
 			branch:         "b",
 			expectedAction: "spawn",
 		},
 		{
 			name:           "no agents - spawn",
-			agents:         []repo.Agent{},
+			dbAgents:       []repo.Agent{},
 			project:        "p",
 			branch:         "b",
 			expectedAction: "spawn",
@@ -139,14 +183,45 @@ func TestGetChatSubmitAction(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := NewModel(nil)
-			m.agents = tt.agents
+			db := createTestDBWithAgents(t, tt.dbAgents)
+			defer db.Close()
+
+			m := NewModel(db)
+			// Note: m.agents is intentionally left empty to simulate the race condition
+			// where the TUI hasn't fetched agents yet. getChatSubmitAction should
+			// query the DB directly, so this should still work correctly.
 
 			action := m.getChatSubmitAction(tt.project, tt.branch)
 			if action != tt.expectedAction {
 				t.Errorf("expected action %q, got %q", tt.expectedAction, action)
 			}
 		})
+	}
+}
+
+// TestGetChatSubmitActionRaceCondition verifies the fix for the race condition bug
+// where the TUI's cached m.agents is empty but otto exists in the database.
+// Before the fix, this would incorrectly return "spawn" and create "otto-2".
+// After the fix, it correctly queries the DB and returns "prompt".
+func TestGetChatSubmitActionRaceCondition(t *testing.T) {
+	// Create database with an existing otto agent
+	db := createTestDBWithAgents(t, []repo.Agent{
+		{Project: "otto", Branch: "main", Name: "otto", Type: "codex", Task: "initial task", Status: "complete"},
+	})
+	defer db.Close()
+
+	// Create model with the database but EMPTY m.agents slice
+	// This simulates the race condition: user submits before fetchAgentsCmd completes
+	m := NewModel(db)
+	m.agents = []repo.Agent{} // Explicitly empty - simulates stale/uninitialized cache
+
+	// Without the fix, this would check m.agents (empty), find no otto, and return "spawn"
+	// With the fix, this queries the DB directly, finds otto, and returns "prompt"
+	action := m.getChatSubmitAction("otto", "main")
+
+	if action != "prompt" {
+		t.Errorf("Race condition bug! Expected 'prompt' (otto exists in DB), got %q. "+
+			"This would incorrectly spawn 'otto-2' instead of prompting existing 'otto'.", action)
 	}
 }
 

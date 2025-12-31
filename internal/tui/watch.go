@@ -1609,8 +1609,8 @@ func (m model) showChatInput() bool {
 	return isProjectHeader(m.activeChannelID)
 }
 
-// getOttoAgent finds the @otto agent for the given project/branch
-// Returns nil if not found
+// getOttoAgent finds the @otto agent for the given project/branch from the in-memory cache
+// Returns nil if not found. Used for rendering (where stale data is acceptable).
 func (m model) getOttoAgent(project, branch string) *repo.Agent {
 	for i := range m.agents {
 		agent := &m.agents[i]
@@ -1619,6 +1619,19 @@ func (m model) getOttoAgent(project, branch string) *repo.Agent {
 		}
 	}
 	return nil
+}
+
+// getOttoAgentFromDB queries the database directly for the @otto agent
+// Returns nil if not found or if db is nil. Used for actions where fresh data is critical.
+func (m model) getOttoAgentFromDB(project, branch string) *repo.Agent {
+	if m.db == nil {
+		return nil
+	}
+	agent, err := repo.GetAgent(m.db, project, branch, "otto")
+	if err != nil {
+		return nil
+	}
+	return &agent
 }
 
 // isOttoBusy checks if @otto exists and is busy for the given project/branch
@@ -1632,8 +1645,9 @@ func (m model) isOttoBusy(project, branch string) bool {
 
 // getChatSubmitAction determines what action to take when user submits a message
 // Returns: "none" (otto is busy), "spawn" (no otto exists), "prompt" (otto exists and is finished)
+// Uses direct DB query to avoid race condition where m.agents is stale/empty at TUI startup.
 func (m model) getChatSubmitAction(project, branch string) string {
-	otto := m.getOttoAgent(project, branch)
+	otto := m.getOttoAgentFromDB(project, branch)
 	if otto == nil {
 		return "spawn"
 	}

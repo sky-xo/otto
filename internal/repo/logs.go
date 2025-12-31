@@ -131,7 +131,7 @@ func CountLogs(db *sql.DB, project, branch, agentName string) (int, error) {
 // These are the actual conversational responses from the agent.
 // Used to surface otto's responses to the main chat view.
 func ListAgentMessages(db *sql.DB, project, branch, agentName, sinceID string) ([]LogEntry, error) {
-	query := `SELECT id, project, branch, agent_name, agent_type, event_type, tool_name, content, raw_json, command, exit_code, status, tool_use_id, created_at
+	query := `SELECT id, project, branch, agent_name, agent_type, event_type, tool_name, content, raw_json, command, exit_code, status, tool_use_id, strftime('%Y-%m-%d %H:%M:%S', created_at)
 		FROM logs
 		WHERE project = ? AND branch = ? AND agent_name = ? AND event_type = 'agent_message'`
 	args := []interface{}{project, branch, agentName}

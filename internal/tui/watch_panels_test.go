@@ -49,7 +49,7 @@ func TestViewportHeightUpdatesWhenChatInputShows(t *testing.T) {
 		t.Fatal("expected chat input to be shown for project header")
 	}
 
-	// Calculate new layout dimensions - contentHeight should be 1 less
+	// Calculate new layout dimensions - contentHeight should be 1 less (for input line)
 	_, _, _, newContentHeight := m.layout()
 
 	// When chat input is shown, contentHeight should be 1 line smaller
@@ -160,7 +160,7 @@ func TestProjectHeaderClickFocusesChatInput(t *testing.T) {
 	// X=10 is past the caret area (which is X=1-2 for Level 0)
 	mouseMsg := tea.MouseMsg{
 		X:      10,
-		Y:      headerIndex + 2, // +2 for border + title
+		Y:      headerIndex + 1, // +1 for border (title is now embedded in border)
 		Button: tea.MouseButtonLeft,
 		Action: tea.MouseActionRelease,
 	}
@@ -212,10 +212,10 @@ func TestCaretClickTogglesExpand(t *testing.T) {
 	// which just sets activeChannelID, doesn't toggle expand/collapse
 	// FIX: When clicking on caret area, should call toggleSelection() instead
 
-	// Simulate mouse click at caret position (X=1, Y is headerIndex+2 for border+title)
+	// Simulate mouse click at caret position (X=1, Y is headerIndex+1 for border, title is in border)
 	mouseMsg := tea.MouseMsg{
 		X:      1,
-		Y:      headerIndex + 2,
+		Y:      headerIndex + 1,
 		Button: tea.MouseButtonLeft,
 		Action: tea.MouseActionRelease,
 	}

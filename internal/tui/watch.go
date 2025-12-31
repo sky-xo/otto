@@ -90,23 +90,30 @@ func renderPanelWithTitle(title, content string, width, height int, borderColor 
 	borderStyle := lipgloss.NewStyle().Foreground(borderColor)
 	titleStyle := lipgloss.NewStyle().Foreground(borderColor).Bold(true)
 
-	// Build top border with embedded title: ╭─ Title ─────╮
+	// Build top border with embedded title: ╭─ Title ─────╮ or just ╭────────╮ if no title
 	// Content width is width - 2 (for left and right borders)
 	contentWidth := width - 2
-	titleText := " " + title + " "
-	titleLen := len([]rune(titleText))
 
-	// Calculate dashes on each side of title
-	remainingWidth := contentWidth - titleLen
-	leftDashes := 1 // At least one dash after corner
-	rightDashes := remainingWidth - leftDashes
-	if rightDashes < 0 {
-		rightDashes = 0
+	var topBorder string
+	if title == "" {
+		// No title - just a plain border
+		topBorder = borderStyle.Render(topLeft + strings.Repeat(horizontal, contentWidth) + topRight)
+	} else {
+		titleText := " " + title + " "
+		titleLen := len([]rune(titleText))
+
+		// Calculate dashes on each side of title
+		remainingWidth := contentWidth - titleLen
+		leftDashes := 1 // At least one dash after corner
+		rightDashes := remainingWidth - leftDashes
+		if rightDashes < 0 {
+			rightDashes = 0
+		}
+
+		topBorder = borderStyle.Render(topLeft+strings.Repeat(horizontal, leftDashes)) +
+			titleStyle.Render(titleText) +
+			borderStyle.Render(strings.Repeat(horizontal, rightDashes)+topRight)
 	}
-
-	topBorder := borderStyle.Render(topLeft+strings.Repeat(horizontal, leftDashes)) +
-		titleStyle.Render(titleText) +
-		borderStyle.Render(strings.Repeat(horizontal, rightDashes)+topRight)
 
 	// Build bottom border: ╰──────────────╯
 	bottomBorder := borderStyle.Render(bottomLeft + strings.Repeat(horizontal, contentWidth) + bottomRight)
@@ -125,12 +132,22 @@ func renderPanelWithTitle(title, content string, width, height int, borderColor 
 		if i < len(lines) {
 			line = lines[i]
 		}
-		// Pad line to content width (use lipgloss.Width for visual width, handles ANSI codes)
+		// Adjust line to exact content width (use lipgloss.Width for visual width, handles ANSI codes)
 		visualWidth := lipgloss.Width(line)
 		if visualWidth < contentWidth {
 			line = line + strings.Repeat(" ", contentWidth-visualWidth)
+		} else if visualWidth > contentWidth {
+			// Truncate line to fit (simple rune truncation, may break ANSI codes but prevents overflow)
+			runes := []rune(line)
+			for len(runes) > 0 && lipgloss.Width(string(runes)) > contentWidth {
+				runes = runes[:len(runes)-1]
+			}
+			line = string(runes)
+			// Pad if truncation left us short
+			if lipgloss.Width(line) < contentWidth {
+				line = line + strings.Repeat(" ", contentWidth-lipgloss.Width(line))
+			}
 		}
-		// Note: we don't truncate here since content is already rendered at correct width
 		middleLines = append(middleLines, borderStyle.Render(vertical)+line+borderStyle.Render(vertical))
 	}
 
@@ -227,6 +244,7 @@ func defaultCommandRunner(name string, args ...string) error {
 type model struct {
 	db                *sql.DB
 	messages          []repo.Message
+	messagesProject   string // Tracks which project/branch messages are loaded for
 	agents            []repo.Agent
 	transcripts       map[string][]repo.LogEntry
 	lastMessageID     string
@@ -253,9 +271,13 @@ func NewModel(db *sql.DB) model {
 	ti.CharLimit = 500
 	ti.Width = 50
 
+	// Initialize with current git context for message tracking
+	ctx := scope.CurrentContext()
+
 	return model{
 		db:                db,
 		messages:          []repo.Message{},
+		messagesProject:   ctx.Project + "/" + ctx.Branch,
 		agents:            []repo.Agent{},
 		transcripts:       map[string][]repo.LogEntry{},
 		lastTranscriptIDs: map[string]string{},
@@ -395,8 +417,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.chatInput.Blur()
 
 				// Calculate which agent was clicked based on msg.Y
-				// Subtract 2 for border + title row
-				clickedIndex := msg.Y - 2
+				// Subtract 1 for top border (title is now embedded in border)
+				clickedIndex := msg.Y - 1
 				channels := m.sidebarItems()
 				if clickedIndex >= 0 && clickedIndex < len(channels) {
 					m.cursorIndex = clickedIndex
@@ -513,13 +535,13 @@ func (m model) View() string {
 
 	leftWidth, rightWidth, panelHeight, contentHeight := m.layout()
 
-	// Left panel: Channels (title embedded in border)
+	// Left panel: no title (just border)
 	leftBorderColor := unfocusedBorderColor
 	if m.focusedPanel == panelAgents {
 		leftBorderColor = focusedBorderColor
 	}
 	channelsContent := m.renderChannels(leftWidth-2, contentHeight)
-	leftPanel := renderPanelWithTitle("Channels", channelsContent, leftWidth, panelHeight, leftBorderColor)
+	leftPanel := renderPanelWithTitle("", channelsContent, leftWidth, panelHeight, leftBorderColor)
 
 	// Right panel: Content using viewport (title embedded in border)
 	rightBorderColor := unfocusedBorderColor
@@ -1101,9 +1123,24 @@ func (m *model) activateSelection() tea.Cmd {
 	if selected.Kind == SidebarChannelHeader {
 		// Just set activeChannelID (no toggle on cursor move)
 		// Note: Focus change happens only on click, not on keyboard nav
+		oldChannel := m.activeChannelID
 		m.activeChannelID = selected.ID
+
+		// Clear messages if switching to a different project
+		if m.messagesProject != selected.ID {
+			m.messages = nil
+			m.lastMessageID = ""
+			m.messagesProject = selected.ID
+		}
+
 		m.updateViewportDimensions() // Update dimensions when showing/hiding chat input
 		m.updateViewportContent()
+
+		// If switching projects, trigger immediate message fetch
+		if oldChannel != selected.ID {
+			project, branch := parseProjectBranch(selected.ID)
+			return fetchMessagesCmd(m.db, project, branch, "")
+		}
 		return nil
 	}
 	if selected.Kind == SidebarArchivedSection {
@@ -1222,6 +1259,12 @@ func (m *model) updateViewportContent() {
 		// Show agent transcript for individual agents
 		lines := m.transcriptContentLines(m.activeChannelID, contentWidth)
 		content = strings.Join(lines, "\n")
+	}
+
+	// Add blank line at end of content when chat input is shown
+	// This creates visual separation when scrolled to bottom
+	if m.showChatInput() {
+		content = content + "\n"
 	}
 
 	m.viewport.SetContent(content)

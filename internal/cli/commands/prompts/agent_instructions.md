@@ -2,7 +2,7 @@
 
 1. **ALWAYS run `otto complete` when done** - The orchestrator needs to know you finished
 2. **NEVER exit silently** - If something fails, use `otto ask` to report the issue
-3. Your stdout is captured - work naturally, the orchestrator can see your progress
+3. **Your stdout is automatically captured** - Work naturally, your responses are surfaced to the orchestrator in real-time
 
 ---
 
@@ -20,8 +20,9 @@ This sets your status to WAITING. The orchestrator will respond.
 
 ### When your task is complete - mark it done
 ```
-{{.OttoBin}} complete --id {{.AgentID}} "summary of what was accomplished"
+{{.OttoBin}} complete --id {{.AgentID}}
 ```
+This marks your task as complete. Your responses have already been captured from stdout.
 DO NOT EXIT without running this command.
 
 ### Optional: Post progress updates

@@ -32,10 +32,10 @@ The core viewer is working. See `docs/plans/2026-01-01-subagent-viewer-mvp.md` f
 - [x] Summary line (`└ Added N lines`)
 - [x] Header format: `Update(path)` instead of `Edit: path`
 
-### Batch 2: Context and hunks
-- [ ] Context lines - show unchanged surrounding lines (dimmed)
-- [ ] Proper line-by-line diffing to identify changed vs unchanged
-- [ ] Hunks - group changes with `...` between sections
+### Batch 2: Context and hunks ✓
+- [x] Context lines - show unchanged surrounding lines (dimmed)
+- [x] Proper line-by-line diffing to identify changed vs unchanged
+- [x] Hunks - group changes with `...` between sections
 
 ### Batch 3: Syntax highlighting
 - [ ] Syntax highlighting for code in diffs (consider chroma library)
@@ -44,6 +44,7 @@ The core viewer is working. See `docs/plans/2026-01-01-subagent-viewer-mvp.md` f
 
 - **Agent naming** - Extract task description from first user message
 - **Selection mode** - Click and drag in content area to select text for copy/paste
+- **TodoWrite details** - Show todo items/count instead of just "TodoWrite"
 - ~~**Show tool details**~~ - ✓ Done (Bash shows description + command, Edit shows diffs)
 
 ## Docs

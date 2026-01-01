@@ -1,18 +1,8 @@
 # Subagent Viewer MVP
 
-**Status:** In Progress
+**Status:** Ready for Implementation
 **Date:** 2025-01-01
 **Branch:** `june`
-
-## Progress
-
-- [x] Decided on single app approach (viewer + future spawner in one binary)
-- [x] Renamed project: otto → june (for voice dictation compatibility)
-- [x] Preserved old orchestration experiment in `otto-v0` branch
-- [ ] Gut TUI to remove unneeded features
-- [ ] Write Claude Code file parser (`internal/claude/`)
-- [ ] Wire up new data source
-- [ ] Test with real subagent sessions
 
 ## Goal
 
@@ -29,36 +19,51 @@ When Claude Code spawns subagents via the Task tool, they run in the background.
 
 ## Discovery
 
-Claude Code already logs everything we need:
+Claude Code logs everything we need:
 
 ```
 ~/.claude/projects/{project-path}/
 ├── {session-id}.jsonl          # Main session transcript
 ├── agent-{agent-id}.jsonl      # Subagent transcript (full conversation)
-├── agent-{agent-id}.jsonl      # Another subagent
 └── ...
 ```
 
-Each `agent-*.jsonl` file contains the full subagent conversation in the same format as main sessions:
+Each `agent-*.jsonl` file contains the full subagent conversation:
 - User/assistant messages
 - Tool calls (Read, Edit, Bash, etc.)
 - Tool results
-- Thinking blocks
+- Model info, timestamps
+
+**Verified structure:**
+```json
+{
+  "type": "user" | "assistant",
+  "message": {
+    "role": "...",
+    "content": [...],
+    "stop_reason": "tool_use" | null
+  },
+  "agentId": "abc123",
+  "sessionId": "parent-session-uuid",
+  "timestamp": "2025-01-01T12:00:00.000Z"
+}
+```
 
 ## MVP Scope
 
 **In scope:**
-- Watch `~/.claude/projects/{current-project}/` for agent files
-- List all subagents in left panel
-- Show selected subagent's transcript in right panel
+- Watch `~/.claude/projects/{current-project}/agent-*.jsonl` for changes
+- List agents in left panel, sorted by most recently modified
+- Show selected agent's transcript in right panel
 - Auto-refresh as new content appears
+- Active indicator based on file modification time
 
-**Out of scope (for now):**
+**Out of scope:**
+- Multi-project view (single project only, detected from cwd)
 - Prompting/interacting with agents
 - Task list / flow tracking
-- Cross-project visibility
 - Spawning agents
-- Any orchestration
+- State persistence (future feature)
 
 ## UI
 
@@ -81,9 +86,26 @@ Each `agent-*.jsonl` file contains the full subagent conversation in the same fo
 └──────────────┴──────────────────────────────────────────┘
 ```
 
-**Status indicators:**
-- `●` - agent file still being written to (active)
-- `✓` - agent file not modified recently (done)
+**Indicators:**
+- `●` green - file modified in last 10 seconds (active)
+- `✓` gray - file not modified recently (done)
+
+**Sorting:** Most recently modified at top.
+
+## Active Detection
+
+**Approach:** File modification time heuristic.
+
+```
+mtime within 10s → active
+mtime older      → done
+```
+
+**Limitation:** During long "thinking" periods (10-30s), file doesn't update. Agent may briefly show as "done" then flip back to "active" when response completes.
+
+**Why this is okay for MVP:** Simple to implement, correct most of the time, can refine later.
+
+**Alternative considered:** Parse last entry for completion patterns. More complex, may not be more accurate.
 
 ## Data Model
 
@@ -92,61 +114,66 @@ type Subagent struct {
     ID        string    // From filename: agent-{id}.jsonl
     FilePath  string    // Full path to jsonl file
     LastMod   time.Time // File modification time
-    IsActive  bool      // Modified in last N seconds
+    IsActive  bool      // Modified in last 10 seconds
 }
 
 type TranscriptEntry struct {
     Type      string    // "user", "assistant"
-    Content   []ContentBlock
+    Message   Message   // Contains role, content, stop_reason
+    AgentID   string
     Timestamp time.Time
-    // ... other fields from jsonl
 }
 ```
 
 ## Implementation Approach
 
-**Bootstrap from June's existing TUI:**
-- Keep: Bubbletea structure, panel layout, transcript rendering
-- Remove: SQLite, messaging, spawning, most CLI commands
-- Change: Data source from June DB → Claude Code jsonl files
+**Bootstrap from existing June TUI:**
+- Keep: Bubbletea structure, panel layout, basic rendering
+- Remove: SQLite, messaging, spawning, project grouping, most CLI commands
+- Change: Data source from DB → file watching
 
-**Key changes:**
+**New package:** `internal/claude/`
+- `projects.go` - Find Claude projects directory, map git root to project path
+- `agents.go` - Scan for agent files, watch for changes
+- `transcript.go` - Parse JSONL format
+
+**Key changes to TUI:**
 1. Replace `fetchAgentsCmd` → scan for `agent-*.jsonl` files
-2. Replace `fetchTranscriptsCmd` → parse jsonl file
+2. Replace `fetchTranscriptsCmd` → parse JSONL file
 3. Remove chat input (read-only for MVP)
-4. Simplify left panel (just agent list, no projects/channels)
+4. Simplify left panel (just agent list, no project headers)
 
-## File Structure
+## Project Path Mapping
 
+Claude Code stores projects at:
 ```
-cmd/june/main.go           # Entry point (simplified)
-internal/
-  claude/                  # NEW: Claude Code file parsing
-    projects.go            # Find project directory
-    agents.go              # Scan for agent files
-    transcript.go          # Parse jsonl format
-  tui/
-    watch.go               # Simplified TUI (keep structure)
-    ...
+~/.claude/projects/{path-with-dashes}/
 ```
 
-## Key Decisions
+Where `{path-with-dashes}` is the absolute path with `/` replaced by `-`.
 
-1. **Single app, not two** - June will be both viewer and (later) multi-model spawner. Internally separated but one binary.
+Example:
+```
+/Users/glowy/code/otto → -Users-glowy-code-otto
+```
 
-2. **Future: Codex/Gemini spawning** - June will later add `june spawn codex` for multi-model orchestration. Viewer-only for MVP.
+## Open Questions (Deferred)
 
-3. **Superpowers plugin separate** - Problems 1-3 (skill amnesia, state amnesia, context cliff) will be addressed by a separate superpowers plugin, not June.
-
-## Open Questions
-
-- How to detect "active" vs "done"? File modification time? Parse for completion message?
-- Should we watch all projects or just current git project?
 - How to handle very long transcripts? (Pagination? Lazy loading?)
+- Should we show agent task/prompt in sidebar? (Need to parse first user message)
 
-## Next Steps
+## Future: State Persistence
 
-1. Gut June's TUI to remove unneeded features (SQLite, messaging, spawning)
-2. Write the Claude Code file parser (`internal/claude/`)
-3. Wire up new data source
-4. Test with real subagent sessions
+After MVP, June will add CLI commands for persisting task state:
+- `june task add/complete` - Track progress across context clears
+- `june checkpoint` - Save freeform state
+
+The viewer would then show this persisted state alongside agent activity.
+
+## Future: Multi-Model Spawning
+
+Eventually, June will support spawning non-Claude agents:
+- `june spawn codex "review this PR"`
+- `june spawn gemini "implement this UI"`
+
+But that's post-MVP.

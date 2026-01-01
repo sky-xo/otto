@@ -474,7 +474,11 @@ func (m Model) View() string {
 	// Right panel: transcript
 	var rightTitle string
 	if agent := m.SelectedAgent(); agent != nil {
-		rightTitle = fmt.Sprintf("%s | %s", agent.ID, formatTimestamp(agent.LastMod))
+		if agent.Description != "" {
+			rightTitle = fmt.Sprintf("%s (%s) | %s", agent.Description, agent.ID, formatTimestamp(agent.LastMod))
+		} else {
+			rightTitle = fmt.Sprintf("%s | %s", agent.ID, formatTimestamp(agent.LastMod))
+		}
 	}
 	rightPanel := renderPanelWithTitle(rightTitle, m.viewport.View(), rightWidth, panelHeight, rightBorderColor)
 

@@ -785,3 +785,46 @@ func TestRenderSidebarShowsDescription(t *testing.T) {
 		t.Errorf("expected sidebar to contain agent ID when no description, got: %s", content)
 	}
 }
+
+func TestViewShowsDescriptionAndIDInRightPanel(t *testing.T) {
+	m := Model{
+		agents: []claude.Agent{
+			{ID: "abc12345", Description: "Fix login bug", FilePath: "/tmp/test.jsonl"},
+		},
+		selectedIdx: 0,
+		width:       80,
+		height:      24,
+	}
+
+	view := m.View()
+
+	// Should show "Description (ID) | timestamp" format
+	if !strings.Contains(view, "Fix login bug") {
+		t.Errorf("expected description in right panel, got: %s", view)
+	}
+	if !strings.Contains(view, "(abc12345)") {
+		t.Errorf("expected ID in parentheses in right panel, got: %s", view)
+	}
+}
+
+func TestViewShowsOnlyIDWhenNoDescription(t *testing.T) {
+	m := Model{
+		agents: []claude.Agent{
+			{ID: "abc12345", Description: "", FilePath: "/tmp/test.jsonl"},
+		},
+		selectedIdx: 0,
+		width:       80,
+		height:      24,
+	}
+
+	view := m.View()
+
+	// Should fall back to just ID when no description
+	if !strings.Contains(view, "abc12345") {
+		t.Errorf("expected agent ID in right panel, got: %s", view)
+	}
+	// Should NOT have empty parentheses
+	if strings.Contains(view, "()") {
+		t.Errorf("should not show empty parentheses when no description, got: %s", view)
+	}
+}

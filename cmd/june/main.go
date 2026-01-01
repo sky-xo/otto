@@ -1,6 +1,6 @@
 package main
 
-import "otto/internal/cli"
+import "june/internal/cli"
 
 func main() {
 	cli.Execute()

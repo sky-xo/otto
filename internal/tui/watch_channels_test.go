@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"otto/internal/repo"
+	"june/internal/repo"
 )
 
 func TestChannelOrdering(t *testing.T) {
@@ -176,8 +176,8 @@ func TestArchivedEnterTogglesExpanded(t *testing.T) {
 func TestChannelsGroupByProjectBranch(t *testing.T) {
 	m := NewModel(nil)
 	m.agents = []repo.Agent{
-		{Project: "otto", Branch: "main", Name: "impl-1", Status: "busy"},
-		{Project: "otto", Branch: "main", Name: "reviewer", Status: "blocked"},
+		{Project: "june", Branch: "main", Name: "impl-1", Status: "busy"},
+		{Project: "june", Branch: "main", Name: "reviewer", Status: "blocked"},
 		{Project: "other", Branch: "feature", Name: "worker", Status: "complete"},
 		{Project: "app", Branch: "dev", Name: "tester", Status: "busy"},
 	}
@@ -191,7 +191,7 @@ func TestChannelsGroupByProjectBranch(t *testing.T) {
 	// 3: other/feature header
 	// 4:   worker (indented)
 	// 5: separator
-	// 6: otto/main header
+	// 6: june/main header
 	// 7:   impl-1 (indented)
 	// 8:   reviewer (indented)
 
@@ -233,9 +233,9 @@ func TestChannelsGroupByProjectBranch(t *testing.T) {
 		t.Fatalf("expected 'separator' kind at index 5, got %q", channels[5].Kind)
 	}
 
-	// otto/main header
-	if channels[6].ID != "otto/main" {
-		t.Fatalf("expected 'otto/main' header at index 6, got %q", channels[6].ID)
+	// june/main header
+	if channels[6].ID != "june/main" {
+		t.Fatalf("expected 'june/main' header at index 6, got %q", channels[6].ID)
 	}
 	if channels[6].Kind != SidebarChannelHeader {
 		t.Fatalf("expected 'project_header' kind at index 6, got %q", channels[6].Kind)
@@ -264,7 +264,7 @@ func TestChannelsGroupByProjectBranch(t *testing.T) {
 		t.Fatalf("expected Level 1 for agent at index 4, got %d", channels[4].Level)
 	}
 
-	// impl-1 under otto/main (sorted by status: busy before blocked)
+	// impl-1 under june/main (sorted by status: busy before blocked)
 	if channels[7].ID != "impl-1" {
 		t.Fatalf("expected 'impl-1' at index 7, got %q", channels[7].ID)
 	}
@@ -272,7 +272,7 @@ func TestChannelsGroupByProjectBranch(t *testing.T) {
 		t.Fatalf("expected Level 1 for agent at index 7, got %d", channels[7].Level)
 	}
 
-	// reviewer under otto/main
+	// reviewer under june/main
 	if channels[8].ID != "reviewer" {
 		t.Fatalf("expected 'reviewer' at index 8, got %q", channels[8].ID)
 	}
@@ -285,10 +285,10 @@ func TestChannelsGroupingWithArchived(t *testing.T) {
 	m := NewModel(nil)
 	archivedAt := time.Now().Add(-time.Hour)
 	m.agents = []repo.Agent{
-		{Project: "otto", Branch: "main", Name: "impl-1", Status: "busy"},
+		{Project: "june", Branch: "main", Name: "impl-1", Status: "busy"},
 		{Project: "other", Branch: "feature", Name: "worker", Status: "complete"},
 		{
-			Project:    "otto",
+			Project:    "june",
 			Branch:     "main",
 			Name:       "old-agent",
 			Status:     "complete",
@@ -302,7 +302,7 @@ func TestChannelsGroupingWithArchived(t *testing.T) {
 	// 0: other/feature header
 	// 1:   worker
 	// 2: separator
-	// 3: otto/main header
+	// 3: june/main header
 	// 4:   impl-1
 	// 5:   1 archived (archived_count indicator)
 
@@ -322,7 +322,7 @@ func TestChannelsGroupingWithArchived(t *testing.T) {
 		t.Fatalf("expected project header at index 3, got %q", channels[3].Kind)
 	}
 
-	// Verify archived count indicator is shown for otto/main
+	// Verify archived count indicator is shown for june/main
 	if channels[5].Kind != SidebarArchivedSection {
 		t.Fatalf("expected 'archived_count' kind at index 5, got %q", channels[5].Kind)
 	}
@@ -333,16 +333,16 @@ func TestChannelsGroupingWithArchived(t *testing.T) {
 
 func TestProjectHeaderCollapseHidesAgents(t *testing.T) {
 	m := NewModel(nil)
-	m.projectExpanded = map[string]bool{"otto/main": false}
+	m.projectExpanded = map[string]bool{"june/main": false}
 	m.agents = []repo.Agent{
-		{Project: "otto", Branch: "main", Name: "impl-1", Status: "busy"},
-		{Project: "otto", Branch: "main", Name: "reviewer", Status: "blocked"},
+		{Project: "june", Branch: "main", Name: "impl-1", Status: "busy"},
+		{Project: "june", Branch: "main", Name: "reviewer", Status: "blocked"},
 	}
 
 	channels := m.sidebarItems()
 
 	// Expected structure when collapsed:
-	// 0: otto/main header (collapsed)
+	// 0: june/main header (collapsed)
 	// No agents shown under header
 
 	expectedCount := 1
@@ -350,8 +350,8 @@ func TestProjectHeaderCollapseHidesAgents(t *testing.T) {
 		t.Fatalf("expected %d channels (header only), got %d", expectedCount, len(channels))
 	}
 
-	if channels[0].ID != "otto/main" {
-		t.Fatalf("expected otto/main header at index 0, got %q", channels[0].ID)
+	if channels[0].ID != "june/main" {
+		t.Fatalf("expected june/main header at index 0, got %q", channels[0].ID)
 	}
 	if channels[0].Kind != SidebarChannelHeader {
 		t.Fatalf("expected project_header kind, got %q", channels[0].Kind)
@@ -360,16 +360,16 @@ func TestProjectHeaderCollapseHidesAgents(t *testing.T) {
 
 func TestProjectHeaderExpandedShowsAgents(t *testing.T) {
 	m := NewModel(nil)
-	m.projectExpanded = map[string]bool{"otto/main": true}
+	m.projectExpanded = map[string]bool{"june/main": true}
 	m.agents = []repo.Agent{
-		{Project: "otto", Branch: "main", Name: "impl-1", Status: "busy"},
-		{Project: "otto", Branch: "main", Name: "reviewer", Status: "blocked"},
+		{Project: "june", Branch: "main", Name: "impl-1", Status: "busy"},
+		{Project: "june", Branch: "main", Name: "reviewer", Status: "blocked"},
 	}
 
 	channels := m.sidebarItems()
 
 	// Expected structure when expanded:
-	// 0: otto/main header (expanded)
+	// 0: june/main header (expanded)
 	// 1:   impl-1
 	// 2:   reviewer
 
@@ -378,8 +378,8 @@ func TestProjectHeaderExpandedShowsAgents(t *testing.T) {
 		t.Fatalf("expected %d channels, got %d", expectedCount, len(channels))
 	}
 
-	if channels[0].ID != "otto/main" {
-		t.Fatalf("expected otto/main header at index 0, got %q", channels[0].ID)
+	if channels[0].ID != "june/main" {
+		t.Fatalf("expected june/main header at index 0, got %q", channels[0].ID)
 	}
 	if channels[1].ID != "impl-1" {
 		t.Fatalf("expected impl-1 at index 1, got %q", channels[1].ID)
@@ -393,13 +393,13 @@ func TestProjectHeaderDefaultExpanded(t *testing.T) {
 	m := NewModel(nil)
 	// No explicit projectExpanded state - should default to expanded
 	m.agents = []repo.Agent{
-		{Project: "otto", Branch: "main", Name: "impl-1", Status: "busy"},
+		{Project: "june", Branch: "main", Name: "impl-1", Status: "busy"},
 	}
 
 	channels := m.sidebarItems()
 
 	// Expected structure (default expanded):
-	// 0: otto/main header
+	// 0: june/main header
 	// 1:   impl-1
 
 	expectedCount := 2
@@ -414,15 +414,15 @@ func TestProjectHeaderDefaultExpanded(t *testing.T) {
 
 func TestArchivedSectionGroupsByProjectBranch(t *testing.T) {
 	m := NewModel(nil)
-	m.archivedExpanded["otto/main"] = true
+	m.archivedExpanded["june/main"] = true
 	m.archivedExpanded["other/feature"] = true
 	older := time.Now().Add(-2 * time.Hour)
 	newer := time.Now().Add(-1 * time.Hour)
 
 	m.agents = []repo.Agent{
-		{Project: "otto", Branch: "main", Name: "active-1", Status: "busy"},
+		{Project: "june", Branch: "main", Name: "active-1", Status: "busy"},
 		{
-			Project:    "otto",
+			Project:    "june",
 			Branch:     "main",
 			Name:       "archived-1",
 			Status:     "complete",
@@ -444,7 +444,7 @@ func TestArchivedSectionGroupsByProjectBranch(t *testing.T) {
 	// 1:   1 archived (archived_count)
 	// 2:     archived-2 (expanded)
 	// 3: separator
-	// 4: otto/main header
+	// 4: june/main header
 	// 5:   active-1
 	// 6:   1 archived (archived_count)
 	// 7:     archived-1 (expanded)
@@ -470,7 +470,7 @@ func TestArchivedSectionGroupsByProjectBranch(t *testing.T) {
 		t.Fatalf("expected separator at index 3, got %q", channels[3].Kind)
 	}
 
-	// Verify otto/main section
+	// Verify june/main section
 	if channels[4].Kind != SidebarChannelHeader {
 		t.Fatalf("expected project_header at index 4, got %q", channels[4].Kind)
 	}
@@ -487,20 +487,20 @@ func TestArchivedSectionGroupsByProjectBranch(t *testing.T) {
 
 func TestArchivedSectionRespectsProjectCollapse(t *testing.T) {
 	m := NewModel(nil)
-	m.archivedExpanded["otto/main"] = true
-	m.projectExpanded = map[string]bool{"otto/main": false}
+	m.archivedExpanded["june/main"] = true
+	m.projectExpanded = map[string]bool{"june/main": false}
 	archivedAt := time.Now().Add(-time.Hour)
 
 	m.agents = []repo.Agent{
 		{
-			Project:    "otto",
+			Project:    "june",
 			Branch:     "main",
 			Name:       "archived-1",
 			Status:     "complete",
 			ArchivedAt: sql.NullTime{Time: archivedAt, Valid: true},
 		},
 		{
-			Project:    "otto",
+			Project:    "june",
 			Branch:     "main",
 			Name:       "archived-2",
 			Status:     "failed",
@@ -511,7 +511,7 @@ func TestArchivedSectionRespectsProjectCollapse(t *testing.T) {
 	channels := m.sidebarItems()
 
 	// Expected structure (project collapsed, so no archived section shows):
-	// 0: otto/main header (collapsed)
+	// 0: june/main header (collapsed)
 	// When project is collapsed, nothing under it shows (including archived count)
 
 	expectedCount := 1
@@ -519,8 +519,8 @@ func TestArchivedSectionRespectsProjectCollapse(t *testing.T) {
 		t.Fatalf("expected %d channels (project collapsed), got %d", expectedCount, len(channels))
 	}
 
-	if channels[0].ID != "otto/main" {
-		t.Fatalf("expected otto/main header at index 0, got %q", channels[0].ID)
+	if channels[0].ID != "june/main" {
+		t.Fatalf("expected june/main header at index 0, got %q", channels[0].ID)
 	}
 	if channels[0].Kind != SidebarChannelHeader {
 		t.Fatalf("expected project_header kind at index 0, got %q", channels[0].Kind)
@@ -532,16 +532,16 @@ func TestPerProjectArchivedIndicator(t *testing.T) {
 	archivedAt := time.Now().Add(-time.Hour)
 
 	m.agents = []repo.Agent{
-		{Project: "otto", Branch: "main", Name: "active-1", Status: "busy"},
+		{Project: "june", Branch: "main", Name: "active-1", Status: "busy"},
 		{
-			Project:    "otto",
+			Project:    "june",
 			Branch:     "main",
 			Name:       "archived-1",
 			Status:     "complete",
 			ArchivedAt: sql.NullTime{Time: archivedAt, Valid: true},
 		},
 		{
-			Project:    "otto",
+			Project:    "june",
 			Branch:     "main",
 			Name:       "archived-2",
 			Status:     "failed",
@@ -590,7 +590,7 @@ func TestPerProjectArchivedIndicator(t *testing.T) {
 	_ = m.toggleSelection()
 
 	// Verify archived section is now expanded
-	if !m.archivedExpanded["otto/main"] {
+	if !m.archivedExpanded["june/main"] {
 		t.Fatal("expected archived section to be expanded after toggle")
 	}
 

@@ -50,4 +50,4 @@ Provide numbered findings with:
 
 Be critical. Find problems. Propose fixes. Don't just validate.
 
-Use `otto say` for your analysis when done.
+Use `june say` for your analysis when done.

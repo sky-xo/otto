@@ -12,9 +12,9 @@ import (
 	"strings"
 	"text/template"
 
-	ottoexec "otto/internal/exec"
-	"otto/internal/repo"
-	"otto/internal/scope"
+	juneexec "june/internal/exec"
+	"june/internal/repo"
+	"june/internal/scope"
 
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
@@ -54,7 +54,7 @@ func NewSpawnCmd() *cobra.Command {
 			}
 			defer conn.Close()
 
-			return runSpawnWithOptions(conn, &ottoexec.DefaultRunner{}, agentType, task, spawnFiles, spawnContext, spawnName, spawnDetach, os.Stdout)
+			return runSpawnWithOptions(conn, &juneexec.DefaultRunner{}, agentType, task, spawnFiles, spawnContext, spawnName, spawnDetach, os.Stdout)
 		},
 	}
 	cmd.Flags().StringVar(&spawnFiles, "files", "", "Relevant files for the agent")
@@ -64,11 +64,11 @@ func NewSpawnCmd() *cobra.Command {
 	return cmd
 }
 
-func runSpawn(db *sql.DB, runner ottoexec.Runner, agentType, task, files, context, name string) error {
+func runSpawn(db *sql.DB, runner juneexec.Runner, agentType, task, files, context, name string) error {
 	return runSpawnWithOptions(db, runner, agentType, task, files, context, name, false, io.Discard)
 }
 
-func runSpawnWithOptions(db *sql.DB, runner ottoexec.Runner, agentType, task, files, context, name string, detach bool, w io.Writer) error {
+func runSpawnWithOptions(db *sql.DB, runner juneexec.Runner, agentType, task, files, context, name string, detach bool, w io.Writer) error {
 	// Get current context
 	ctx := scope.CurrentContext()
 
@@ -98,14 +98,14 @@ func runSpawnWithOptions(db *sql.DB, runner ottoexec.Runner, agentType, task, fi
 		return fmt.Errorf("create agent: %w", err)
 	}
 
-	// Get current executable path so agents can find otto
-	ottoBin, err := os.Executable()
+	// Get current executable path so agents can find june
+	juneBin, err := os.Executable()
 	if err != nil {
-		ottoBin = "otto" // fallback to PATH
+		juneBin = "june" // fallback to PATH
 	}
 
 	// Build spawn prompt
-	prompt := buildSpawnPrompt(agentID, task, files, context, ottoBin)
+	prompt := buildSpawnPrompt(agentID, task, files, context, juneBin)
 
 	// Store short summary in messages, full prompt in logs
 	summary := fmt.Sprintf("spawned %s - %s", agentID, task)
@@ -115,13 +115,13 @@ func runSpawnWithOptions(db *sql.DB, runner ottoexec.Runner, agentType, task, fi
 
 	// Build and run command
 	if detach {
-		// Launch otto worker-spawn instead of agent directly
+		// Launch june worker-spawn instead of agent directly
 		if w == nil {
 			w = io.Discard
 		}
 
 		// Launch worker-spawn in detached mode
-		pid, err := runner.StartDetached(ottoBin, "worker-spawn", agentID)
+		pid, err := runner.StartDetached(juneBin, "worker-spawn", agentID)
 		if err != nil {
 			// On failure: record launch error, mark agent as failed, and create exit message
 			repoRoot := scope.RepoRoot()
@@ -212,7 +212,7 @@ func runSpawnWithOptions(db *sql.DB, runner ottoexec.Runner, agentType, task, fi
 	return nil
 }
 
-func runCodexSpawn(db *sql.DB, runner ottoexec.Runner, ctx scope.Context, agentID string, cmdArgs []string) error {
+func runCodexSpawn(db *sql.DB, runner juneexec.Runner, ctx scope.Context, agentID string, cmdArgs []string) error {
 	codexHome, err := ensureCodexHome()
 	if err != nil {
 		return err
@@ -383,7 +383,7 @@ func resolveAgentName(db *sql.DB, ctx scope.Context, name string) string {
 	}
 }
 
-func buildSpawnPrompt(agentID, task, files, context, ottoBin string) string {
+func buildSpawnPrompt(agentID, task, files, context, juneBin string) string {
 	prompt := fmt.Sprintf(`You are an agent working on: %s
 
 Your agent ID: %s`, task, agentID)
@@ -399,21 +399,21 @@ Your agent ID: %s`, task, agentID)
 	tmpl, err := template.New("instructions").Parse(agentInstructionsTemplate)
 	if err != nil {
 		// Fallback to basic instructions if template fails
-		prompt += fmt.Sprintf("\n\nUse %s complete --id %s when done.", ottoBin, agentID)
+		prompt += fmt.Sprintf("\n\nUse %s complete --id %s when done.", juneBin, agentID)
 		return prompt
 	}
 
 	data := struct {
 		AgentID string
-		OttoBin string
+		JuneBin string
 	}{
 		AgentID: agentID,
-		OttoBin: ottoBin,
+		JuneBin: juneBin,
 	}
 
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, data); err != nil {
-		prompt += fmt.Sprintf("\n\nUse %s complete --id %s when done.", ottoBin, agentID)
+		prompt += fmt.Sprintf("\n\nUse %s complete --id %s when done.", juneBin, agentID)
 		return prompt
 	}
 
@@ -428,6 +428,6 @@ func buildSpawnCommand(agentType, prompt, sessionID string) []string {
 	// codex flags:
 	// --json: capture thread_id from output
 	// --skip-git-repo-check: allow non-repo dirs
-	// -s danger-full-access: full filesystem access (needed for otto db writes)
+	// -s danger-full-access: full filesystem access (needed for june db writes)
 	return []string{"codex", "exec", "--json", "--skip-git-repo-check", "-s", "danger-full-access", prompt}
 }

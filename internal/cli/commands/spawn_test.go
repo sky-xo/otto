@@ -8,10 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	"otto/internal/config"
-	"otto/internal/db"
-	ottoexec "otto/internal/exec"
-	"otto/internal/repo"
+	"june/internal/config"
+	"june/internal/db"
+	juneexec "june/internal/exec"
+	"june/internal/repo"
 )
 
 func TestSpawnBuildsCommand(t *testing.T) {
@@ -185,7 +185,7 @@ func TestResolveAgentNameUnique(t *testing.T) {
 }
 
 func TestBuildSpawnPrompt(t *testing.T) {
-	prompt := buildSpawnPrompt("test-agent", "build auth", "", "", "/usr/local/bin/otto")
+	prompt := buildSpawnPrompt("test-agent", "build auth", "", "", "/usr/local/bin/june")
 
 	if !strings.Contains(prompt, "test-agent") {
 		t.Fatal("prompt should contain agent ID")
@@ -193,13 +193,13 @@ func TestBuildSpawnPrompt(t *testing.T) {
 	if !strings.Contains(prompt, "build auth") {
 		t.Fatal("prompt should contain task")
 	}
-	if !strings.Contains(prompt, "/usr/local/bin/otto messages --id test-agent") {
-		t.Fatal("prompt should contain communication template with otto path")
+	if !strings.Contains(prompt, "/usr/local/bin/june messages --id test-agent") {
+		t.Fatal("prompt should contain communication template with june path")
 	}
 }
 
 func TestBuildSpawnPromptWithFilesAndContext(t *testing.T) {
-	prompt := buildSpawnPrompt("test-agent", "task", "auth.go,user.go", "use JWT tokens", "otto")
+	prompt := buildSpawnPrompt("test-agent", "task", "auth.go,user.go", "use JWT tokens", "june")
 
 	if !strings.Contains(prompt, "auth.go,user.go") {
 		t.Fatal("prompt should contain files")
@@ -213,13 +213,13 @@ func TestSpawnStoresPromptAndTranscript(t *testing.T) {
 	db := openTestDB(t)
 	ctx := testCtx()
 
-	chunks := make(chan ottoexec.TranscriptChunk, 2)
-	chunks <- ottoexec.TranscriptChunk{Stream: "stdout", Data: "hello\n"}
-	chunks <- ottoexec.TranscriptChunk{Stream: "stderr", Data: "oops\n"}
+	chunks := make(chan juneexec.TranscriptChunk, 2)
+	chunks <- juneexec.TranscriptChunk{Stream: "stdout", Data: "hello\n"}
+	chunks <- juneexec.TranscriptChunk{Stream: "stderr", Data: "oops\n"}
 	close(chunks)
 
 	runner := &mockRunner{
-		startWithTranscriptCaptureFunc: func(name string, args ...string) (int, <-chan ottoexec.TranscriptChunk, func() error, error) {
+		startWithTranscriptCaptureFunc: func(name string, args ...string) (int, <-chan juneexec.TranscriptChunk, func() error, error) {
 			return 1234, chunks, func() error { return nil }, nil
 		},
 	}
@@ -303,14 +303,14 @@ func TestSpawnDetach(t *testing.T) {
 type mockRunner struct {
 	startWithCaptureFunc           func(name string, args ...string) (int, <-chan string, func() error, error)
 	startWithCaptureEnvFunc        func(name string, env []string, args ...string) (int, <-chan string, func() error, error)
-	startWithTranscriptCaptureFunc func(name string, args ...string) (int, <-chan ottoexec.TranscriptChunk, func() error, error)
-	startWithTranscriptCaptureEnv  func(name string, env []string, args ...string) (int, <-chan ottoexec.TranscriptChunk, func() error, error)
+	startWithTranscriptCaptureFunc func(name string, args ...string) (int, <-chan juneexec.TranscriptChunk, func() error, error)
+	startWithTranscriptCaptureEnv  func(name string, env []string, args ...string) (int, <-chan juneexec.TranscriptChunk, func() error, error)
 	startFunc                      func(name string, args ...string) (int, func() error, error)
 	startDetachedFunc              func(name string, args ...string) (int, error)
 }
 
-// Ensure mockRunner implements ottoexec.Runner
-var _ ottoexec.Runner = (*mockRunner)(nil)
+// Ensure mockRunner implements juneexec.Runner
+var _ juneexec.Runner = (*mockRunner)(nil)
 
 func (m *mockRunner) Run(name string, args ...string) error {
 	return nil
@@ -352,20 +352,20 @@ func (m *mockRunner) StartWithCaptureEnv(name string, env []string, args ...stri
 	return 1234, lines, func() error { return nil }, nil
 }
 
-func (m *mockRunner) StartWithTranscriptCapture(name string, args ...string) (int, <-chan ottoexec.TranscriptChunk, func() error, error) {
+func (m *mockRunner) StartWithTranscriptCapture(name string, args ...string) (int, <-chan juneexec.TranscriptChunk, func() error, error) {
 	if m.startWithTranscriptCaptureFunc != nil {
 		return m.startWithTranscriptCaptureFunc(name, args...)
 	}
-	chunks := make(chan ottoexec.TranscriptChunk)
+	chunks := make(chan juneexec.TranscriptChunk)
 	close(chunks)
 	return 1234, chunks, func() error { return nil }, nil
 }
 
-func (m *mockRunner) StartWithTranscriptCaptureEnv(name string, env []string, args ...string) (int, <-chan ottoexec.TranscriptChunk, func() error, error) {
+func (m *mockRunner) StartWithTranscriptCaptureEnv(name string, env []string, args ...string) (int, <-chan juneexec.TranscriptChunk, func() error, error) {
 	if m.startWithTranscriptCaptureEnv != nil {
 		return m.startWithTranscriptCaptureEnv(name, env, args...)
 	}
-	chunks := make(chan ottoexec.TranscriptChunk)
+	chunks := make(chan juneexec.TranscriptChunk)
 	close(chunks)
 	return 1234, chunks, func() error { return nil }, nil
 }
@@ -375,14 +375,14 @@ func TestCodexSpawnCapturesThreadID(t *testing.T) {
 	ctx := testCtx()
 
 	// Create mock runner that simulates Codex JSON output
-	chunks := make(chan ottoexec.TranscriptChunk, 5)
-	chunks <- ottoexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"other_event","data":"something"}` + "\n"}
-	chunks <- ottoexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"thread.started","thread_id":"thread_abc123"}` + "\n"}
-	chunks <- ottoexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"message","content":"hello"}` + "\n"}
+	chunks := make(chan juneexec.TranscriptChunk, 5)
+	chunks <- juneexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"other_event","data":"something"}` + "\n"}
+	chunks <- juneexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"thread.started","thread_id":"thread_abc123"}` + "\n"}
+	chunks <- juneexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"message","content":"hello"}` + "\n"}
 	close(chunks)
 
 	runner := &mockRunner{
-		startWithTranscriptCaptureEnv: func(name string, env []string, args ...string) (int, <-chan ottoexec.TranscriptChunk, func() error, error) {
+		startWithTranscriptCaptureEnv: func(name string, env []string, args ...string) (int, <-chan juneexec.TranscriptChunk, func() error, error) {
 			return 5678, chunks, func() error { return nil }, nil
 		},
 	}
@@ -413,13 +413,13 @@ func TestCodexSpawnWithoutThreadID(t *testing.T) {
 	ctx := testCtx()
 
 	// Create mock runner with no thread.started event
-	chunks := make(chan ottoexec.TranscriptChunk, 3)
-	chunks <- ottoexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"message","content":"hello"}` + "\n"}
-	chunks <- ottoexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"other_event","data":"something"}` + "\n"}
+	chunks := make(chan juneexec.TranscriptChunk, 3)
+	chunks <- juneexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"message","content":"hello"}` + "\n"}
+	chunks <- juneexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"other_event","data":"something"}` + "\n"}
 	close(chunks)
 
 	runner := &mockRunner{
-		startWithTranscriptCaptureEnv: func(name string, env []string, args ...string) (int, <-chan ottoexec.TranscriptChunk, func() error, error) {
+		startWithTranscriptCaptureEnv: func(name string, env []string, args ...string) (int, <-chan juneexec.TranscriptChunk, func() error, error) {
 			return 5678, chunks, func() error { return nil }, nil
 		},
 	}
@@ -447,13 +447,13 @@ func TestClaudeSpawnUsesNormalStart(t *testing.T) {
 
 	called := false
 	runner := &mockRunner{
-		startWithTranscriptCaptureFunc: func(name string, args ...string) (int, <-chan ottoexec.TranscriptChunk, func() error, error) {
+		startWithTranscriptCaptureFunc: func(name string, args ...string) (int, <-chan juneexec.TranscriptChunk, func() error, error) {
 			called = true
 			// Verify it's a Claude command
 			if name != "claude" {
 				t.Fatalf("expected 'claude', got %q", name)
 			}
-			chunks := make(chan ottoexec.TranscriptChunk)
+			chunks := make(chan juneexec.TranscriptChunk)
 			close(chunks)
 			return 1234, chunks, func() error { return nil }, nil
 		},
@@ -475,11 +475,11 @@ func TestCodexSpawnSetsCodexHome(t *testing.T) {
 	db := openTestDB(t)
 
 	var capturedEnv []string
-	chunks := make(chan ottoexec.TranscriptChunk)
+	chunks := make(chan juneexec.TranscriptChunk)
 	close(chunks)
 
 	runner := &mockRunner{
-		startWithTranscriptCaptureEnv: func(name string, env []string, args ...string) (int, <-chan ottoexec.TranscriptChunk, func() error, error) {
+		startWithTranscriptCaptureEnv: func(name string, env []string, args ...string) (int, <-chan juneexec.TranscriptChunk, func() error, error) {
 			capturedEnv = env
 			return 5678, chunks, func() error { return nil }, nil
 		},
@@ -516,7 +516,7 @@ func TestSpawnWithCustomName(t *testing.T) {
 	agentVerified := make(chan bool)
 
 	runner := &mockRunner{
-		startWithTranscriptCaptureFunc: func(name string, args ...string) (int, <-chan ottoexec.TranscriptChunk, func() error, error) {
+		startWithTranscriptCaptureFunc: func(name string, args ...string) (int, <-chan juneexec.TranscriptChunk, func() error, error) {
 			// Check agent exists with custom name while process is "running"
 			_, err := repo.GetAgent(db, ctx.Project, ctx.Branch, "researcher")
 			if err != nil {
@@ -532,7 +532,7 @@ func TestSpawnWithCustomName(t *testing.T) {
 			// Signal verification complete
 			close(agentVerified)
 
-			chunks := make(chan ottoexec.TranscriptChunk)
+			chunks := make(chan juneexec.TranscriptChunk)
 			close(chunks)
 			return 1234, chunks, func() error {
 				<-agentVerified // Wait for verification
@@ -575,7 +575,7 @@ func TestSpawnWithCustomNameCollision(t *testing.T) {
 	agentVerified := make(chan bool)
 
 	runner := &mockRunner{
-		startWithTranscriptCaptureFunc: func(name string, args ...string) (int, <-chan ottoexec.TranscriptChunk, func() error, error) {
+		startWithTranscriptCaptureFunc: func(name string, args ...string) (int, <-chan juneexec.TranscriptChunk, func() error, error) {
 			// Verify second agent got -2 suffix while process is "running"
 			_, err := repo.GetAgent(db, ctx.Project, ctx.Branch, "researcher-2")
 			if err != nil {
@@ -585,7 +585,7 @@ func TestSpawnWithCustomNameCollision(t *testing.T) {
 			// Signal verification complete
 			close(agentVerified)
 
-			chunks := make(chan ottoexec.TranscriptChunk)
+			chunks := make(chan juneexec.TranscriptChunk)
 			close(chunks)
 			return 1234, chunks, func() error {
 				<-agentVerified // Wait for verification
@@ -636,11 +636,11 @@ func TestSpawnDetachLaunchesWorker(t *testing.T) {
 		t.Fatalf("spawn detach failed: %v", err)
 	}
 
-	// Should launch otto worker-spawn <agent-id>
-	// capturedCmd should be the path to otto binary (or test binary during tests)
+	// Should launch june worker-spawn <agent-id>
+	// capturedCmd should be the path to june binary (or test binary during tests)
 	// Just verify it's not launching claude/codex directly
 	if capturedCmd == "claude" || capturedCmd == "codex" {
-		t.Errorf("expected command to be otto binary, not %q", capturedCmd)
+		t.Errorf("expected command to be june binary, not %q", capturedCmd)
 	}
 
 	// Args should be: worker-spawn <agent-id>
@@ -712,16 +712,16 @@ func TestCodexSpawnLogsItemStarted(t *testing.T) {
 	ctx := testCtx()
 
 	// Create mock runner that simulates Codex JSON output with item.started events
-	chunks := make(chan ottoexec.TranscriptChunk, 5)
-	chunks <- ottoexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"thread.started","thread_id":"thread_test123"}` + "\n"}
-	chunks <- ottoexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"item.started","item":{"type":"command_execution","command":"ls -la","text":""}}` + "\n"}
-	chunks <- ottoexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"item.completed","item":{"type":"command_execution","command":"ls -la","aggregated_output":"total 0","exit_code":0}}` + "\n"}
-	chunks <- ottoexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"item.started","item":{"type":"output_text","text":"Processing data..."}}` + "\n"}
-	chunks <- ottoexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"item.completed","item":{"type":"output_text","text":"Done!"}}` + "\n"}
+	chunks := make(chan juneexec.TranscriptChunk, 5)
+	chunks <- juneexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"thread.started","thread_id":"thread_test123"}` + "\n"}
+	chunks <- juneexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"item.started","item":{"type":"command_execution","command":"ls -la","text":""}}` + "\n"}
+	chunks <- juneexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"item.completed","item":{"type":"command_execution","command":"ls -la","aggregated_output":"total 0","exit_code":0}}` + "\n"}
+	chunks <- juneexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"item.started","item":{"type":"output_text","text":"Processing data..."}}` + "\n"}
+	chunks <- juneexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"item.completed","item":{"type":"output_text","text":"Done!"}}` + "\n"}
 	close(chunks)
 
 	runner := &mockRunner{
-		startWithTranscriptCaptureEnv: func(name string, env []string, args ...string) (int, <-chan ottoexec.TranscriptChunk, func() error, error) {
+		startWithTranscriptCaptureEnv: func(name string, env []string, args ...string) (int, <-chan juneexec.TranscriptChunk, func() error, error) {
 			return 5678, chunks, func() error { return nil }, nil
 		},
 	}
@@ -773,16 +773,16 @@ func TestCodexSpawnLogsTurnEvents(t *testing.T) {
 	ctx := testCtx()
 
 	// Create mock runner that simulates Codex JSON output with turn events
-	chunks := make(chan ottoexec.TranscriptChunk, 5)
-	chunks <- ottoexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"thread.started","thread_id":"thread_turn123"}` + "\n"}
-	chunks <- ottoexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"turn.started"}` + "\n"}
-	chunks <- ottoexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"item.started","item":{"type":"output_text","text":"Thinking..."}}` + "\n"}
-	chunks <- ottoexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"item.completed","item":{"type":"output_text","text":"Done thinking"}}` + "\n"}
-	chunks <- ottoexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"turn.completed"}` + "\n"}
+	chunks := make(chan juneexec.TranscriptChunk, 5)
+	chunks <- juneexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"thread.started","thread_id":"thread_turn123"}` + "\n"}
+	chunks <- juneexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"turn.started"}` + "\n"}
+	chunks <- juneexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"item.started","item":{"type":"output_text","text":"Thinking..."}}` + "\n"}
+	chunks <- juneexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"item.completed","item":{"type":"output_text","text":"Done thinking"}}` + "\n"}
+	chunks <- juneexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"turn.completed"}` + "\n"}
 	close(chunks)
 
 	runner := &mockRunner{
-		startWithTranscriptCaptureEnv: func(name string, env []string, args ...string) (int, <-chan ottoexec.TranscriptChunk, func() error, error) {
+		startWithTranscriptCaptureEnv: func(name string, env []string, args ...string) (int, <-chan juneexec.TranscriptChunk, func() error, error) {
 			return 5678, chunks, func() error { return nil }, nil
 		},
 	}

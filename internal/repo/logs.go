@@ -129,7 +129,7 @@ func CountLogs(db *sql.DB, project, branch, agentName string) (int, error) {
 
 // ListAgentMessages returns agent_message log entries for a specific agent.
 // These are the actual conversational responses from the agent.
-// Used to surface otto's responses to the main chat view.
+// Used to surface june's responses to the main chat view.
 func ListAgentMessages(db *sql.DB, project, branch, agentName, sinceID string) ([]LogEntry, error) {
 	query := `SELECT id, project, branch, agent_name, agent_type, event_type, tool_name, content, raw_json, command, exit_code, status, tool_use_id, strftime('%Y-%m-%d %H:%M:%S', created_at)
 		FROM logs

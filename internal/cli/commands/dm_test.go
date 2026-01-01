@@ -3,8 +3,8 @@ package commands
 import (
 	"testing"
 
-	"otto/internal/db"
-	"otto/internal/repo"
+	"june/internal/db"
+	"june/internal/repo"
 )
 
 func TestRunDM(t *testing.T) {

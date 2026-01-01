@@ -4,8 +4,8 @@ import (
 	"database/sql"
 	"testing"
 
-	ottoexec "otto/internal/exec"
-	"otto/internal/repo"
+	juneexec "june/internal/exec"
+	"june/internal/repo"
 )
 
 func TestPromptStoresPromptAndResumesAgent(t *testing.T) {
@@ -28,11 +28,11 @@ func TestPromptStoresPromptAndResumesAgent(t *testing.T) {
 		t.Fatalf("set agent complete: %v", err)
 	}
 
-	chunks := make(chan ottoexec.TranscriptChunk)
+	chunks := make(chan juneexec.TranscriptChunk)
 	close(chunks)
 
 	runner := &mockRunner{
-		startWithTranscriptCaptureFunc: func(name string, args ...string) (int, <-chan ottoexec.TranscriptChunk, func() error, error) {
+		startWithTranscriptCaptureFunc: func(name string, args ...string) (int, <-chan juneexec.TranscriptChunk, func() error, error) {
 			return 1234, chunks, func() error { return nil }, nil
 		},
 	}
@@ -102,12 +102,12 @@ func TestPromptCapturesOutput(t *testing.T) {
 		t.Fatalf("create agent: %v", err)
 	}
 
-	chunks := make(chan ottoexec.TranscriptChunk, 1)
-	chunks <- ottoexec.TranscriptChunk{Stream: "stdout", Data: "done\n"}
+	chunks := make(chan juneexec.TranscriptChunk, 1)
+	chunks <- juneexec.TranscriptChunk{Stream: "stdout", Data: "done\n"}
 	close(chunks)
 
 	runner := &mockRunner{
-		startWithTranscriptCaptureFunc: func(name string, args ...string) (int, <-chan ottoexec.TranscriptChunk, func() error, error) {
+		startWithTranscriptCaptureFunc: func(name string, args ...string) (int, <-chan juneexec.TranscriptChunk, func() error, error) {
 			return 1234, chunks, func() error { return nil }, nil
 		},
 	}
@@ -155,11 +155,11 @@ func TestPromptUnarchivesAgent(t *testing.T) {
 		t.Fatalf("archive agent: %v", err)
 	}
 
-	chunks := make(chan ottoexec.TranscriptChunk)
+	chunks := make(chan juneexec.TranscriptChunk)
 	close(chunks)
 
 	runner := &mockRunner{
-		startWithTranscriptCaptureFunc: func(name string, args ...string) (int, <-chan ottoexec.TranscriptChunk, func() error, error) {
+		startWithTranscriptCaptureFunc: func(name string, args ...string) (int, <-chan juneexec.TranscriptChunk, func() error, error) {
 			return 1234, chunks, func() error { return nil }, nil
 		},
 	}
@@ -194,12 +194,12 @@ func TestPromptCodexUsesDangerFullAccess(t *testing.T) {
 		t.Fatalf("create agent: %v", err)
 	}
 
-	chunks := make(chan ottoexec.TranscriptChunk)
+	chunks := make(chan juneexec.TranscriptChunk)
 	close(chunks)
 
 	var gotArgs []string
 	runner := &mockRunner{
-		startWithTranscriptCaptureEnv: func(name string, env []string, args ...string) (int, <-chan ottoexec.TranscriptChunk, func() error, error) {
+		startWithTranscriptCaptureEnv: func(name string, env []string, args ...string) (int, <-chan juneexec.TranscriptChunk, func() error, error) {
 			if name != "codex" {
 				t.Fatalf("expected codex, got %q", name)
 			}
@@ -245,15 +245,15 @@ func TestCodexPromptLogsItemStarted(t *testing.T) {
 	}
 
 	// Create mock runner that simulates Codex JSON output with item.started events
-	chunks := make(chan ottoexec.TranscriptChunk, 4)
-	chunks <- ottoexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"item.started","item":{"type":"command_execution","command":"pwd","text":""}}` + "\n"}
-	chunks <- ottoexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"item.completed","item":{"type":"command_execution","command":"pwd","aggregated_output":"/home/user","exit_code":0}}` + "\n"}
-	chunks <- ottoexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"item.started","item":{"type":"output","text":"Analyzing results..."}}` + "\n"}
-	chunks <- ottoexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"item.completed","item":{"type":"output","text":"Analysis complete"}}` + "\n"}
+	chunks := make(chan juneexec.TranscriptChunk, 4)
+	chunks <- juneexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"item.started","item":{"type":"command_execution","command":"pwd","text":""}}` + "\n"}
+	chunks <- juneexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"item.completed","item":{"type":"command_execution","command":"pwd","aggregated_output":"/home/user","exit_code":0}}` + "\n"}
+	chunks <- juneexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"item.started","item":{"type":"output","text":"Analyzing results..."}}` + "\n"}
+	chunks <- juneexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"item.completed","item":{"type":"output","text":"Analysis complete"}}` + "\n"}
 	close(chunks)
 
 	runner := &mockRunner{
-		startWithTranscriptCaptureEnv: func(name string, env []string, args ...string) (int, <-chan ottoexec.TranscriptChunk, func() error, error) {
+		startWithTranscriptCaptureEnv: func(name string, env []string, args ...string) (int, <-chan juneexec.TranscriptChunk, func() error, error) {
 			return 1234, chunks, func() error { return nil }, nil
 		},
 	}
@@ -317,15 +317,15 @@ func TestCodexPromptLogsTurnEvents(t *testing.T) {
 	}
 
 	// Create mock runner that simulates Codex JSON output with turn events
-	chunks := make(chan ottoexec.TranscriptChunk, 4)
-	chunks <- ottoexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"turn.started"}` + "\n"}
-	chunks <- ottoexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"item.started","item":{"type":"output","text":"Working..."}}` + "\n"}
-	chunks <- ottoexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"item.completed","item":{"type":"output","text":"Work complete"}}` + "\n"}
-	chunks <- ottoexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"turn.completed"}` + "\n"}
+	chunks := make(chan juneexec.TranscriptChunk, 4)
+	chunks <- juneexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"turn.started"}` + "\n"}
+	chunks <- juneexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"item.started","item":{"type":"output","text":"Working..."}}` + "\n"}
+	chunks <- juneexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"item.completed","item":{"type":"output","text":"Work complete"}}` + "\n"}
+	chunks <- juneexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"turn.completed"}` + "\n"}
 	close(chunks)
 
 	runner := &mockRunner{
-		startWithTranscriptCaptureEnv: func(name string, env []string, args ...string) (int, <-chan ottoexec.TranscriptChunk, func() error, error) {
+		startWithTranscriptCaptureEnv: func(name string, env []string, args ...string) (int, <-chan juneexec.TranscriptChunk, func() error, error) {
 			return 1234, chunks, func() error { return nil }, nil
 		},
 	}

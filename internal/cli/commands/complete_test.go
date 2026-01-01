@@ -3,7 +3,7 @@ package commands
 import (
 	"testing"
 
-	"otto/internal/repo"
+	"june/internal/repo"
 )
 
 func TestCompleteWithoutMessage(t *testing.T) {

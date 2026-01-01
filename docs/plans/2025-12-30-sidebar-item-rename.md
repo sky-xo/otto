@@ -31,7 +31,7 @@ Add BEFORE it:
 type SidebarItemKind int
 
 const (
-	SidebarChannelHeader  SidebarItemKind = iota // Project/branch header (e.g., "otto/main")
+	SidebarChannelHeader  SidebarItemKind = iota // Project/branch header (e.g., "june/main")
 	SidebarAgentRow                              // An agent in the channel
 	SidebarArchivedSection                       // "N archived" collapsible section
 	SidebarDivider                               // Visual separator between channels

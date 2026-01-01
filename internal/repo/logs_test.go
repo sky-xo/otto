@@ -9,17 +9,17 @@ import (
 func TestCreateAndListLogs(t *testing.T) {
 	db := openTestDB(t)
 
-	if err := CreateLogEntry(db, LogEntry{Project: "otto", Branch: "main", AgentName: "agent-1", AgentType: "claude", EventType: "prompt"}); err != nil {
+	if err := CreateLogEntry(db, LogEntry{Project: "june", Branch: "main", AgentName: "agent-1", AgentType: "claude", EventType: "prompt"}); err != nil {
 		t.Fatalf("create entry 1: %v", err)
 	}
-	if err := CreateLogEntry(db, LogEntry{Project: "otto", Branch: "main", AgentName: "agent-1", AgentType: "claude", EventType: "response"}); err != nil {
+	if err := CreateLogEntry(db, LogEntry{Project: "june", Branch: "main", AgentName: "agent-1", AgentType: "claude", EventType: "response"}); err != nil {
 		t.Fatalf("create entry 2: %v", err)
 	}
-	if err := CreateLogEntry(db, LogEntry{Project: "otto", Branch: "main", AgentName: "agent-2", AgentType: "codex", EventType: "output"}); err != nil {
+	if err := CreateLogEntry(db, LogEntry{Project: "june", Branch: "main", AgentName: "agent-2", AgentType: "codex", EventType: "output"}); err != nil {
 		t.Fatalf("create entry 3: %v", err)
 	}
 
-	entries, err := ListLogs(db, "otto", "main", "agent-1", "")
+	entries, err := ListLogs(db, "june", "main", "agent-1", "")
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -34,17 +34,17 @@ func TestCreateAndListLogs(t *testing.T) {
 func TestListLogsSince(t *testing.T) {
 	db := openTestDB(t)
 
-	if err := CreateLogEntry(db, LogEntry{Project: "otto", Branch: "main", AgentName: "agent-1", AgentType: "claude", EventType: "output", Content: nullStr("one")}); err != nil {
+	if err := CreateLogEntry(db, LogEntry{Project: "june", Branch: "main", AgentName: "agent-1", AgentType: "claude", EventType: "output", Content: nullStr("one")}); err != nil {
 		t.Fatalf("create entry 1: %v", err)
 	}
-	if err := CreateLogEntry(db, LogEntry{Project: "otto", Branch: "main", AgentName: "agent-1", AgentType: "claude", EventType: "output", Content: nullStr("two")}); err != nil {
+	if err := CreateLogEntry(db, LogEntry{Project: "june", Branch: "main", AgentName: "agent-1", AgentType: "claude", EventType: "output", Content: nullStr("two")}); err != nil {
 		t.Fatalf("create entry 2: %v", err)
 	}
-	if err := CreateLogEntry(db, LogEntry{Project: "otto", Branch: "main", AgentName: "agent-1", AgentType: "claude", EventType: "output", Content: nullStr("three")}); err != nil {
+	if err := CreateLogEntry(db, LogEntry{Project: "june", Branch: "main", AgentName: "agent-1", AgentType: "claude", EventType: "output", Content: nullStr("three")}); err != nil {
 		t.Fatalf("create entry 3: %v", err)
 	}
 
-	entries, err := ListLogs(db, "otto", "main", "agent-1", "")
+	entries, err := ListLogs(db, "june", "main", "agent-1", "")
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -63,7 +63,7 @@ func TestListLogsSince(t *testing.T) {
 		}
 	}
 
-	sinceEntries, err := ListLogs(db, "otto", "main", "agent-1", entries[0].ID)
+	sinceEntries, err := ListLogs(db, "june", "main", "agent-1", entries[0].ID)
 	if err != nil {
 		t.Fatalf("list since: %v", err)
 	}
@@ -75,17 +75,17 @@ func TestListLogsSince(t *testing.T) {
 func TestListLogsSinceSameSecond(t *testing.T) {
 	db := openTestDB(t)
 
-	if err := CreateLogEntry(db, LogEntry{Project: "otto", Branch: "main", AgentName: "agent-1", AgentType: "claude", EventType: "output", Content: nullStr("one")}); err != nil {
+	if err := CreateLogEntry(db, LogEntry{Project: "june", Branch: "main", AgentName: "agent-1", AgentType: "claude", EventType: "output", Content: nullStr("one")}); err != nil {
 		t.Fatalf("create entry 1: %v", err)
 	}
-	if err := CreateLogEntry(db, LogEntry{Project: "otto", Branch: "main", AgentName: "agent-1", AgentType: "claude", EventType: "output", Content: nullStr("two")}); err != nil {
+	if err := CreateLogEntry(db, LogEntry{Project: "june", Branch: "main", AgentName: "agent-1", AgentType: "claude", EventType: "output", Content: nullStr("two")}); err != nil {
 		t.Fatalf("create entry 2: %v", err)
 	}
-	if err := CreateLogEntry(db, LogEntry{Project: "otto", Branch: "main", AgentName: "agent-1", AgentType: "claude", EventType: "output", Content: nullStr("three")}); err != nil {
+	if err := CreateLogEntry(db, LogEntry{Project: "june", Branch: "main", AgentName: "agent-1", AgentType: "claude", EventType: "output", Content: nullStr("three")}); err != nil {
 		t.Fatalf("create entry 3: %v", err)
 	}
 
-	entries, err := ListLogs(db, "otto", "main", "agent-1", "")
+	entries, err := ListLogs(db, "june", "main", "agent-1", "")
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -100,7 +100,7 @@ func TestListLogsSinceSameSecond(t *testing.T) {
 		t.Fatalf("set created_at: %v", err)
 	}
 
-	sinceEntries, err := ListLogs(db, "otto", "main", "agent-1", entries[0].ID)
+	sinceEntries, err := ListLogs(db, "june", "main", "agent-1", entries[0].ID)
 	if err != nil {
 		t.Fatalf("list since: %v", err)
 	}
@@ -115,7 +115,7 @@ func TestListLogsWithTail(t *testing.T) {
 
 	for i := 0; i < 10; i++ {
 		if err := CreateLogEntry(db, LogEntry{
-			Project:   "otto",
+			Project:   "june",
 			Branch:    "main",
 			AgentName: "agent-1",
 			AgentType: "claude",
@@ -126,7 +126,7 @@ func TestListLogsWithTail(t *testing.T) {
 		}
 	}
 
-	logs, err := ListLogsWithTail(db, "otto", "main", "agent-1", 3)
+	logs, err := ListLogsWithTail(db, "june", "main", "agent-1", 3)
 	if err != nil {
 		t.Fatalf("list logs: %v", err)
 	}
@@ -173,7 +173,7 @@ func TestGetAgentLastActivity(t *testing.T) {
 	db := openTestDB(t)
 	defer db.Close()
 
-	project := "otto"
+	project := "june"
 	branch := "main"
 
 	// Create logs for multiple agents with different timestamps
@@ -293,7 +293,7 @@ func TestListAgentMessages(t *testing.T) {
 
 	project := "test"
 	branch := "main"
-	agentName := "otto"
+	agentName := "june"
 
 	// Create various log entries
 	entries := []LogEntry{
@@ -311,7 +311,7 @@ func TestListAgentMessages(t *testing.T) {
 		}
 	}
 
-	// Fetch only agent_message entries for otto
+	// Fetch only agent_message entries for june
 	result, err := ListAgentMessages(db, project, branch, agentName, "")
 	if err != nil {
 		t.Fatalf("ListAgentMessages: %v", err)

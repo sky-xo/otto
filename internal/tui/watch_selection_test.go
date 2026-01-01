@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"otto/internal/repo"
+	"june/internal/repo"
 
 	_ "modernc.org/sqlite"
 )
@@ -13,22 +13,22 @@ import (
 func TestProjectHeaderSelectionSetsActiveChannel(t *testing.T) {
 	m := NewModel(nil)
 	m.agents = []repo.Agent{
-		{Project: "otto", Branch: "main", Name: "impl-1", Status: "busy"},
+		{Project: "june", Branch: "main", Name: "impl-1", Status: "busy"},
 		{Project: "other", Branch: "feature", Name: "worker", Status: "complete"},
 	}
 
 	channels := m.sidebarItems()
 
-	// Find the otto/main header
+	// Find the june/main header
 	headerIndex := -1
 	for i, ch := range channels {
-		if ch.ID == "otto/main" && ch.Kind == SidebarChannelHeader {
+		if ch.ID == "june/main" && ch.Kind == SidebarChannelHeader {
 			headerIndex = i
 			break
 		}
 	}
 	if headerIndex == -1 {
-		t.Fatal("expected to find otto/main header")
+		t.Fatal("expected to find june/main header")
 	}
 
 	// Select the project header
@@ -36,54 +36,54 @@ func TestProjectHeaderSelectionSetsActiveChannel(t *testing.T) {
 	_ = m.activateSelection()
 
 	// Should set activeChannelID to the project header ID
-	if m.activeChannelID != "otto/main" {
-		t.Errorf("expected activeChannelID to be 'otto/main', got %q", m.activeChannelID)
+	if m.activeChannelID != "june/main" {
+		t.Errorf("expected activeChannelID to be 'june/main', got %q", m.activeChannelID)
 	}
 }
 
 func TestProjectHeaderSelectionTogglesExpanded(t *testing.T) {
 	m := NewModel(nil)
 	m.agents = []repo.Agent{
-		{Project: "otto", Branch: "main", Name: "impl-1", Status: "busy"},
+		{Project: "june", Branch: "main", Name: "impl-1", Status: "busy"},
 	}
 
 	channels := m.sidebarItems()
 
-	// Find the otto/main header
+	// Find the june/main header
 	headerIndex := -1
 	for i, ch := range channels {
-		if ch.ID == "otto/main" && ch.Kind == SidebarChannelHeader {
+		if ch.ID == "june/main" && ch.Kind == SidebarChannelHeader {
 			headerIndex = i
 			break
 		}
 	}
 	if headerIndex == -1 {
-		t.Fatal("expected to find otto/main header")
+		t.Fatal("expected to find june/main header")
 	}
 
 	// Initially expanded (default)
-	if !m.isProjectExpanded("otto/main") {
-		t.Fatal("expected otto/main to be expanded by default")
+	if !m.isProjectExpanded("june/main") {
+		t.Fatal("expected june/main to be expanded by default")
 	}
 
 	// Select the header - should toggle to collapsed
 	m.cursorIndex = headerIndex
 	_ = m.toggleSelection()
-	if m.isProjectExpanded("otto/main") {
-		t.Error("expected otto/main to be collapsed after first activation")
+	if m.isProjectExpanded("june/main") {
+		t.Error("expected june/main to be collapsed after first activation")
 	}
 
 	// Select again - should toggle back to expanded
 	_ = m.toggleSelection()
-	if !m.isProjectExpanded("otto/main") {
-		t.Error("expected otto/main to be expanded after second activation")
+	if !m.isProjectExpanded("june/main") {
+		t.Error("expected june/main to be expanded after second activation")
 	}
 }
 
 func TestAgentSelectionStillSetsActiveChannelToAgent(t *testing.T) {
 	m := NewModel(nil)
 	m.agents = []repo.Agent{
-		{Project: "otto", Branch: "main", Name: "impl-1", Status: "busy"},
+		{Project: "june", Branch: "main", Name: "impl-1", Status: "busy"},
 	}
 
 	channels := m.sidebarItems()
@@ -113,12 +113,12 @@ func TestAgentSelectionStillSetsActiveChannelToAgent(t *testing.T) {
 func TestRenderChannelLineProjectHeader(t *testing.T) {
 	m := NewModel(nil)
 	// Set project as expanded (default)
-	m.projectExpanded = map[string]bool{"otto/main": true}
+	m.projectExpanded = map[string]bool{"june/main": true}
 
 	// Create a project header channel
 	ch := SidebarItem{
-		ID:    "otto/main",
-		Name:  "otto/main",
+		ID:    "june/main",
+		Name:  "june/main",
 		Kind:  SidebarChannelHeader,
 		Level: 0,
 	}
@@ -131,7 +131,7 @@ func TestRenderChannelLineProjectHeader(t *testing.T) {
 	stripped := stripAnsi(rendered)
 
 	// Should show project name and collapse indicator
-	if !strings.Contains(stripped, "otto/main") {
+	if !strings.Contains(stripped, "june/main") {
 		t.Errorf("expected header to contain project name, got: %q", stripped)
 	}
 
@@ -151,7 +151,7 @@ func TestRenderChannelLineProjectHeader(t *testing.T) {
 	}
 
 	// Test collapsed state
-	m.projectExpanded["otto/main"] = false
+	m.projectExpanded["june/main"] = false
 	renderedCollapsed := m.renderChannelLine(ch, width, true, false)
 	strippedCollapsed := stripAnsi(renderedCollapsed)
 
@@ -171,7 +171,7 @@ func TestRenderChannelLineIndentedAgentWithCursor(t *testing.T) {
 		Kind:    SidebarAgentRow,
 		Status:  "busy",
 		Level:   1,
-		Project: "otto",
+		Project: "june",
 		Branch:  "main",
 	}
 
@@ -220,8 +220,8 @@ func TestRenderChannelLineIndentedHeaderLevel1(t *testing.T) {
 
 	// Create a project header at Level 1 (archived section)
 	ch := SidebarItem{
-		ID:    "otto/main",
-		Name:  "otto/main",
+		ID:    "june/main",
+		Name:  "june/main",
 		Kind:  SidebarChannelHeader,
 		Level: 1,
 	}
@@ -299,10 +299,10 @@ func TestProjectHeaderMessagesUsesProjectScope(t *testing.T) {
 	// Insert messages for different projects/branches
 	_, err = db.Exec(
 		`INSERT INTO messages (id, project, branch, from_agent, type, content, mentions, read_by, from_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		"msg-otto-main", "otto", "main", "user", "say", "message for otto/main", "[]", "[]", "user",
+		"msg-june-main", "june", "main", "user", "say", "message for june/main", "[]", "[]", "user",
 	)
 	if err != nil {
-		t.Fatalf("failed to insert otto/main message: %v", err)
+		t.Fatalf("failed to insert june/main message: %v", err)
 	}
 
 	_, err = db.Exec(
@@ -314,8 +314,8 @@ func TestProjectHeaderMessagesUsesProjectScope(t *testing.T) {
 	}
 
 	// Fetch messages with explicit project/branch (new signature)
-	// This should use otto/main scope, not the current git context
-	cmd := fetchMessagesCmd(db, "otto", "main", "")
+	// This should use june/main scope, not the current git context
+	cmd := fetchMessagesCmd(db, "june", "main", "")
 	msg := cmd()
 
 	// Verify we got the correct messages
@@ -327,17 +327,17 @@ func TestProjectHeaderMessagesUsesProjectScope(t *testing.T) {
 		t.Fatalf("expected messagesMsg, got %T", msg)
 	}
 
-	// Should get only otto/main messages
+	// Should get only june/main messages
 	if len(messagesMsg) != 1 {
-		t.Errorf("expected 1 message from otto/main scope, got %d", len(messagesMsg))
+		t.Errorf("expected 1 message from june/main scope, got %d", len(messagesMsg))
 	}
 
 	if len(messagesMsg) > 0 {
-		if messagesMsg[0].ID != "msg-otto-main" {
-			t.Errorf("expected message ID %q, got %q", "msg-otto-main", messagesMsg[0].ID)
+		if messagesMsg[0].ID != "msg-june-main" {
+			t.Errorf("expected message ID %q, got %q", "msg-june-main", messagesMsg[0].ID)
 		}
-		if messagesMsg[0].Content != "message for otto/main" {
-			t.Errorf("expected content %q, got %q", "message for otto/main", messagesMsg[0].Content)
+		if messagesMsg[0].Content != "message for june/main" {
+			t.Errorf("expected content %q, got %q", "message for june/main", messagesMsg[0].Content)
 		}
 	}
 }
@@ -345,8 +345,8 @@ func TestProjectHeaderMessagesUsesProjectScope(t *testing.T) {
 func TestProjectHeaderMouseClick(t *testing.T) {
 	m := NewModel(nil)
 	m.agents = []repo.Agent{
-		{Project: "otto", Branch: "main", Name: "impl-1", Status: "busy"},
-		{Project: "otto", Branch: "main", Name: "reviewer", Status: "blocked"},
+		{Project: "june", Branch: "main", Name: "impl-1", Status: "busy"},
+		{Project: "june", Branch: "main", Name: "reviewer", Status: "blocked"},
 		{Project: "other", Branch: "feature", Name: "worker", Status: "complete"},
 	}
 
@@ -356,20 +356,20 @@ func TestProjectHeaderMouseClick(t *testing.T) {
 	// 1: other/feature header
 	// 2:   worker
 	// 3: separator
-	// 4: otto/main header
+	// 4: june/main header
 	// 5:   impl-1
 	// 6:   reviewer
 
-	// Find the otto/main header index
+	// Find the june/main header index
 	headerIndex := -1
 	for i, ch := range channels {
-		if ch.ID == "otto/main" && ch.Kind == SidebarChannelHeader {
+		if ch.ID == "june/main" && ch.Kind == SidebarChannelHeader {
 			headerIndex = i
 			break
 		}
 	}
 	if headerIndex == -1 {
-		t.Fatal("expected to find otto/main header")
+		t.Fatal("expected to find june/main header")
 	}
 
 	// Simulate mouse click on project header with activateSelection
@@ -378,19 +378,19 @@ func TestProjectHeaderMouseClick(t *testing.T) {
 	_ = m.activateSelection()
 
 	// Should set activeChannelID to project header
-	if m.activeChannelID != "otto/main" {
-		t.Errorf("expected activeChannelID to be 'otto/main', got %q", m.activeChannelID)
+	if m.activeChannelID != "june/main" {
+		t.Errorf("expected activeChannelID to be 'june/main', got %q", m.activeChannelID)
 	}
 
 	// Should NOT toggle expansion on activateSelection (still expanded)
-	if !m.isProjectExpanded("otto/main") {
-		t.Error("expected otto/main to still be expanded after activateSelection")
+	if !m.isProjectExpanded("june/main") {
+		t.Error("expected june/main to still be expanded after activateSelection")
 	}
 
 	// Use toggleSelection to actually toggle
 	_ = m.toggleSelection()
-	if m.isProjectExpanded("otto/main") {
-		t.Error("expected otto/main to be collapsed after toggleSelection")
+	if m.isProjectExpanded("june/main") {
+		t.Error("expected june/main to be collapsed after toggleSelection")
 	}
 }
 
@@ -400,50 +400,49 @@ func TestNavigationSkipsCollapsedAgents(t *testing.T) {
 
 	m := NewModel(nil)
 	m.projectExpanded = map[string]bool{
-		"otto/main":     false, // Collapse otto/main
+		"june/main":     false, // Collapse june/main
 		"other/feature": true,  // Keep other/feature expanded to avoid auto-toggle
 	}
 	m.agents = []repo.Agent{
-		{Project: "otto", Branch: "main", Name: "impl-1", Status: "busy"},
-		{Project: "otto", Branch: "main", Name: "reviewer", Status: "blocked"},
+		{Project: "june", Branch: "main", Name: "impl-1", Status: "busy"},
+		{Project: "june", Branch: "main", Name: "reviewer", Status: "blocked"},
 		{Project: "other", Branch: "feature", Name: "worker", Status: "complete"},
 	}
 
 	channels := m.sidebarItems()
-	// Expected structure (otto/main collapsed, other/feature expanded):
-	// 0: other/feature header
-	// 1:   worker
-	// 2: separator
-	// 3: otto/main header (collapsed, agents hidden)
+	// Expected structure (june/main collapsed, other/feature expanded):
+	// 0: june/main header (collapsed, agents hidden)
+	// 1: separator
+	// 2: other/feature header
+	// 3:   worker
 
 	if len(channels) != 4 {
-		t.Fatalf("expected 4 channels with otto/main collapsed, got %d", len(channels))
+		t.Fatalf("expected 4 channels with june/main collapsed, got %d", len(channels))
 	}
 
-	// Verify otto/main agents are not in the list
+	// Verify june/main agents are not in the list
 	for _, ch := range channels {
 		if ch.ID == "impl-1" || ch.ID == "reviewer" {
-			t.Errorf("expected otto/main agents to be hidden when collapsed, found %q", ch.ID)
+			t.Errorf("expected june/main agents to be hidden when collapsed, found %q", ch.ID)
 		}
 	}
 
 	// Navigate through the list - should only see visible channels
-	m.cursorIndex = 0 // other/feature header
+	m.cursorIndex = 0 // june/main header
+	if channels[m.cursorIndex].ID != "june/main" {
+		t.Errorf("expected cursor at june/main header, got %q", channels[m.cursorIndex].ID)
+	}
+
+	// Move down - should skip separator (index 1) and go to other/feature (index 2)
+	_ = m.moveCursor(1)
 	if channels[m.cursorIndex].ID != "other/feature" {
 		t.Errorf("expected cursor at other/feature header, got %q", channels[m.cursorIndex].ID)
 	}
 
-	// Move down - should go to worker (index 1)
-	m.cursorIndex = 1
+	// Move down - should go to worker (index 3)
+	_ = m.moveCursor(1)
 	if channels[m.cursorIndex].ID != "worker" {
 		t.Errorf("expected cursor at worker, got %q", channels[m.cursorIndex].ID)
-	}
-
-	// Move down - should skip separator (index 2) and go to otto/main header (index 3)
-	m.cursorIndex = 1
-	_ = m.moveCursor(1) // Should skip separator and land on otto/main
-	if channels[m.cursorIndex].ID != "otto/main" {
-		t.Errorf("expected cursor at otto/main header, got %q", channels[m.cursorIndex].ID)
 	}
 
 	// Verify we can't move past the end
@@ -464,8 +463,8 @@ func TestNavigationSkipsCollapsedAgents(t *testing.T) {
 func TestEnsureSelectionHandlesCollapsedAgents(t *testing.T) {
 	m := NewModel(nil)
 	m.agents = []repo.Agent{
-		{Project: "otto", Branch: "main", Name: "impl-1", Status: "busy"},
-		{Project: "otto", Branch: "main", Name: "reviewer", Status: "blocked"},
+		{Project: "june", Branch: "main", Name: "impl-1", Status: "busy"},
+		{Project: "june", Branch: "main", Name: "reviewer", Status: "blocked"},
 		{Project: "other", Branch: "feature", Name: "worker", Status: "complete"},
 	}
 
@@ -485,8 +484,8 @@ func TestEnsureSelectionHandlesCollapsedAgents(t *testing.T) {
 	m.cursorIndex = impl1Index
 	m.activeChannelID = "impl-1"
 
-	// Now collapse otto/main - impl-1 disappears from channel list
-	m.projectExpanded["otto/main"] = false
+	// Now collapse june/main - impl-1 disappears from channel list
+	m.projectExpanded["june/main"] = false
 
 	// Call ensureSelection - should adjust cursor to valid position
 	m.ensureSelection()
@@ -498,20 +497,20 @@ func TestEnsureSelectionHandlesCollapsedAgents(t *testing.T) {
 	}
 
 	// Active channel should be set to the first valid channel when selected agent is hidden
-	// Channels are sorted alphabetically, so "other/feature" comes before "otto/main"
-	if m.activeChannelID != "other/feature" {
-		t.Errorf("expected activeChannelID to be 'other/feature' after agent hidden, got %q", m.activeChannelID)
+	// Channels are sorted alphabetically, so "june/main" comes before "other/feature"
+	if m.activeChannelID != "june/main" {
+		t.Errorf("expected activeChannelID to be 'june/main' after agent hidden, got %q", m.activeChannelID)
 	}
 }
 
 func TestNavigationRespectsChannelListLength(t *testing.T) {
 	m := NewModel(nil)
 	m.agents = []repo.Agent{
-		{Project: "otto", Branch: "main", Name: "impl-1", Status: "busy"},
+		{Project: "june", Branch: "main", Name: "impl-1", Status: "busy"},
 	}
 
 	channels := m.sidebarItems()
-	// Expected: otto/main header, impl-1 (2 channels)
+	// Expected: june/main header, impl-1 (2 channels)
 
 	if len(channels) != 2 {
 		t.Fatalf("expected 2 channels, got %d", len(channels))

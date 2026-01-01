@@ -4,7 +4,7 @@
 
 **Goal:** Implement explicit agent archiving with `archived_at`, CLI commands/flags, TUI archived section, and retention based on archived age.
 
-**Architecture:** Add `archived_at` to agents and filter status output to hide archived agents by default. Introduce `otto archive <id>` and `otto status --archive/--all` for explicit archiving. Auto-unarchive on orchestrator actions (prompt/attach). Retention cleanup deletes only agents archived for 7+ days.
+**Architecture:** Add `archived_at` to agents and filter status output to hide archived agents by default. Introduce `june archive <id>` and `june status --archive/--all` for explicit archiving. Auto-unarchive on orchestrator actions (prompt/attach). Retention cleanup deletes only agents archived for 7+ days.
 
 **Tech Stack:** Go, SQLite (modernc), Cobra CLI, Bubble Tea TUI.
 
@@ -86,7 +86,7 @@ Add tests in `commands_test.go`:
 - `status` excludes archived agents by default.
 - `status --all` includes archived agents.
 - `status --archive` archives complete/failed agents in view.
-- `otto archive <id>` archives a complete/failed agent, rejects busy/blocked.
+- `june archive <id>` archives a complete/failed agent, rejects busy/blocked.
 
 **Step 2: Run tests to verify failure**
 
@@ -102,7 +102,7 @@ Add `ListAgentsFiltered(db, includeArchived bool)` or extend `ListAgents` with a
 - Add flags:
   - `--all` (include archived)
   - `--archive` (bulk archive complete/failed agents shown)
-- Implement `otto archive <agent-id>` command.
+- Implement `june archive <agent-id>` command.
 - Register in `internal/cli/root.go`.
 
 **Step 5: Run tests**
@@ -228,7 +228,7 @@ git commit -m "feat: show archived agents in TUI"
 
 **Step 1: Update docs**
 
-- Add `otto archive` to command list.
+- Add `june archive` to command list.
 - Mention `status --all` and `status --archive`.
 - Update retention description if needed.
 
@@ -243,7 +243,7 @@ git commit -m "docs: document agent archiving"
 
 ## Progress Log (Checkpoint for Context Compaction)
 
-**Worktree:** `/Users/glowy/code/otto/.worktrees/agent-archiving`
+**Worktree:** `/Users/glowy/code/june/.worktrees/agent-archiving`
 
 **Task 1: Schema + repo support for archived_at** ✅ **Done**
 - Commit: `feat: add archived_at to agents` (sha unknown in this file; already committed earlier)
@@ -272,17 +272,17 @@ git commit -m "docs: document agent archiving"
 - Test run: `go test ./internal/tui -run Archived -v`
 
 **Task 6: Docs + CLI help** ✅ **Done** (commit `48fb099`)
-- README command list updated for `otto archive` and `status --all/--archive`.
+- README command list updated for `june archive` and `status --all/--archive`.
 - Status help text notes archived hidden by default and archive behavior.
 - Design doc summary updated to clarify retention based on archived age.
 - Code review: non-blocking polish items logged in `TODO.md`.
 
 ### Operational Notes
 - Orchestrator DB for this worktree lacked `archived_at`; manual migration applied:
-  - `~/.otto/orchestrators/agent-archiving/agent-archiving/otto.db`
+  - `~/.june/orchestrators/agent-archiving/agent-archiving/june.db`
   - `ALTER TABLE agents ADD COLUMN archived_at DATETIME;`
   - `CREATE INDEX IF NOT EXISTS idx_agents_archived ON agents(archived_at) WHERE archived_at IS NOT NULL;`
-- After migration, spawning via `/Users/glowy/code/otto/.worktrees/agent-archiving/otto` worked.
+- After migration, spawning via `/Users/glowy/code/june/.worktrees/agent-archiving/june` worked.
 
 ### Open Items / Next Steps
 - Follow-up polish items tracked in `TODO.md`.

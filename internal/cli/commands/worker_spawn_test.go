@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	ottoexec "otto/internal/exec"
-	"otto/internal/repo"
+	juneexec "june/internal/exec"
+	"june/internal/repo"
 
 	"github.com/google/uuid"
 )
@@ -46,14 +46,14 @@ func TestWorkerSpawnCapturesPromptAndLogs(t *testing.T) {
 	}
 
 	// 2) Run worker spawn with a fake runner that emits transcript chunks
-	chunks := make(chan ottoexec.TranscriptChunk, 3)
-	chunks <- ottoexec.TranscriptChunk{Stream: "stdout", Data: "worker output line 1\n"}
-	chunks <- ottoexec.TranscriptChunk{Stream: "stderr", Data: "worker stderr\n"}
-	chunks <- ottoexec.TranscriptChunk{Stream: "stdout", Data: "worker output line 2\n"}
+	chunks := make(chan juneexec.TranscriptChunk, 3)
+	chunks <- juneexec.TranscriptChunk{Stream: "stdout", Data: "worker output line 1\n"}
+	chunks <- juneexec.TranscriptChunk{Stream: "stderr", Data: "worker stderr\n"}
+	chunks <- juneexec.TranscriptChunk{Stream: "stdout", Data: "worker output line 2\n"}
 	close(chunks)
 
 	runner := &mockRunner{
-		startWithTranscriptCaptureFunc: func(name string, args ...string) (int, <-chan ottoexec.TranscriptChunk, func() error, error) {
+		startWithTranscriptCaptureFunc: func(name string, args ...string) (int, <-chan juneexec.TranscriptChunk, func() error, error) {
 			return 9999, chunks, func() error { return nil }, nil
 		},
 	}
@@ -146,14 +146,14 @@ func TestWorkerSpawnCapturesThreadID(t *testing.T) {
 	}
 
 	// Mock runner that simulates Codex JSON output with thread.started event
-	chunks := make(chan ottoexec.TranscriptChunk, 5)
-	chunks <- ottoexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"other_event","data":"something"}` + "\n"}
-	chunks <- ottoexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"thread.started","thread_id":"thread_xyz789"}` + "\n"}
-	chunks <- ottoexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"message","content":"hello"}` + "\n"}
+	chunks := make(chan juneexec.TranscriptChunk, 5)
+	chunks <- juneexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"other_event","data":"something"}` + "\n"}
+	chunks <- juneexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"thread.started","thread_id":"thread_xyz789"}` + "\n"}
+	chunks <- juneexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"message","content":"hello"}` + "\n"}
 	close(chunks)
 
 	runner := &mockRunner{
-		startWithTranscriptCaptureEnv: func(name string, env []string, args ...string) (int, <-chan ottoexec.TranscriptChunk, func() error, error) {
+		startWithTranscriptCaptureEnv: func(name string, env []string, args ...string) (int, <-chan juneexec.TranscriptChunk, func() error, error) {
 			return 8888, chunks, func() error { return nil }, nil
 		},
 	}
@@ -213,13 +213,13 @@ func TestWorkerSpawnCodexWithoutThreadID(t *testing.T) {
 	}
 
 	// Mock runner with NO thread.started event
-	chunks := make(chan ottoexec.TranscriptChunk, 3)
-	chunks <- ottoexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"message","content":"hello"}` + "\n"}
-	chunks <- ottoexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"other_event","data":"something"}` + "\n"}
+	chunks := make(chan juneexec.TranscriptChunk, 3)
+	chunks <- juneexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"message","content":"hello"}` + "\n"}
+	chunks <- juneexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"other_event","data":"something"}` + "\n"}
 	close(chunks)
 
 	runner := &mockRunner{
-		startWithTranscriptCaptureEnv: func(name string, env []string, args ...string) (int, <-chan ottoexec.TranscriptChunk, func() error, error) {
+		startWithTranscriptCaptureEnv: func(name string, env []string, args ...string) (int, <-chan juneexec.TranscriptChunk, func() error, error) {
 			return 7777, chunks, func() error { return nil }, nil
 		},
 	}
@@ -279,16 +279,16 @@ func TestWorkerCodexSpawnLogsItemStarted(t *testing.T) {
 	}
 
 	// Mock runner that simulates Codex JSON output with item.started events
-	chunks := make(chan ottoexec.TranscriptChunk, 5)
-	chunks <- ottoexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"thread.started","thread_id":"thread_xyz789"}` + "\n"}
-	chunks <- ottoexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"item.started","item":{"type":"command_execution","command":"echo hello","text":""}}` + "\n"}
-	chunks <- ottoexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"item.completed","item":{"type":"command_execution","command":"echo hello","aggregated_output":"hello","exit_code":0}}` + "\n"}
-	chunks <- ottoexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"item.started","item":{"type":"output","text":"Working on task..."}}` + "\n"}
-	chunks <- ottoexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"item.completed","item":{"type":"output","text":"Task complete"}}` + "\n"}
+	chunks := make(chan juneexec.TranscriptChunk, 5)
+	chunks <- juneexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"thread.started","thread_id":"thread_xyz789"}` + "\n"}
+	chunks <- juneexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"item.started","item":{"type":"command_execution","command":"echo hello","text":""}}` + "\n"}
+	chunks <- juneexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"item.completed","item":{"type":"command_execution","command":"echo hello","aggregated_output":"hello","exit_code":0}}` + "\n"}
+	chunks <- juneexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"item.started","item":{"type":"output","text":"Working on task..."}}` + "\n"}
+	chunks <- juneexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"item.completed","item":{"type":"output","text":"Task complete"}}` + "\n"}
 	close(chunks)
 
 	runner := &mockRunner{
-		startWithTranscriptCaptureEnv: func(name string, env []string, args ...string) (int, <-chan ottoexec.TranscriptChunk, func() error, error) {
+		startWithTranscriptCaptureEnv: func(name string, env []string, args ...string) (int, <-chan juneexec.TranscriptChunk, func() error, error) {
 			return 8888, chunks, func() error { return nil }, nil
 		},
 	}
@@ -371,16 +371,16 @@ func TestWorkerCodexSpawnLogsTurnEvents(t *testing.T) {
 	}
 
 	// Mock runner that simulates Codex JSON output with turn events
-	chunks := make(chan ottoexec.TranscriptChunk, 5)
-	chunks <- ottoexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"thread.started","thread_id":"thread_turn_worker"}` + "\n"}
-	chunks <- ottoexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"turn.started"}` + "\n"}
-	chunks <- ottoexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"item.started","item":{"type":"output","text":"Processing..."}}` + "\n"}
-	chunks <- ottoexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"item.completed","item":{"type":"output","text":"Done processing"}}` + "\n"}
-	chunks <- ottoexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"turn.completed"}` + "\n"}
+	chunks := make(chan juneexec.TranscriptChunk, 5)
+	chunks <- juneexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"thread.started","thread_id":"thread_turn_worker"}` + "\n"}
+	chunks <- juneexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"turn.started"}` + "\n"}
+	chunks <- juneexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"item.started","item":{"type":"output","text":"Processing..."}}` + "\n"}
+	chunks <- juneexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"item.completed","item":{"type":"output","text":"Done processing"}}` + "\n"}
+	chunks <- juneexec.TranscriptChunk{Stream: "stdout", Data: `{"type":"turn.completed"}` + "\n"}
 	close(chunks)
 
 	runner := &mockRunner{
-		startWithTranscriptCaptureEnv: func(name string, env []string, args ...string) (int, <-chan ottoexec.TranscriptChunk, func() error, error) {
+		startWithTranscriptCaptureEnv: func(name string, env []string, args ...string) (int, <-chan juneexec.TranscriptChunk, func() error, error) {
 			return 8888, chunks, func() error { return nil }, nil
 		},
 	}

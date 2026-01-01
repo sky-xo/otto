@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"otto/internal/repo"
+	"june/internal/repo"
 
 	_ "modernc.org/sqlite"
 )
@@ -23,7 +23,7 @@ func TestFormatChatMessageSlackStyle(t *testing.T) {
 			Content:   "hey there",
 		},
 		{
-			FromAgent: "otto",
+			FromAgent: "june",
 			Type:      "complete",
 			Content:   "I'm done with that task",
 		},
@@ -42,7 +42,7 @@ func TestFormatChatMessageSlackStyle(t *testing.T) {
 	// you
 	// hey there
 	// (blank line)
-	// otto
+	// june
 	// I'm done with that task
 	// (blank line)
 
@@ -72,15 +72,15 @@ func TestFormatChatMessageSlackStyle(t *testing.T) {
 	}
 }
 
-func TestFormatOttoCompleteMessageSlackStyle(t *testing.T) {
+func TestFormatJuneCompleteMessageSlackStyle(t *testing.T) {
 	m := NewModel(nil)
 	m.width = 80
 
-	// Otto's complete messages are now hidden (we show otto_response instead)
-	// This test verifies that complete messages from otto are filtered out
+	// June's complete messages are now hidden (we show june_response instead)
+	// This test verifies that complete messages from june are filtered out
 	messages := []repo.Message{
 		{
-			FromAgent: "otto",
+			FromAgent: "june",
 			Type:      "complete",
 			Content:   "Task completed successfully",
 		},
@@ -91,7 +91,7 @@ func TestFormatOttoCompleteMessageSlackStyle(t *testing.T) {
 	// Get formatted lines - should show "Waiting for messages..." since complete is hidden
 	lines := m.mainContentLines(80)
 
-	// Since otto complete is hidden and there are no otto_response items,
+	// Since june complete is hidden and there are no june_response items,
 	// we should get the "Waiting for messages..." placeholder
 	if len(lines) != 1 {
 		t.Errorf("expected 1 line (placeholder), got %d lines", len(lines))
@@ -107,12 +107,12 @@ func TestFormatOttoCompleteMessageSlackStyle(t *testing.T) {
 	}
 }
 
-func TestFormatOttoResponseSlackStyle(t *testing.T) {
+func TestFormatJuneResponseSlackStyle(t *testing.T) {
 	m := NewModel(nil)
 	m.width = 80
 
-	// Create an otto_response entry (from agent_message logs)
-	m.ottoMessages = []repo.LogEntry{
+	// Create an june_response entry (from agent_message logs)
+	m.juneMessages = []repo.LogEntry{
 		{
 			Content:   sql.NullString{String: "Task completed successfully", Valid: true},
 			CreatedAt: "2025-01-01 12:00:00",
@@ -122,21 +122,21 @@ func TestFormatOttoResponseSlackStyle(t *testing.T) {
 	// Get formatted lines
 	lines := m.mainContentLines(80)
 
-	// Verify that "otto" appears on its own line (Slack-style)
+	// Verify that "june" appears on its own line (Slack-style)
 	hasSlackStyleFormat := false
 	for i := 0; i < len(lines)-1; i++ {
 		stripped := stripAnsi(lines[i])
 		nextStripped := stripAnsi(lines[i+1])
 
-		// Check if we have a line that's just "otto" followed by content
-		if strings.TrimSpace(stripped) == "otto" && strings.Contains(nextStripped, "Task completed") {
+		// Check if we have a line that's just "june" followed by content
+		if strings.TrimSpace(stripped) == "june" && strings.Contains(nextStripped, "Task completed") {
 			hasSlackStyleFormat = true
 			break
 		}
 	}
 
 	if !hasSlackStyleFormat {
-		t.Errorf("expected Slack-style format for otto_response with sender on separate line")
+		t.Errorf("expected Slack-style format for june_response with sender on separate line")
 		for i, line := range lines {
 			t.Logf("Line %d: %q", i, stripAnsi(line))
 		}
@@ -219,15 +219,15 @@ func TestFormatNonChatMessageKeepsOldFormat(t *testing.T) {
 
 // Task 3.2 tests
 
-func TestPromptToOttoIsHidden(t *testing.T) {
+func TestPromptToJuneIsHidden(t *testing.T) {
 	m := NewModel(nil)
 	m.width = 80
 
-	// Create a prompt-to-otto message (should be hidden)
+	// Create a prompt-to-june message (should be hidden)
 	messages := []repo.Message{
 		{
 			FromAgent: "you",
-			ToAgent:   sql.NullString{String: "otto", Valid: true},
+			ToAgent:   sql.NullString{String: "june", Valid: true},
 			Type:      "prompt",
 			Content:   "do something",
 		},
@@ -237,7 +237,7 @@ func TestPromptToOttoIsHidden(t *testing.T) {
 	lines := m.mainContentLines(80)
 
 	// Should have only the "Waiting for messages..." line or be empty
-	// since the prompt-to-otto message should be hidden
+	// since the prompt-to-june message should be hidden
 	if len(lines) != 1 {
 		t.Errorf("expected 1 line (waiting message), got %d lines", len(lines))
 		for i, line := range lines {
@@ -292,10 +292,10 @@ func TestPromptToOtherAgentRendersAsActivityLine(t *testing.T) {
 	m := NewModel(nil)
 	m.width = 80
 
-	// Create a prompt from otto to reviewer (should render as activity line)
+	// Create a prompt from june to reviewer (should render as activity line)
 	messages := []repo.Message{
 		{
-			FromAgent: "otto",
+			FromAgent: "june",
 			ToAgent:   sql.NullString{String: "reviewer", Valid: true},
 			Type:      "prompt",
 			Content:   "Review the code and check for bugs",
@@ -312,9 +312,9 @@ func TestPromptToOtherAgentRendersAsActivityLine(t *testing.T) {
 
 	firstLine := stripAnsi(lines[0])
 
-	// Should be formatted as: "otto spawned reviewer — "Review...""
-	if !strings.Contains(firstLine, "otto") {
-		t.Errorf("expected activity line to contain sender 'otto', got: %q", firstLine)
+	// Should be formatted as: "june spawned reviewer — "Review...""
+	if !strings.Contains(firstLine, "june") {
+		t.Errorf("expected activity line to contain sender 'june', got: %q", firstLine)
 	}
 	if !strings.Contains(firstLine, "spawned") {
 		t.Errorf("expected activity line to contain 'spawned', got: %q", firstLine)
@@ -331,7 +331,7 @@ func TestMixedMessagesWithHiddenAndActivityLines(t *testing.T) {
 	m := NewModel(nil)
 	m.width = 80
 
-	// Create a mix of messages: chat, prompt-to-otto (hidden), prompt-to-agent (activity), exit (hidden)
+	// Create a mix of messages: chat, prompt-to-june (hidden), prompt-to-agent (activity), exit (hidden)
 	messages := []repo.Message{
 		{
 			FromAgent: "you",
@@ -340,12 +340,12 @@ func TestMixedMessagesWithHiddenAndActivityLines(t *testing.T) {
 		},
 		{
 			FromAgent: "you",
-			ToAgent:   sql.NullString{String: "otto", Valid: true},
+			ToAgent:   sql.NullString{String: "june", Valid: true},
 			Type:      "prompt",
 			Content:   "this should be hidden",
 		},
 		{
-			FromAgent: "otto",
+			FromAgent: "june",
 			ToAgent:   sql.NullString{String: "reviewer", Valid: true},
 			Type:      "prompt",
 			Content:   "Review this",
@@ -366,12 +366,12 @@ func TestMixedMessagesWithHiddenAndActivityLines(t *testing.T) {
 	// - "you" on its own line (Slack style)
 	// - "hello" on next line
 	// - blank line
-	// - "otto spawned reviewer — "Review this"" (activity line)
+	// - "june spawned reviewer — "Review this"" (activity line)
 	// - blank line
-	// Should NOT have the prompt-to-otto or exit messages
+	// Should NOT have the prompt-to-june or exit messages
 
 	if strings.Contains(output, "this should be hidden") {
-		t.Error("expected prompt-to-otto message to be hidden")
+		t.Error("expected prompt-to-june message to be hidden")
 	}
 
 	if strings.Contains(output, "process finished") {
@@ -400,7 +400,7 @@ func TestActivityLinesUseDimStyle(t *testing.T) {
 	// Create a prompt-to-agent message (should render as dim activity line)
 	messages := []repo.Message{
 		{
-			FromAgent: "otto",
+			FromAgent: "june",
 			ToAgent:   sql.NullString{String: "reviewer", Valid: true},
 			Type:      "prompt",
 			Content:   "Review this code",
@@ -423,7 +423,7 @@ func TestActivityLinesUseDimStyle(t *testing.T) {
 
 	// The activity line should be formatted as "{agent} spawned {target} — "{content}""
 	stripped := stripAnsi(lines[0])
-	if !strings.Contains(stripped, "otto spawned reviewer") {
+	if !strings.Contains(stripped, "june spawned reviewer") {
 		t.Errorf("expected activity line format, got: %q", stripped)
 	}
 }
@@ -462,12 +462,12 @@ func TestUsernameColorForYou(t *testing.T) {
 	}
 }
 
-func TestUsernameColorForOtto(t *testing.T) {
+func TestUsernameColorForJune(t *testing.T) {
 	m := NewModel(nil)
 	m.width = 80
 
-	// Create an otto_response entry (Slack-style)
-	m.ottoMessages = []repo.LogEntry{
+	// Create an june_response entry (Slack-style)
+	m.juneMessages = []repo.LogEntry{
 		{
 			Content:   sql.NullString{String: "Task completed", Valid: true},
 			CreatedAt: "2025-01-01 12:00:00",
@@ -480,11 +480,11 @@ func TestUsernameColorForOtto(t *testing.T) {
 		t.Fatal("expected at least 2 lines (sender + content)")
 	}
 
-	// First line should be "otto" with Slack-style formatting
+	// First line should be "june" with Slack-style formatting
 	senderLine := stripAnsi(lines[0])
 
-	if strings.TrimSpace(senderLine) != "otto" {
-		t.Errorf("expected first line to be 'otto', got %q", senderLine)
+	if strings.TrimSpace(senderLine) != "june" {
+		t.Errorf("expected first line to be 'june', got %q", senderLine)
 	}
 
 	// Second line should be the content
@@ -504,7 +504,7 @@ func TestActivityLinesAreDimmed(t *testing.T) {
 
 	messages := []repo.Message{
 		{
-			FromAgent: "otto",
+			FromAgent: "june",
 			ToAgent:   sql.NullString{String: "impl", Valid: true},
 			Type:      "prompt",
 			Content:   "Implement feature X",
@@ -521,7 +521,7 @@ func TestActivityLinesAreDimmed(t *testing.T) {
 	// Just verify the activity line is present and formatted correctly
 	// The actual styling (mutedStyle) is verified by manual testing in TUI
 	stripped := stripAnsi(lines[0])
-	expected := `otto spawned impl — "Implement feature X"`
+	expected := `june spawned impl — "Implement feature X"`
 	if stripped != expected {
 		t.Errorf("expected activity line format:\n  %q\ngot:\n  %q", expected, stripped)
 	}
@@ -652,7 +652,7 @@ func TestChatMessageWrapsWithDifferentWidths(t *testing.T) {
 
 			messages := []repo.Message{
 				{
-					FromAgent: "otto",
+					FromAgent: "june",
 					Type:      repo.MessageTypeChat,
 					Content:   content,
 				},
@@ -708,16 +708,16 @@ func TestChatMessageWithMultibyteCharacters(t *testing.T) {
 	}
 }
 
-func TestOttoResponseWrapsCorrectly(t *testing.T) {
+func TestJuneResponseWrapsCorrectly(t *testing.T) {
 	m := NewModel(nil)
 	m.width = 40
 
-	// Otto's response with long content
+	// June's response with long content
 	longContent := "I have successfully completed the task you requested. " +
 		"The implementation is now finished and ready for review. " +
 		"All tests are passing."
 
-	m.ottoMessages = []repo.LogEntry{
+	m.juneMessages = []repo.LogEntry{
 		{
 			Content:   sql.NullString{String: longContent, Valid: true},
 			CreatedAt: "2025-01-01 12:00:00",
@@ -742,13 +742,13 @@ func TestOttoResponseWrapsCorrectly(t *testing.T) {
 	hasSlackFormat := false
 	for i := 0; i < len(lines)-1; i++ {
 		stripped := stripAnsi(lines[i])
-		if strings.TrimSpace(stripped) == "otto" {
+		if strings.TrimSpace(stripped) == "june" {
 			hasSlackFormat = true
 			break
 		}
 	}
 	if !hasSlackFormat {
-		t.Error("expected Slack-style format with otto on separate line")
+		t.Error("expected Slack-style format with june on separate line")
 	}
 }
 
@@ -779,7 +779,7 @@ func TestMultipleChatMessagesAllWrapCorrectly(t *testing.T) {
 			Content:   "This is my first message and it is quite long",
 		},
 		{
-			FromAgent: "otto",
+			FromAgent: "june",
 			Type:      repo.MessageTypeChat,
 			Content:   "This is my response and it is also quite long",
 		},
@@ -821,10 +821,10 @@ func TestScrollToBottomOnNewMessages(t *testing.T) {
 	for i := 0; i < 30; i++ {
 		messages[i] = repo.Message{
 			ID:        fmt.Sprintf("msg-%d", i+1),
-			Project:   "otto",
+			Project:   "june",
 			Branch:    "main",
 			FromAgent: "you",
-			ToAgent:   sql.NullString{String: "otto", Valid: true},
+			ToAgent:   sql.NullString{String: "june", Valid: true},
 			Type:      repo.MessageTypeChat,
 			Content:   fmt.Sprintf("Message %d with some content to make it visible", i+1),
 		}
@@ -846,9 +846,9 @@ func TestScrollToBottomOnNewMessages(t *testing.T) {
 	newMessages := []repo.Message{
 		{
 			ID:        "msg-new-1",
-			Project:   "otto",
+			Project:   "june",
 			Branch:    "main",
-			FromAgent: "otto",
+			FromAgent: "june",
 			ToAgent:   sql.NullString{String: "you", Valid: true},
 			Type:      "complete",
 			Content:   "New message that should trigger scroll to bottom",

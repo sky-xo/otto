@@ -1,8 +1,8 @@
-# Otto
+# June
 
 A multi-agent orchestrator for Claude Code and Codex.
 
-Otto lets you spawn multiple AI agents that work in parallel, communicate through a shared message stream, and coordinate handoffs—all from a single Claude Code session.
+June lets you spawn multiple AI agents that work in parallel, communicate through a shared message stream, and coordinate handoffs—all from a single Claude Code session.
 
 ## Features
 
@@ -22,7 +22,7 @@ Or build from source:
 
 ```bash
 git clone https://github.com/sky-xo/otto
-cd otto
+cd june
 make build
 ```
 
@@ -30,42 +30,42 @@ make build
 
 ```bash
 # Spawn an agent
-otto spawn claude "implement user authentication"
+june spawn claude "implement user authentication"
 
 # Check agent status
-otto status
+june status
 
 # View messages
-otto messages
+june messages
 
 # Launch TUI (watch messages, manage agents)
-otto
+june
 ```
 
 ## Commands
 
 | Command | Description |
 |---------|-------------|
-| `otto` | Launch TUI (same as `otto watch`) |
-| `otto spawn <type> "<task>"` | Spawn a new claude/codex agent |
-| `otto status [--all] [--archive]` | List agent status |
-| `otto messages` | View message stream |
-| `otto prompt <agent> "<msg>"` | Send prompt to an agent |
-| `otto attach <agent>` | Get command to attach to agent session |
-| `otto archive <agent>` | Archive a completed/failed agent |
-| `otto dm --from <agent> --to <recipient> "<msg>"` | Post direct message |
-| `otto ask --id <agent> "<q>"` | Agent asks a question |
-| `otto complete --id <agent> "<summary>"` | Agent marks task done |
+| `june` | Launch TUI (same as `june watch`) |
+| `june spawn <type> "<task>"` | Spawn a new claude/codex agent |
+| `june status [--all] [--archive]` | List agent status |
+| `june messages` | View message stream |
+| `june prompt <agent> "<msg>"` | Send prompt to an agent |
+| `june attach <agent>` | Get command to attach to agent session |
+| `june archive <agent>` | Archive a completed/failed agent |
+| `june dm --from <agent> --to <recipient> "<msg>"` | Post direct message |
+| `june ask --id <agent> "<q>"` | Agent asks a question |
+| `june complete --id <agent> "<summary>"` | Agent marks task done |
 
 ## How It Works
 
 ```
 You ←→ Claude Code (orchestrator)
          │
-         │ calls otto CLI
+         │ calls june CLI
          ▼
     ┌─────────────────────────────────────┐
-    │  otto CLI                           │
+    │  june CLI                           │
     │  - spawn agents                     │
     │  - check status                     │
     │  - send/receive messages            │
@@ -77,7 +77,7 @@ You ←→ Claude Code (orchestrator)
     (design)      (implement)     (review)
 ```
 
-State is stored in `~/.otto/otto.db` (global database with project/branch scoping).
+State is stored in `~/.june/june.db` (global database with project/branch scoping).
 
 ## Development
 

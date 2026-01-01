@@ -1,9 +1,9 @@
 ---
-name: otto-orchestrate
-description: Use when spawning Codex agents via Otto to delegate implementation work.
+name: june-orchestrate
+description: Use when spawning Codex agents via June to delegate implementation work.
 ---
 
-# Otto Orchestration
+# June Orchestration
 
 Spawn and coordinate Codex agents for implementation work.
 
@@ -17,7 +17,7 @@ You coordinate, you don't implement. Dispatch agents to do the work.
 
 ```
 Bash tool call:
-  command: otto spawn codex "task description" --name <name>
+  command: june spawn codex "task description" --name <name>
   run_in_background: true
 ```
 
@@ -38,8 +38,8 @@ BashOutput tool call:
 ## You Don't Need to Poll
 
 You'll be **automatically notified** when agents complete. So there's no need to:
-- Run `otto status` to check if an agent is done
-- Run `otto peek` repeatedly while waiting
+- Run `june status` to check if an agent is done
+- Run `june peek` repeatedly while waiting
 
 Just wait, or do other work. The notification will come.
 
@@ -48,30 +48,30 @@ Just wait, or do other work. The notification will come.
 If things seem to be taking a while and you want to see what's happening:
 
 ```bash
-otto peek <agent>            # Incremental output since last peek
+june peek <agent>            # Incremental output since last peek
                              # For completed/failed agents, shows full log (capped at 100 lines)
-otto status                  # See all agent states
-otto log <agent> --tail 20   # Recent log entries
+june status                  # See all agent states
+june log <agent> --tail 20   # Recent log entries
 ```
 
 This is fine for curiosity or if something feels stuck—just know it's not required.
 
 ## Re-awakening Agents (IMPORTANT)
 
-**Use `otto prompt` to continue work with the SAME agent for the SAME role.**
+**Use `june prompt` to continue work with the SAME agent for the SAME role.**
 
 ```bash
 # ✅ GOOD: Re-awaken spec reviewer for re-review after fixes
-otto prompt spec-1 "Issues were fixed. Re-review the changes."
+june prompt spec-1 "Issues were fixed. Re-review the changes."
 
 # ✅ GOOD: Re-awaken quality reviewer for re-review after fixes
-otto prompt quality-1 "Issues were fixed. Re-review the changes."
+june prompt quality-1 "Issues were fixed. Re-review the changes."
 
 # ❌ BAD: Spawning new agent for re-review of same role
-otto spawn codex "Re-review..." --name spec-1-re  # Wasteful!
+june spawn codex "Re-review..." --name spec-1-re  # Wasteful!
 
 # ❌ BAD: Prompting agent to change roles
-otto prompt spec-1 "Now do quality review"  # Wrong! Different role = different agent
+june prompt spec-1 "Now do quality review"  # Wrong! Different role = different agent
 ```
 
 **When to prompt vs spawn:**
@@ -90,17 +90,17 @@ The re-awakening pattern is for when the SAME reviewer needs to verify fixes.
 ## Communication
 
 ```bash
-otto prompt <agent> "message"                           # Send followup to agent (also re-awakens completed agents)
-otto dm --from <sender> --to <recipient> "message"      # Send direct message between agents
+june prompt <agent> "message"                           # Send followup to agent (also re-awakens completed agents)
+june dm --from <sender> --to <recipient> "message"      # Send direct message between agents
                                                         # Supports cross-branch: --to feature/login:frontend
 ```
 
 ## Lifecycle
 
 ```bash
-otto kill <agent>            # Terminate agent process
-otto interrupt <agent>       # Pause agent (can resume later)
-otto archive <agent>         # Archive completed/failed agent
+june kill <agent>            # Terminate agent process
+june interrupt <agent>       # Pause agent (can resume later)
+june archive <agent>         # Archive completed/failed agent
 ```
 
 ## When to Archive
@@ -108,7 +108,7 @@ otto archive <agent>         # Archive completed/failed agent
 **Don't archive during active work.** Keep agents around while:
 - Still working through a multi-step task
 - Reviewing results or debugging issues
-- Might need follow-up (`otto prompt` for fixes or clarification)
+- Might need follow-up (`june prompt` for fixes or clarification)
 
 **Archive when work is complete:**
 1. **User signals satisfaction** - "looks good", "ship it", "done", ready to push/merge
@@ -116,9 +116,9 @@ otto archive <agent>         # Archive completed/failed agent
 
 ```bash
 # After user approves the work and you're ready to commit/push:
-otto archive planner
-otto archive impl-1
-otto archive reviewer
+june archive planner
+june archive impl-1
+june archive reviewer
 # ... archive all agents from this task
 ```
 
@@ -127,15 +127,15 @@ otto archive reviewer
 ## Agent Communication
 
 Spawned agents use these to communicate back:
-- `otto dm --from <self> --to <recipient> "message"` - Send direct message to another agent or orchestrator
-- `otto ask "question?"` - Set status to WAITING, block for answer
-- `otto complete` - Signal task is done
+- `june dm --from <self> --to <recipient> "message"` - Send direct message to another agent or orchestrator
+- `june ask "question?"` - Set status to WAITING, block for answer
+- `june complete` - Signal task is done
 
 ## Typical Flow
 
 ```
 # 1. Spawn with run_in_background (Bash tool)
-command: otto spawn codex "Implement Task 1: Add user model.
+command: june spawn codex "Implement Task 1: Add user model.
 
 Rules:
 - Do not read or act on other tasks
@@ -148,14 +148,14 @@ run_in_background: true
 bash_id: <id from step 1>
 
 # 4. If agent needs guidance, respond and wait again
-otto prompt task-1 "Use UUID for the ID field"
+june prompt task-1 "Use UUID for the ID field"
 
 # 5. Continue with more tasks, reviews, etc.
 # Keep agents around - you might need to reference or prompt them
 
 # 6. When user is satisfied and ready to push/merge:
-otto archive task-1
-otto archive reviewer
+june archive task-1
+june archive reviewer
 # ... archive all agents from this work
 ```
 
@@ -171,12 +171,12 @@ otto archive reviewer
 
 | Action | How |
 |--------|-----|
-| Spawn | Bash tool: `otto spawn codex "task" --name x` with `run_in_background: true` |
+| Spawn | Bash tool: `june spawn codex "task" --name x` with `run_in_background: true` |
 | Wait for completion | Do nothing—you'll be notified automatically |
 | Get results | `BashOutput` with `bash_id` from spawn |
-| Send message | `otto prompt <agent> "msg"` |
-| Agent-to-agent msg | `otto dm --from <sender> --to <recipient> "msg"` |
-| Check channel | `otto messages` |
-| Kill | `otto kill <agent>` |
-| Archive | `otto archive <agent>` |
-| *(Optional)* See progress | `otto peek <agent>` or `otto status` |
+| Send message | `june prompt <agent> "msg"` |
+| Agent-to-agent msg | `june dm --from <sender> --to <recipient> "msg"` |
+| Check channel | `june messages` |
+| Kill | `june kill <agent>` |
+| Archive | `june archive <agent>` |
+| *(Optional)* See progress | `june peek <agent>` or `june status` |

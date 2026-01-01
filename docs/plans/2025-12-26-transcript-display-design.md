@@ -5,7 +5,7 @@
 
 ## Problem
 
-When viewing Codex agent transcripts in `otto watch`, raw JSON is displayed instead of nicely formatted content. This happens because:
+When viewing Codex agent transcripts in `june watch`, raw JSON is displayed instead of nicely formatted content. This happens because:
 
 1. `consumeTranscriptEntries()` logs every raw stdout chunk as `EventType: "output"` containing raw JSON
 2. `onEvent()` callback also creates properly parsed event entries
@@ -78,7 +78,7 @@ Add new `inputStyle` with background color.
 Modify `consumeTranscriptEntries()` to skip raw logging when `onEvent` is provided:
 
 ```go
-func consumeTranscriptEntries(db *sql.DB, ctx scope.Context, agentID string, output <-chan ottoexec.TranscriptChunk, onEvent func(CodexEvent)) <-chan error {
+func consumeTranscriptEntries(db *sql.DB, ctx scope.Context, agentID string, output <-chan juneexec.TranscriptChunk, onEvent func(CodexEvent)) <-chan error {
     // ...
     for chunk := range output {
         // Only log raw output if no event parser is provided (Claude agents)

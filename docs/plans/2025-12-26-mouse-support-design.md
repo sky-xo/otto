@@ -5,7 +5,7 @@
 
 ## Overview
 
-Add mouse support to the Otto TUI for intuitive navigation and text selection.
+Add mouse support to the June TUI for intuitive navigation and text selection.
 
 ## Phases
 

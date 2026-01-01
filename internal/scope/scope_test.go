@@ -54,7 +54,7 @@ func TestCurrentContextFromRepoRoot(t *testing.T) {
 }
 
 func TestRepoRootRegularRepo(t *testing.T) {
-	// This test runs in a regular git repo (otto itself)
+	// This test runs in a regular git repo (june itself)
 	// Verify RepoRoot() returns the correct path
 	root := RepoRoot()
 	if root == "" {
@@ -72,7 +72,7 @@ func TestRepoRootRegularRepo(t *testing.T) {
 		t.Fatalf("Expected .git at %q but got error: %v", gitPath, err)
 	}
 
-	// The project name should be "otto" since we're in the otto repo
+	// The project name should be "june" since we're in the june repo
 	project := filepath.Base(root)
 	if project != "otto" {
 		t.Fatalf("Expected project name 'otto', got %q", project)

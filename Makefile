@@ -1,12 +1,12 @@
 .PHONY: build install test clean
 
-# Build the otto binary
+# Build the june binary
 build:
-	go build -o otto ./cmd/otto
+	go build -o june ./cmd/june
 
 # Install to $GOPATH/bin
 install:
-	go install ./cmd/otto
+	go install ./cmd/june
 
 # Run all tests
 test:
@@ -18,8 +18,8 @@ cover:
 
 # Clean build artifacts
 clean:
-	rm -f otto
+	rm -f june
 
 # Build and run the TUI watch
 watch:
-	go build -o otto ./cmd/otto && ./otto watch
+	go build -o june ./cmd/june && ./june watch

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"otto/internal/repo"
+	"june/internal/repo"
 )
 
 func captureStdout(t *testing.T, fn func()) string {

@@ -30,11 +30,11 @@ spawn ────────────────────────�
          │      ▼                          ▼                    ▼      │
    ┌───────────────┐              ┌──────────────┐       ┌───────────────┐
    │    blocked    │              │     idle     │       │   (deleted)   │
-   │  (otto ask)   │              │ (interrupted │       │  on complete  │
+   │  (june ask)   │              │ (interrupted │       │  on complete  │
    └───────────────┘              │  or finished)│       │   or kill     │
          │                        └──────────────┘       └───────────────┘
          │                                │
-         │         otto prompt            │
+         │         june prompt            │
          └────────────────────────────────┘
 ```
 
@@ -64,7 +64,7 @@ spawn → working → complete → POST message → DELETE row
 
 ## Changes Required
 
-### 1. `otto complete` (complete.go)
+### 1. `june complete` (complete.go)
 After posting completion message, DELETE agent row instead of updating status.
 
 ### 2. spawn.go exit handling
@@ -77,21 +77,21 @@ When detecting dead PID:
 - Post "process died" message
 - DELETE agent row
 
-### 4. New command: `otto interrupt <agent-id>`
+### 4. New command: `june interrupt <agent-id>`
 ```bash
-otto interrupt foo
+june interrupt foo
 ```
 - Look up agent, get PID
 - Send SIGINT to process (graceful stop)
 - Process exits cleanly, session preserved
 - Update status to `idle`
-- Agent can be resumed with `otto prompt`
+- Agent can be resumed with `june prompt`
 
 **Why SIGINT works:** Codex handles SIGINT gracefully - stops current turn but preserves the thread. Resume with `codex exec resume <thread_id>`.
 
-### 5. New command: `otto kill <agent-id>`
+### 5. New command: `june kill <agent-id>`
 ```bash
-otto kill foo
+june kill foo
 ```
 - Look up agent, get PID
 - Send SIGTERM to process (hard stop)
@@ -103,18 +103,18 @@ otto kill foo
 
 | Command | Signal | Session | Agent Row | Use Case |
 |---------|--------|---------|-----------|----------|
-| `otto interrupt` | SIGINT | Preserved | Kept (status=idle) | "Pause, I want to redirect you" |
-| `otto kill` | SIGTERM | Destroyed | Deleted | "Stop completely, you're done" |
+| `june interrupt` | SIGINT | Preserved | Kept (status=idle) | "Pause, I want to redirect you" |
+| `june kill` | SIGTERM | Destroyed | Deleted | "Stop completely, you're done" |
 
 ## Message Format
 
 ```
-[agent-id] COMPLETE: summary text     # from otto complete
+[agent-id] COMPLETE: summary text     # from june complete
 [agent-id] EXITED: success            # process exit code 0
 [agent-id] FAILED: error message      # process exit code != 0
 [agent-id] DIED: process not found    # PID gone unexpectedly
-[agent-id] INTERRUPTED                # otto interrupt (no deletion)
-[agent-id] KILLED: by orchestrator    # otto kill command
+[agent-id] INTERRUPTED                # june interrupt (no deletion)
+[agent-id] KILLED: by orchestrator    # june kill command
 ```
 
 ## Edge Cases
@@ -130,8 +130,8 @@ If agent completes while being killed, either path results in deletion. Message 
 
 ## What We're NOT Building (YAGNI)
 
-- `otto clean` - Not needed if auto-cleanup works
-- `otto list` - Not needed for current workflows
+- `june clean` - Not needed if auto-cleanup works
+- `june list` - Not needed for current workflows
 - Soft delete - Messages table has history
 - Agent status history - Not needed
 

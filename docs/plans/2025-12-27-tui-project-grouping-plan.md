@@ -18,7 +18,7 @@
 | Task 4: Rendering + indentation | ✅ Done | `fb2102f` | Added ▼/▶ indicators, fixed indent bg |
 | Task 5: Project-scoped messages | ✅ Done | `7e0b3b7` | parseProjectBranch, fetchMessagesCmd |
 | Task 6: Navigation polish | ✅ Done | `566f7a8` | Tests only - existing code worked |
-| Task 7: Chat input + spawning | ✅ Done | `ad8c807`, `c7f74ce`, `2f59335` | Add textinput, spawn/prompt @otto, fixes |
+| Task 7: Chat input + spawning | ✅ Done | `ad8c807`, `c7f74ce`, `2f59335` | Add textinput, spawn/prompt @june, fixes |
 
 **Base commit:** `40b9e81` (before this feature)
 **Final HEAD:** `2f59335` (pushed to origin/main)
@@ -31,10 +31,10 @@
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Orchestrator name | `@otto` | Short, brand-consistent, matches tool name |
+| Orchestrator name | `@june` | Short, brand-consistent, matches tool name |
 | Orchestrator lifecycle | On-demand (lazy) | Spawned when user sends first message, not pre-created |
 | TUI restart behavior | Resume if running, spawn new if complete | Check agent status, prompt if busy, spawn if not |
-| Click project header | Show `@otto` chat for that project/branch | Right panel switches to orchestrator messages |
+| Click project header | Show `@june` chat for that project/branch | Right panel switches to orchestrator messages |
 | Click agent | Show agent transcript | Current behavior, unchanged |
 | Empty state | "No conversation yet" + input | Show message history if any, input always visible |
 
@@ -42,10 +42,10 @@
 
 When user sends a message to a project header:
 
-1. Check if `@otto` agent exists for this project/branch
-2. **If otto is busy** → Submit button disabled, user must wait (no queuing in P1)
-3. **If otto exists and finished** (`status = complete` or `failed`) → `otto prompt otto "message"` (resumes session)
-4. **If otto doesn't exist** → `otto spawn codex "message" --name otto`
+1. Check if `@june` agent exists for this project/branch
+2. **If june is busy** → Submit button disabled, user must wait (no queuing in P1)
+3. **If june exists and finished** (`status = complete` or `failed`) → `june prompt june "message"` (resumes session)
+4. **If june doesn't exist** → `june spawn codex "message" --name june`
 
 **spawn vs prompt distinction:**
 - `spawn` - Creates new agent row + new session
@@ -56,8 +56,8 @@ When user sends a message to a project header:
 ### Message Queuing (Deferred to P3)
 
 In P1, there is no message queuing:
-- **User → Otto:** TUI disables submit button while otto is busy
-- **Otto → Subagent:** `otto prompt` fails with error if agent is busy
+- **User → June:** TUI disables submit button while june is busy
+- **June → Subagent:** `june prompt` fails with error if agent is busy
 
 In P3, the daemon will handle queuing:
 - Messages stored in DB while agent is busy
@@ -93,13 +93,13 @@ Example test skeleton:
 func TestChannelsGroupByProjectBranch(t *testing.T) {
     m := NewModel(nil)
     m.agents = []repo.Agent{
-        {Project: "otto", Branch: "main", Name: "impl-1", Status: "busy"},
-        {Project: "otto", Branch: "main", Name: "reviewer", Status: "blocked"},
+        {Project: "june", Branch: "main", Name: "impl-1", Status: "busy"},
+        {Project: "june", Branch: "main", Name: "reviewer", Status: "blocked"},
         {Project: "other", Branch: "branch", Name: "worker", Status: "complete"},
     }
 
     channels := m.channels()
-    // expect: Main, otto/main header, impl-1, reviewer, other/branch header, worker
+    // expect: Main, june/main header, impl-1, reviewer, other/branch header, worker
     if got := channels[0].ID; got != mainChannelID { t.Fatalf("got %q", got) }
     // add asserts for header kinds + ordering
 }
@@ -142,8 +142,8 @@ Example test idea:
 ```go
 func TestProjectHeaderCollapse(t *testing.T) {
     m := NewModel(nil)
-    m.projectExpanded = map[string]bool{"otto/main": false}
-    m.agents = []repo.Agent{{Project: "otto", Branch: "main", Name: "impl-1", Status: "busy"}}
+    m.projectExpanded = map[string]bool{"june/main": false}
+    m.agents = []repo.Agent{{Project: "june", Branch: "main", Name: "impl-1", Status: "busy"}}
 
     channels := m.channels()
     // expect Main, header only (no agent entry)
@@ -158,7 +158,7 @@ Expected: FAIL
 **Step 3: Implement expanded state + archived grouping**
 
 - Add `projectExpanded map[string]bool` to `model`.
-- Implement a helper key like `projectBranchKey(project, branch)` (e.g., `"otto/main"`).
+- Implement a helper key like `projectBranchKey(project, branch)` (e.g., `"june/main"`).
 - In `channels()`, only include agents for a group if expanded.
 - For archived agents: under `archived_header` include project headers + agents when archived is expanded.
 
@@ -299,10 +299,10 @@ Expected: PASS
 **Step 1: Write failing tests for chat input**
 
 Add tests covering:
-- Text input component appears at bottom of right panel when project header selected.
-- Submit button/action disabled when `@otto` is `busy`.
-- Submitting message when no `@otto` exists spawns new orchestrator.
-- Submitting message when `@otto` is `complete` or `failed` prompts existing agent (resumes session).
+- Text input component appears at bjunem of right panel when project header selected.
+- Submit button/action disabled when `@june` is `busy`.
+- Submitting message when no `@june` exists spawns new orchestrator.
+- Submitting message when `@june` is `complete` or `failed` prompts existing agent (resumes session).
 
 **Step 2: Run tests to verify failure**
 
@@ -312,14 +312,14 @@ Expected: FAIL
 **Step 3: Implement chat input**
 
 - Add `textinput.Model` from Bubble Tea to the model.
-- Render input at bottom of right panel when project header is active.
+- Render input at bjunem of right panel when project header is active.
 - On submit:
-  - Look up `@otto` agent for active project/branch via `repo.GetAgent()`
+  - Look up `@june` agent for active project/branch via `repo.GetAgent()`
   - If `status == busy`: ignore submit (button should be disabled)
-  - If exists and finished (`complete`/`failed`): `otto prompt otto "message"` (resume)
-  - If not found: `otto spawn codex "message" --name otto`
+  - If exists and finished (`complete`/`failed`): `june prompt june "message"` (resume)
+  - If not found: `june spawn codex "message" --name june`
 - Clear input after submit.
-- Show visual indicator when otto is busy (grayed input, "Otto is working..." hint).
+- Show visual indicator when june is busy (grayed input, "June is working..." hint).
 
 **Step 4: Run tests**
 
@@ -333,9 +333,9 @@ Expected: PASS
 - Use `project/branch` as the header label and ID key to avoid collisions and align with design spec.
 - Archived grouping mirrors active grouping for consistency.
 - Default expansion: expand groups for the current `scope.CurrentContext()` and keep others collapsed unless previously expanded.
-- Orchestrator is always named `@otto` (reserved name).
+- Orchestrator is always named `@june` (reserved name).
 - Chat input only appears when a project header is selected, not when viewing agent transcripts.
-- **CLI change:** `otto prompt` should check agent status and fail with error if agent is busy (prevents double-prompting same session).
+- **CLI change:** `june prompt` should check agent status and fail with error if agent is busy (prevents double-prompting same session).
 
 ---
 
@@ -374,7 +374,7 @@ These issues were identified during implementation but deferred for future work:
 
 6. **Collapse state shared between active/archived sections** (Task 2)
    - Same `projectExpanded` map controls both sections
-   - Collapsing otto/main hides agents in both active and archived
+   - Collapsing june/main hides agents in both active and archived
    - **Decision:** Intentional - simpler mental model
 
 7. **Missing test for `activateSelection()` toggle** (Task 2)

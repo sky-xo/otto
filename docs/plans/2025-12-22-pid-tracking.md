@@ -210,7 +210,7 @@ Add `cleanupStaleAgents(conn)` in the watch polling loop.
 
 1. Spawn an agent
 2. Kill the agent process externally
-3. Run `otto watch` - agent should be marked done
+3. Run `june watch` - agent should be marked done
 
 ### Notes
 

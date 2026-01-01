@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"otto/internal/db"
-	"otto/internal/repo"
-	"otto/internal/scope"
+	"june/internal/db"
+	"june/internal/repo"
+	"june/internal/scope"
 )
 
 func TestSinceIDFiltering(t *testing.T) {
@@ -155,7 +155,7 @@ func TestCleanupStaleAgentsDeletesDeadAgents(t *testing.T) {
 
 	// Exit message should mention orchestrator for wakeup
 	mentions := parseMentionsFromJSON(msgs[0].MentionsJSON)
-	expectedMention := "test-project:main:otto"
+	expectedMention := "test-project:main:june"
 	found := false
 	for _, m := range mentions {
 		if m == expectedMention {
@@ -171,7 +171,7 @@ func TestCleanupStaleAgentsDeletesDeadAgents(t *testing.T) {
 // Helper to set up test database
 func setupTestDB(t *testing.T) *sql.DB {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "otto.db")
+	path := filepath.Join(t.TempDir(), "june.db")
 	conn, err := db.Open(path)
 	if err != nil {
 		t.Fatalf("failed to open test db: %v", err)

@@ -2,7 +2,7 @@
 
 > **For Claude:** Use TDD to implement this plan task-by-task.
 
-**Goal:** Auto-delete agents on completion/exit, add `otto kill` command.
+**Goal:** Auto-delete agents on completion/exit, add `june kill` command.
 
 **Architecture:** DELETE agent rows instead of updating status. Messages table is the history.
 
@@ -70,7 +70,7 @@ When dead PID detected, post message then DELETE agent.
 
 ---
 
-### Task 5: Create otto kill command
+### Task 5: Create june kill command
 
 **File:** `internal/cli/commands/kill.go`
 

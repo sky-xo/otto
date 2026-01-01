@@ -26,7 +26,7 @@ Currently, the transcript shows every intermediate step as permanent entries (th
 
 **Durable (persists in transcript):**
 - Input (`>` prefix)
-- `otto say` messages - agent status updates
+- `june say` messages - agent status updates
 - Final output (`agent_message`)
 - Failed commands (debugging breadcrumb)
 
@@ -43,7 +43,7 @@ A "turn" is the agent responding to input:
 ```
 > Help me understand the codebase       <- durable input
 
-[durable] Starting to explore...        <- otto say (preserved)
+[durable] Starting to explore...        <- june say (preserved)
 
 [spinner] Checking project structure... <- ephemeral (thinking + shimmer)
 $ find cmd -maxdepth 2 -type f          <- ephemeral (command)
@@ -53,7 +53,7 @@ $ find cmd -maxdepth 2 -type f          <- ephemeral (command)
 ```
 > Help me understand the codebase       <- preserved
 
-[durable] Starting to explore...        <- preserved (otto say)
+[durable] Starting to explore...        <- preserved (june say)
 
 [durable] Here's what I found...        <- preserved (final output)
 ```
@@ -115,7 +115,7 @@ This gives debugging breadcrumbs when something goes wrong.
 | `tool_result` (success) | Ephemeral | Hidden |
 | `tool_result` (failed) | Durable | `!` prefix, red |
 | `agent_message`/`message` | Durable | Normal text |
-| `say` (otto say) | Durable | Normal text |
+| `say` (june say) | Durable | Normal text |
 
 ## Implementation Notes
 
@@ -182,5 +182,5 @@ Use ANSI 256-color: dim gray (240) -> white (255) -> dim gray (240)
 ## Open Questions
 
 1. Should there be a way to expand/see the collapsed history?
-2. What happens if agent produces multiple `otto say` messages rapidly?
+2. What happens if agent produces multiple `june say` messages rapidly?
 3. Should command output (stdout) be shown anywhere?

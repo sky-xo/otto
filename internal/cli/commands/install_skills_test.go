@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestRunInstallSkillsCopiesAndOverwritesOttoOnly(t *testing.T) {
+func TestRunInstallSkillsCopiesAndOverwritesJuneOnly(t *testing.T) {
 	tempHome := t.TempDir()
 	t.Setenv("HOME", tempHome)
 
@@ -15,30 +15,30 @@ func TestRunInstallSkillsCopiesAndOverwritesOttoOnly(t *testing.T) {
 		t.Fatalf("mkdir source: %v", err)
 	}
 
-	ottoSkill := filepath.Join(source, "otto-orchestrate")
+	juneSkill := filepath.Join(source, "june-orchestrate")
 	userSkill := filepath.Join(source, "user-skill")
-	if err := os.MkdirAll(ottoSkill, 0o755); err != nil {
-		t.Fatalf("mkdir otto: %v", err)
+	if err := os.MkdirAll(juneSkill, 0o755); err != nil {
+		t.Fatalf("mkdir june: %v", err)
 	}
 	if err := os.MkdirAll(userSkill, 0o755); err != nil {
 		t.Fatalf("mkdir user: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(ottoSkill, "SKILL.md"), []byte("otto new"), 0o644); err != nil {
-		t.Fatalf("write otto: %v", err)
+	if err := os.WriteFile(filepath.Join(juneSkill, "SKILL.md"), []byte("june new"), 0o644); err != nil {
+		t.Fatalf("write june: %v", err)
 	}
 	if err := os.WriteFile(filepath.Join(userSkill, "SKILL.md"), []byte("user new"), 0o644); err != nil {
 		t.Fatalf("write user: %v", err)
 	}
 
 	dest := filepath.Join(tempHome, ".claude", "skills")
-	if err := os.MkdirAll(filepath.Join(dest, "otto-orchestrate"), 0o755); err != nil {
-		t.Fatalf("mkdir dest otto: %v", err)
+	if err := os.MkdirAll(filepath.Join(dest, "june-orchestrate"), 0o755); err != nil {
+		t.Fatalf("mkdir dest june: %v", err)
 	}
 	if err := os.MkdirAll(filepath.Join(dest, "user-skill"), 0o755); err != nil {
 		t.Fatalf("mkdir dest user: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dest, "otto-orchestrate", "SKILL.md"), []byte("otto old"), 0o644); err != nil {
-		t.Fatalf("write dest otto: %v", err)
+	if err := os.WriteFile(filepath.Join(dest, "june-orchestrate", "SKILL.md"), []byte("june old"), 0o644); err != nil {
+		t.Fatalf("write dest june: %v", err)
 	}
 	if err := os.WriteFile(filepath.Join(dest, "user-skill", "SKILL.md"), []byte("user old"), 0o644); err != nil {
 		t.Fatalf("write dest user: %v", err)
@@ -49,14 +49,14 @@ func TestRunInstallSkillsCopiesAndOverwritesOttoOnly(t *testing.T) {
 		t.Fatalf("runInstallSkills: %v", err)
 	}
 
-	if len(installed) != 1 || installed[0] != "otto-orchestrate" {
-		t.Fatalf("expected only otto-orchestrate installed, got %v", installed)
+	if len(installed) != 1 || installed[0] != "june-orchestrate" {
+		t.Fatalf("expected only june-orchestrate installed, got %v", installed)
 	}
 
-	ottoBytes, _ := os.ReadFile(filepath.Join(dest, "otto-orchestrate", "SKILL.md"))
+	juneBytes, _ := os.ReadFile(filepath.Join(dest, "june-orchestrate", "SKILL.md"))
 	userBytes, _ := os.ReadFile(filepath.Join(dest, "user-skill", "SKILL.md"))
-	if string(ottoBytes) != "otto new" {
-		t.Fatalf("expected otto skill overwritten, got %q", string(ottoBytes))
+	if string(juneBytes) != "june new" {
+		t.Fatalf("expected june skill overwritten, got %q", string(juneBytes))
 	}
 	if string(userBytes) != "user old" {
 		t.Fatalf("expected user skill preserved, got %q", string(userBytes))
@@ -65,11 +65,11 @@ func TestRunInstallSkillsCopiesAndOverwritesOttoOnly(t *testing.T) {
 
 func TestRunInstallSkillsCreatesDestDir(t *testing.T) {
 	source := t.TempDir()
-	ottoSkill := filepath.Join(source, "otto-test")
-	if err := os.MkdirAll(ottoSkill, 0o755); err != nil {
+	juneSkill := filepath.Join(source, "june-test")
+	if err := os.MkdirAll(juneSkill, 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(ottoSkill, "SKILL.md"), []byte("content"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(juneSkill, "SKILL.md"), []byte("content"), 0o644); err != nil {
 		t.Fatalf("write: %v", err)
 	}
 
@@ -79,11 +79,11 @@ func TestRunInstallSkillsCreatesDestDir(t *testing.T) {
 		t.Fatalf("runInstallSkills: %v", err)
 	}
 
-	if len(installed) != 1 || installed[0] != "otto-test" {
-		t.Fatalf("expected otto-test installed, got %v", installed)
+	if len(installed) != 1 || installed[0] != "june-test" {
+		t.Fatalf("expected june-test installed, got %v", installed)
 	}
 
-	content, err := os.ReadFile(filepath.Join(dest, "otto-test", "SKILL.md"))
+	content, err := os.ReadFile(filepath.Join(dest, "june-test", "SKILL.md"))
 	if err != nil {
 		t.Fatalf("read installed skill: %v", err)
 	}

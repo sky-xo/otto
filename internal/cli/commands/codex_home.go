@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"otto/internal/config"
+	"june/internal/config"
 )
 
 func ensureCodexHome() (string, error) {

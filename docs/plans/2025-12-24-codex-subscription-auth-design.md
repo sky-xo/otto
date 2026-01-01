@@ -4,7 +4,7 @@ Status: Draft
 
 ## Overview
 
-Enable Otto to leverage users' existing ChatGPT subscription (Plus/Pro/Max) for Codex agents, avoiding the need for separate OpenAI API billing.
+Enable June to leverage users' existing ChatGPT subscription (Plus/Pro/Max) for Codex agents, avoiding the need for separate OpenAI API billing.
 
 ---
 
@@ -21,7 +21,7 @@ When users run `codex login`, the CLI:
 - Stores credentials in `~/.codex/auth.json`
 - Auto-refreshes tokens every 28 days
 
-This means Otto can spawn Codex processes that automatically inherit the user's subscription auth.
+This means June can spawn Codex processes that automatically inherit the user's subscription auth.
 
 ---
 
@@ -60,7 +60,7 @@ Limits are enforced server-side through OAuth tokens. When exhausted:
 
 ### Phase 1: Detection
 
-Otto detects if user has authenticated Codex:
+June detects if user has authenticated Codex:
 
 ```go
 func HasCodexAuth() bool {
@@ -79,7 +79,7 @@ func HasCodexAuth() bool {
 
 ### Phase 2: Transparent Spawn
 
-When spawning Codex agents, Otto simply invokes `codex` normally. The CLI handles auth automatically:
+When spawning Codex agents, June simply invokes `codex` normally. The CLI handles auth automatically:
 
 ```go
 func SpawnCodexAgent(task string) error {
@@ -116,9 +116,9 @@ When subscription limits are hit:
 ### First Run (No Auth)
 
 ```
-$ otto watch --ui
+$ june watch --ui
 
-Otto detected Codex is not authenticated.
+June detected Codex is not authenticated.
 Run `codex login` to use your ChatGPT subscription,
 or set OPENAI_API_KEY for API billing.
 ```
@@ -126,7 +126,7 @@ or set OPENAI_API_KEY for API billing.
 ### With Subscription Auth
 
 ```
-$ otto watch --ui
+$ june watch --ui
 
 Using ChatGPT Pro subscription for Codex agents
 Remaining: 847/1500 messages (5h window)
@@ -136,7 +136,7 @@ Weekly: 62% remaining
 ### Limit Hit
 
 ```
-$ otto watch --ui
+$ june watch --ui
 
 Codex subscription limit reached. Options:
 1. Wait 2h 34m for reset
@@ -148,7 +148,7 @@ Codex subscription limit reached. Options:
 
 ## Configuration
 
-Add to Otto config:
+Add to June config:
 
 ```toml
 [codex]
@@ -178,7 +178,7 @@ api_fallback = false
 
 ## Security Considerations
 
-- Otto never reads or modifies `~/.codex/auth.json` directly
+- June never reads or modifies `~/.codex/auth.json` directly
 - Auth is handled entirely by Codex CLI
 - Spawned processes inherit auth through normal Codex mechanisms
 - No credentials are logged or exposed

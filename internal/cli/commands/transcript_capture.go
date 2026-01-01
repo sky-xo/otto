@@ -4,9 +4,9 @@ import (
 	"database/sql"
 	"strings"
 
-	ottoexec "otto/internal/exec"
-	"otto/internal/repo"
-	"otto/internal/scope"
+	juneexec "june/internal/exec"
+	"june/internal/repo"
+	"june/internal/scope"
 
 	"github.com/google/uuid"
 )
@@ -46,7 +46,7 @@ func storePrompt(db *sql.DB, ctx scope.Context, agentID, summary, fullPrompt str
 	return repo.CreateLogEntry(db, entry)
 }
 
-func consumeTranscriptEntries(db *sql.DB, ctx scope.Context, agentID string, output <-chan ottoexec.TranscriptChunk, onEvent func(CodexEvent)) <-chan error {
+func consumeTranscriptEntries(db *sql.DB, ctx scope.Context, agentID string, output <-chan juneexec.TranscriptChunk, onEvent func(CodexEvent)) <-chan error {
 	done := make(chan error, 1)
 	go func() {
 		// Get agent type once at the start

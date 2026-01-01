@@ -5,31 +5,31 @@
 
 ## Problem
 
-Feedback from Claude using Otto to run Codex subagents revealed several UX issues:
+Feedback from Claude using June to run Codex subagents revealed several UX issues:
 
 1. **Finding results is confusing** - Agent conclusions are buried in 600+ lines of logs
 2. **No clean "get result" command** - Had to parse through raw output
-3. **`otto say` purpose is unclear** - Rarely used, overlaps with stdout
+3. **`june say` purpose is unclear** - Rarely used, overlaps with stdout
 4. **Skill doc has wrong info** - References `block: true` param that doesn't exist
 
 ## Solution
 
 Simplify agent messaging and make results easy to retrieve:
 
-1. **Add `otto dm`** - Explicit agent-to-agent direct messaging
-2. **Remove `otto say`** - Consolidate into `dm`, stdout handles broadcast
-3. **Enhance `otto peek`** - Show full log (capped) when agent completes
+1. **Add `june dm`** - Explicit agent-to-agent direct messaging
+2. **Remove `june say`** - Consolidate into `dm`, stdout handles broadcast
+3. **Enhance `june peek`** - Show full log (capped) when agent completes
 4. **Update skill doc** - Fix incorrect info, document new commands
 
 ## Design
 
-### `otto dm` Command
+### `june dm` Command
 
 Direct message between agents. Wakes the target agent.
 
 ```bash
-otto dm --from impl-1 --to reviewer "API contract is ready"
-otto dm --from impl-1 --to feature/login:frontend "your branch needs rebase"
+june dm --from impl-1 --to reviewer "API contract is ready"
+june dm --from impl-1 --to feature/login:frontend "your branch needs rebase"
 ```
 
 **Flags:**
@@ -46,7 +46,7 @@ otto dm --from impl-1 --to feature/login:frontend "your branch needs rebase"
 2. Store in `messages` table (type: `dm`)
 3. Wake target agent (daemon handles this)
 
-### Enhanced `otto peek`
+### Enhanced `june peek`
 
 Behavior changes based on agent status:
 
@@ -61,32 +61,32 @@ When showing capped output:
 
 ... log content ...
 
-[full log: 347 lines - run 'otto log reviewer' for complete history]
+[full log: 347 lines - run 'june log reviewer' for complete history]
 ```
 
-### Remove `otto say`
+### Remove `june say`
 
 Delete the command entirely. Use cases migrate to:
-- Agent-to-agent comms → `otto dm`
+- Agent-to-agent comms → `june dm`
 - Status updates → stdout (captured in logs)
-- @mentions for wake-ups → `otto dm`
+- @mentions for wake-ups → `june dm`
 
 ### Skill Doc Updates
 
-Fix `.claude/skills/otto-orchestrate/SKILL.md`:
+Fix `.claude/skills/june-orchestrate/SKILL.md`:
 - Remove references to `block: true` (doesn't exist)
-- Remove `otto say` documentation
-- Add `otto dm` documentation
+- Remove `june say` documentation
+- Add `june dm` documentation
 - Update workflow examples
 
 ## Out of Scope
 
 - **Name collision bug** - Agent names conflict across projects. Tracked in TODO.md, separate fix needed.
-- **`otto wait` command** - Future consideration, not needed with current notification model.
+- **`june wait` command** - Future consideration, not needed with current notification model.
 
 ## Implementation Order
 
-1. Add `otto dm` command
-2. Enhance `otto peek` for complete agents
-3. Remove `otto say` command
+1. Add `june dm` command
+2. Enhance `june peek` for complete agents
+3. Remove `june say` command
 4. Update skill doc

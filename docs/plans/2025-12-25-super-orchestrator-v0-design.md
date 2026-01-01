@@ -19,7 +19,7 @@ This document captures the refined architecture decisions from the 2025-12-25 br
 ### The Key Insight
 
 The earlier designs had **two control planes** in tension:
-- Super Orchestrator: `@otto` as central agent with event bus
+- Super Orchestrator: `@june` as central agent with event bus
 - Flow Engine: Go harness controlling the flow
 
 **V0 Resolution:** Use Codex as orchestrator (follows instructions), daemon handles wake-ups and context injection. No hard gates in V0 - just soft reminders.
@@ -28,7 +28,7 @@ The earlier designs had **two control planes** in tension:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ otto (TUI + Daemon)                                             │
+│ june (TUI + Daemon)                                             │
 │                                                                 │
 │  ┌─────────────────────────────────────────────────────────────┐│
 │  │ Event Bus                                                   ││
@@ -41,7 +41,7 @@ The earlier designs had **two control planes** in tension:
 │  ┌─────────────────────────────────────────────────────────────┐│
 │  │ Wake-up Handler                                             ││
 │  │  - Builds context injection (state + new messages)          ││
-│  │  - Calls `otto prompt @otto "[context]"`                    ││
+│  │  - Calls `june prompt @june "[context]"`                    ││
 │  │  - Re-injects full skills after compaction                  ││
 │  └─────────────────────────────────────────────────────────────┘│
 │                              │                                  │
@@ -49,8 +49,8 @@ The earlier designs had **two control planes** in tension:
 │  ┌─────────────────────────────────────────────────────────────┐│
 │  │ Orchestrator Agent (Codex, detached mode)                   ││
 │  │  - Runs the skill flow (brainstorm → plan → impl → ...)     ││
-│  │  - Spawns subagents via `otto spawn`                        ││
-│  │  - Communicates via `otto say`                              ││
+│  │  - Spawns subagents via `june spawn`                        ││
+│  │  - Communicates via `june say`                              ││
 │  └─────────────────────────────────────────────────────────────┘│
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -59,20 +59,20 @@ The earlier designs had **two control planes** in tension:
 
 | Topic | Decision |
 |-------|----------|
-| **Primary interface** | TUI (`otto`) - will rename `otto watch` to just `otto` |
+| **Primary interface** | TUI (`june`) - will rename `june watch` to just `june` |
 | **V0 orchestrator model** | Codex (reliable, follows instructions) |
 | **Enforcement approach** | Soft reminders (Option C) - inject context, no hard gates |
 | **Compaction handling** | Detect `context_compacted` event, re-inject full skills |
 | **Agent wake-ups** | Daemon auto-wakes on @mentions and completions |
-| **Headless mode** | `otto --headless` for future API/integrations (not V0 priority) |
-| **Database** | Single global DB at `~/.otto/otto.db` (not per-project) |
+| **Headless mode** | `june --headless` for future API/integrations (not V0 priority) |
+| **Database** | Single global DB at `~/.june/june.db` (not per-project) |
 
 ## Global Database
 
-Otto uses a **single global database** rather than one per project/branch:
+June uses a **single global database** rather than one per project/branch:
 
 ```
-~/.otto/otto.db    # All projects, all branches, all agents
+~/.june/june.db    # All projects, all branches, all agents
 ```
 
 **Why global?**
@@ -94,8 +94,8 @@ Agents are addressed with hierarchical mentions using `:` as separator (not `/`,
 |--------|---------|---------|
 | `@agent` | Same project, same branch | `@impl-1` |
 | `@branch:agent` | Same project, different branch | `@feature/login:impl-1` |
-| `@project:branch:agent` | Different project | `@backend-api:main:otto` |
-| `@otto` | Current branch's orchestrator | Always resolves locally |
+| `@project:branch:agent` | Different project | `@backend-api:main:june` |
+| `@june` | Current branch's orchestrator | Always resolves locally |
 | `@human` | Human operator | TUI notification |
 
 **Resolution:** When an agent says `@impl-1`, the daemon knows the sender's project/branch and resolves the full address. Cross-project mentions require explicit `@project:branch:agent` format.
@@ -106,9 +106,9 @@ Agents are addressed with hierarchical mentions using `:` as separator (not `/`,
 
 | Mode | How it works |
 |------|--------------|
-| **TUI mode** (`otto`) | Primary interface. Daemon + TUI in one process. Shows channels, chat with orchestrator. |
-| **CLI mode** (from orchestrator) | Orchestrator uses `otto spawn`, `otto say`, etc. These are the API. |
-| **Headless** (`otto --headless`) | Future: daemon without TUI, for Slack/API integrations. |
+| **TUI mode** (`june`) | Primary interface. Daemon + TUI in one process. Shows channels, chat with orchestrator. |
+| **CLI mode** (from orchestrator) | Orchestrator uses `june spawn`, `june say`, etc. These are the API. |
+| **Headless** (`june --headless`) | Future: daemon without TUI, for Slack/API integrations. |
 
 ## Context Injection
 
@@ -127,7 +127,7 @@ Phase: implementation | Task 4/7: Add password validation
 
 **Message count is naturally small.** Between wake-ups, there are typically only 2-5 messages:
 - 1 completion/failure message (the trigger)
-- Maybe 1-2 status updates via `otto say`
+- Maybe 1-2 status updates via `june say`
 - Maybe a question if agent got stuck
 
 No message limits needed for V0.
@@ -161,7 +161,7 @@ When detected, set flag in DB. Next wake-up re-injects full skills.
 
 ## Agent Output Formats
 
-Otto supports multiple agent types. Each has a different JSON output format that we normalize to a common schema.
+June supports multiple agent types. Each has a different JSON output format that we normalize to a common schema.
 
 ### Codex CLI (`--json`)
 
@@ -269,7 +269,7 @@ Output is JSONL, similar structure to Codex and Claude.
 
 ### Normalized Schema
 
-Otto normalizes all agent formats to a common log structure:
+June normalizes all agent formats to a common log structure:
 
 ```sql
 logs (
@@ -334,19 +334,19 @@ logs (
 ┌──────────────┬──────────────────────────────────────────────┐
 │ Projects     │ Activity Feed (agent-to-agent, status)       │
 │              │ @impl-1 completed task 3                     │
-│ otto/main    │ @reviewer: LGTM on the API changes           │
+│ june/main    │ @reviewer: LGTM on the API changes           │
 │   @impl-1 *  ├──────────────────────────────────────────────┤
 │   @reviewer  │ Chat with Orchestrator                       │
 │              │                                              │
 │              │ You: build a login page                      │
-│              │ @otto: Let's brainstorm. What auth...        │
+│              │ @june: Let's brainstorm. What auth...        │
 │              │                                              │
 │              │ > [type here]                                │
 └──────────────┴──────────────────────────────────────────────┘
 ```
 
 - **Top panel:** Activity feed (agent status, agent-to-agent messages)
-- **Bottom panel (larger):** Chat with orchestrator
+- **Bjunem panel (larger):** Chat with orchestrator
 - **Sidebar:** Click project = orchestrator chat, click agent = transcript
 
 ### Agent Transcript View (click agent)
@@ -388,12 +388,12 @@ The orchestrator interprets the status and decides what to do:
 - `complete` → acknowledge and move to next task
 - `failed` → handle error (retry, reassign, escalate to human)
 
-### `otto ask` Flow
+### `june ask` Flow
 
 When an agent needs help, it doesn't block the process:
 
 ```
-1. Agent runs: otto ask "which approach should I use?"
+1. Agent runs: june ask "which approach should I use?"
    → Message stored in DB
    → Agent status set to "blocked"
    → Agent process exits normally
@@ -402,7 +402,7 @@ When an agent needs help, it doesn't block the process:
    → Sees agent status = blocked
    → Notifies orchestrator with question and context
 
-3. Orchestrator decides and answers: otto prompt impl-1 "use approach A"
+3. Orchestrator decides and answers: june prompt impl-1 "use approach A"
    → Agent respawned/resumed with the answer
    → Agent status set to "busy"
 ```
@@ -428,24 +428,24 @@ Subsequent wake-ups only inject new messages until next compaction.
 
 ```bash
 # Prompt orchestrator (default) or specific agent
-otto prompt "build a login page"              # → orchestrator
-otto prompt impl-1 "try a different approach"  # → specific agent
+june prompt "build a login page"              # → orchestrator
+june prompt impl-1 "try a different approach"  # → specific agent
 
 # Agent communication
-otto say "status update"                       # Post to channel
-otto say "@otto I need help"                   # Mention triggers wake-up
-otto ask "what should I do next?"              # Set status=blocked, exit, wait for answer
-# Note: otto complete not needed for V0 — process exit is sufficient
+june say "status update"                       # Post to channel
+june say "@june I need help"                   # Mention triggers wake-up
+june ask "what should I do next?"              # Set status=blocked, exit, wait for answer
+# Note: june complete not needed for V0 — process exit is sufficient
 
 # Spawning
-otto spawn codex "implement feature X"         # Spawn agent (orchestrator only)
-otto spawn codex "task" --name impl-1          # With custom name
+june spawn codex "implement feature X"         # Spawn agent (orchestrator only)
+june spawn codex "task" --name impl-1          # With custom name
 
 # Management
-otto kill impl-1                               # Terminate agent
-otto kill impl-1 -f                            # Force kill (SIGKILL)
-otto status                                    # Show all agents
-otto messages                                  # Show message stream
+june kill impl-1                               # Terminate agent
+june kill impl-1 -f                            # Force kill (SIGKILL)
+june status                                    # Show all agents
+june messages                                  # Show message stream
 ```
 
 ### Agent Lifecycle
@@ -485,7 +485,7 @@ TODO.md is the durable record. Tasks table is ephemeral execution state.
 
 1. **Tasks table** - Hierarchical tree of tasks (root = workflow, children = phases/items)
 2. **Event detection** - Parse messages for @mentions, detect completions and failures
-3. **Auto-wake** - On event, call `otto prompt "[context]"` (defaults to orchestrator)
+3. **Auto-wake** - On event, call `june prompt "[context]"` (defaults to orchestrator)
 4. **Failure detection** - Daemon monitors agent processes, notifies orchestrator on crash/timeout
 5. **Context builder** - Assemble: state summary (from tasks DB) + new messages
 6. **Compaction detection** - Parse `context_compacted` from JSON stream
@@ -530,7 +530,7 @@ This simplifies the model:
 CREATE TABLE agents (
     project TEXT NOT NULL,        -- 'backend-api', 'frontend-app'
     branch TEXT NOT NULL,         -- 'main', 'feature-login'
-    name TEXT NOT NULL,           -- 'impl-1', 'otto', 'reviewer'
+    name TEXT NOT NULL,           -- 'impl-1', 'june', 'reviewer'
     type TEXT NOT NULL,           -- 'claude', 'codex'
     status TEXT DEFAULT 'idle',   -- idle, busy, blocked, complete, failed
     session_id TEXT,              -- Codex thread_id or Claude session

@@ -4,8 +4,8 @@ import (
 	"database/sql"
 	"testing"
 
-	"otto/internal/repo"
-	"otto/internal/scope"
+	"june/internal/repo"
+	"june/internal/scope"
 
 	_ "modernc.org/sqlite"
 )

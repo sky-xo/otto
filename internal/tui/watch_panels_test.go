@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"testing"
 
-	"otto/internal/repo"
+	"june/internal/repo"
 
 	tea "github.com/charmbracelet/bubbletea"
 	_ "modernc.org/sqlite"
@@ -17,7 +17,7 @@ func TestViewportHeightUpdatesWhenChatInputShows(t *testing.T) {
 
 	m := NewModel(nil)
 	m.agents = []repo.Agent{
-		{Project: "otto", Branch: "main", Name: "impl-1", Status: "busy"},
+		{Project: "june", Branch: "main", Name: "impl-1", Status: "busy"},
 	}
 
 	// Set window size
@@ -38,7 +38,7 @@ func TestViewportHeightUpdatesWhenChatInputShows(t *testing.T) {
 	}
 
 	// Now change to a project header (should show chat input)
-	m.activeChannelID = "otto/main"
+	m.activeChannelID = "june/main"
 	m.updateViewportDimensions() // This is the fix - should be called when activeChannelID changes
 
 	// BUG: viewport.Height is not updated when activeChannelID changes
@@ -97,25 +97,25 @@ func TestViewportHeightUpdatesWhenChatInputShows(t *testing.T) {
 func TestTabKeySwitchesPanels(t *testing.T) {
 	m := NewModel(nil)
 	m.agents = []repo.Agent{
-		{Project: "otto", Branch: "main", Name: "impl-1", Status: "busy"},
+		{Project: "june", Branch: "main", Name: "impl-1", Status: "busy"},
 	}
 
 	channels := m.sidebarItems()
 	// Find project header index
 	headerIndex := -1
 	for i, ch := range channels {
-		if ch.ID == "otto/main" && ch.Kind == SidebarChannelHeader {
+		if ch.ID == "june/main" && ch.Kind == SidebarChannelHeader {
 			headerIndex = i
 			break
 		}
 	}
 	if headerIndex == -1 {
-		t.Fatal("expected to find otto/main header")
+		t.Fatal("expected to find june/main header")
 	}
 
 	// Select project header (shows chat input)
 	m.cursorIndex = headerIndex
-	m.activeChannelID = "otto/main"
+	m.activeChannelID = "june/main"
 	m.focusedPanel = panelMessages
 	m.chatInput.Focus()
 
@@ -141,19 +141,19 @@ func TestProjectHeaderClickFocusesChatInput(t *testing.T) {
 	m.width = 80
 	m.height = 24
 	m.agents = []repo.Agent{
-		{Project: "otto", Branch: "main", Name: "impl-1", Status: "busy"},
+		{Project: "june", Branch: "main", Name: "impl-1", Status: "busy"},
 	}
 
 	channels := m.sidebarItems()
 	headerIndex := -1
 	for i, ch := range channels {
-		if ch.ID == "otto/main" && ch.Kind == SidebarChannelHeader {
+		if ch.ID == "june/main" && ch.Kind == SidebarChannelHeader {
 			headerIndex = i
 			break
 		}
 	}
 	if headerIndex == -1 {
-		t.Fatal("expected to find otto/main header")
+		t.Fatal("expected to find june/main header")
 	}
 
 	// Simulate mouse click on project header (not on caret)
@@ -183,24 +183,24 @@ func TestCaretClickTogglesExpand(t *testing.T) {
 	m.width = 80
 	m.height = 24
 	m.agents = []repo.Agent{
-		{Project: "otto", Branch: "main", Name: "impl-1", Status: "busy"},
+		{Project: "june", Branch: "main", Name: "impl-1", Status: "busy"},
 	}
 
 	channels := m.sidebarItems()
 	headerIndex := -1
 	for i, ch := range channels {
-		if ch.ID == "otto/main" && ch.Kind == SidebarChannelHeader {
+		if ch.ID == "june/main" && ch.Kind == SidebarChannelHeader {
 			headerIndex = i
 			break
 		}
 	}
 	if headerIndex == -1 {
-		t.Fatal("expected to find otto/main header")
+		t.Fatal("expected to find june/main header")
 	}
 
 	// Project is expanded by default
-	if !m.isProjectExpanded("otto/main") {
-		t.Fatal("expected otto/main to be expanded by default")
+	if !m.isProjectExpanded("june/main") {
+		t.Fatal("expected june/main to be expanded by default")
 	}
 
 	// Simulate clicking on the caret area (X position 1-2 for Level 0 header)
@@ -223,16 +223,16 @@ func TestCaretClickTogglesExpand(t *testing.T) {
 	m = updated.(model)
 
 	// Should toggle to collapsed
-	if m.isProjectExpanded("otto/main") {
-		t.Error("expected otto/main to be collapsed after clicking caret")
+	if m.isProjectExpanded("june/main") {
+		t.Error("expected june/main to be collapsed after clicking caret")
 	}
 
 	// Click again should toggle back to expanded
 	updated, _ = m.Update(mouseMsg)
 	m = updated.(model)
 
-	if !m.isProjectExpanded("otto/main") {
-		t.Error("expected otto/main to be expanded after clicking caret again")
+	if !m.isProjectExpanded("june/main") {
+		t.Error("expected june/main to be expanded after clicking caret again")
 	}
 }
 
@@ -242,7 +242,7 @@ func TestClickEmptySpaceInLeftPanelFocusesPanel(t *testing.T) {
 	m.width = 80
 	m.height = 24
 	m.agents = []repo.Agent{
-		{Project: "otto", Branch: "main", Name: "impl-1", Status: "busy"},
+		{Project: "june", Branch: "main", Name: "impl-1", Status: "busy"},
 	}
 
 	// Start with focus on messages panel
@@ -270,7 +270,7 @@ func TestKeyboardNavToProjectHeaderKeepsFocus(t *testing.T) {
 	m.width = 80
 	m.height = 24
 	m.agents = []repo.Agent{
-		{Project: "otto", Branch: "main", Name: "impl-1", Status: "busy"},
+		{Project: "june", Branch: "main", Name: "impl-1", Status: "busy"},
 	}
 
 	// Start with focus on agents panel
@@ -294,7 +294,7 @@ func TestClickRightPanelFocusesPanel(t *testing.T) {
 	m.width = 80
 	m.height = 24
 	m.agents = []repo.Agent{
-		{Project: "otto", Branch: "main", Name: "impl-1", Status: "busy"},
+		{Project: "june", Branch: "main", Name: "impl-1", Status: "busy"},
 	}
 
 	// Start with focus on agents panel

@@ -2,7 +2,7 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Add `--detach` flag to spawn, rename transcript_entries to logs, and add `otto peek` and `otto log` commands for CLI access to agent output.
+**Goal:** Add `--detach` flag to spawn, rename transcript_entries to logs, and add `june peek` and `june log` commands for CLI access to agent output.
 
 **Architecture:** Schema migration renames table and adds cursor tracking. Repo layer gets renamed functions plus new peek/log queries. Two new CLI commands follow codex-subagent's API exactly.
 
@@ -187,7 +187,7 @@ git commit -m "feat(repo): add last_read_log_id cursor to agents"
 **Step 1: Rename files**
 
 ```bash
-cd /Users/glowy/code/otto/.worktrees/spawn-log
+cd /Users/glowy/code/june/.worktrees/spawn-log
 git mv internal/repo/transcripts.go internal/repo/logs.go
 git mv internal/repo/transcripts_test.go internal/repo/logs_test.go
 ```
@@ -355,12 +355,12 @@ Expected: PASS
 
 ```bash
 git add internal/repo/logs.go internal/repo/logs_test.go
-git commit -m "feat(repo): add ListLogsWithTail for otto log --tail"
+git commit -m "feat(repo): add ListLogsWithTail for june log --tail"
 ```
 
 ---
 
-## Task 5: Create otto log command
+## Task 5: Create june log command
 
 **Files:**
 - Create: `internal/cli/commands/log.go`
@@ -378,8 +378,8 @@ import (
 	"database/sql"
 	"testing"
 
-	"otto/internal/db"
-	"otto/internal/repo"
+	"june/internal/db"
+	"june/internal/repo"
 )
 
 func TestRunLog(t *testing.T) {
@@ -441,7 +441,7 @@ func TestRunLogWithTail(t *testing.T) {
 Run: `go test ./internal/cli/commands -v -run TestRunLog`
 Expected: FAIL with undefined: runLog
 
-**Step 3: Implement otto log command**
+**Step 3: Implement june log command**
 
 ```go
 // internal/cli/commands/log.go
@@ -454,7 +454,7 @@ import (
 	"io"
 	"os"
 
-	"otto/internal/repo"
+	"june/internal/repo"
 
 	"github.com/spf13/cobra"
 )
@@ -538,12 +538,12 @@ Expected: PASS
 
 ```bash
 git add internal/cli/commands/log.go internal/cli/commands/log_test.go internal/cli/root.go
-git commit -m "feat(cli): add otto log command"
+git commit -m "feat(cli): add june log command"
 ```
 
 ---
 
-## Task 6: Create otto peek command
+## Task 6: Create june peek command
 
 **Files:**
 - Create: `internal/cli/commands/peek.go`
@@ -560,8 +560,8 @@ import (
 	"bytes"
 	"testing"
 
-	"otto/internal/db"
-	"otto/internal/repo"
+	"june/internal/db"
+	"june/internal/repo"
 )
 
 func TestRunPeek(t *testing.T) {
@@ -619,7 +619,7 @@ func TestRunPeek(t *testing.T) {
 Run: `go test ./internal/cli/commands -v -run TestRunPeek`
 Expected: FAIL with undefined: runPeek
 
-**Step 3: Implement otto peek command**
+**Step 3: Implement june peek command**
 
 ```go
 // internal/cli/commands/peek.go
@@ -632,7 +632,7 @@ import (
 	"io"
 	"os"
 
-	"otto/internal/repo"
+	"june/internal/repo"
 
 	"github.com/spf13/cobra"
 )
@@ -717,14 +717,14 @@ Expected: PASS
 
 ```bash
 git add internal/cli/commands/peek.go internal/cli/commands/peek_test.go internal/cli/root.go
-git commit -m "feat(cli): add otto peek command with cursor tracking"
+git commit -m "feat(cli): add june peek command with cursor tracking"
 ```
 
 ---
 
 ## Task 7: Add --detach flag to spawn command
 
-**Design Decision:** Detach mode skips output capture entirely. Agent self-reports via `otto complete` / `otto ask`. No stdout/stderr logged for detached agents. Future: add PID reconciliation to mark dead agents as "failed".
+**Design Decision:** Detach mode skips output capture entirely. Agent self-reports via `june complete` / `june ask`. No stdout/stderr logged for detached agents. Future: add PID reconciliation to mark dead agents as "failed".
 
 **Files:**
 - Modify: `internal/cli/commands/spawn.go`
@@ -861,16 +861,16 @@ Expected: All tests PASS
 
 **Step 2: Build and verify**
 
-Run: `go build -o otto ./cmd/otto`
+Run: `go build -o june ./cmd/june`
 Expected: Build succeeds
 
 **Step 3: Manual smoke test**
 
 ```bash
-./otto spawn claude "say hello" --detach
-./otto status
-./otto peek <agent-id>
-./otto log <agent-id> --tail 5
+./june spawn claude "say hello" --detach
+./june status
+./june peek <agent-id>
+./june log <agent-id> --tail 5
 ```
 
 **Step 4: Commit any final fixes**
@@ -904,8 +904,8 @@ git commit -m "test: integration tests for spawn-log feature"
 | 2 | Schema: add last_read_log_id to agents | Low |
 | 3 | Repo: rename TranscriptEntry → LogEntry | Medium |
 | 4 | Repo: add ListLogsWithTail | Low |
-| 5 | CLI: add otto log command | Medium |
-| 6 | CLI: add otto peek command | Medium |
+| 5 | CLI: add june log command | Medium |
+| 6 | CLI: add june peek command | Medium |
 | 7 | CLI: add --detach to spawn | High |
 | 8 | Integration test and cleanup | Low |
 

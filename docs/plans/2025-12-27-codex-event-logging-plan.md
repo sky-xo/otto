@@ -5,7 +5,7 @@
 
 ## Problem
 
-When Claude monitors Codex agents spawned via Otto, it lacks visibility into what the agent is currently doing. The only logged events are `item.completed`, meaning Claude doesn't know an action has started until it finishes.
+When Claude monitors Codex agents spawned via June, it lacks visibility into what the agent is currently doing. The only logged events are `item.completed`, meaning Claude doesn't know an action has started until it finishes.
 
 Additionally, repeated polling of `BashOutput` burns context because:
 1. BashOutput appears to return cumulative output (not incremental)
@@ -15,7 +15,7 @@ Additionally, repeated polling of `BashOutput` burns context because:
 
 Log `item.started` and turn lifecycle events to provide real-time visibility.
 
-> **Note:** The otto-orchestrate skill already warns against BashOutput polling and recommends `otto status`/`otto peek`. No skill updates needed.
+> **Note:** The june-orchestrate skill already warns against BashOutput polling and recommends `june status`/`june peek`. No skill updates needed.
 
 ## Implementation
 
@@ -75,7 +75,7 @@ if event.Type == "turn.started" || event.Type == "turn.completed" {
 
 **Complexity:** Small
 
-### Task 3: Update `otto peek` output format
+### Task 3: Update `june peek` output format
 
 **Files:** `internal/cli/commands/peek.go`
 
@@ -107,7 +107,7 @@ if entry.EventType == "turn.completed" {
 
 ## Expected Outcome
 
-After implementation, `otto peek` output will show:
+After implementation, `june peek` output will show:
 
 ```
 --- turn started ---

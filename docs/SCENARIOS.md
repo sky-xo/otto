@@ -1,6 +1,6 @@
-# Otto Scenarios: Testing the Design
+# June Scenarios: Testing the Design
 
-This document explores how otto would be used in real-world scenarios, testing our API design and identifying which superpowers skills each agent would use.
+This document explores how june would be used in real-world scenarios, testing our API design and identifying which superpowers skills each agent would use.
 
 ## Superpowers Skills Reference
 
@@ -40,8 +40,8 @@ This document explores how otto would be used in real-world scenarios, testing o
 │                and spawn agents.                                    │
 │                                                                     │
 │ [orchestrator] Spawning backend and frontend agents:                │
-│   → otto spawn codex "Implement OAuth backend..."                   │
-│   → otto spawn codex "Implement OAuth frontend..."                  │
+│   → june spawn codex "Implement OAuth backend..."                   │
+│   → june spawn codex "Implement OAuth frontend..."                  │
 │                                                                     │
 │ [agent-backend] Starting OAuth backend. Using executing-plans.      │
 │                                                                     │
@@ -54,7 +54,7 @@ This document explores how otto would be used in real-world scenarios, testing o
 │                                                                     │
 │ [human] Use passport.js with the Google and GitHub strategies       │
 │                                                                     │
-│ [orchestrator] → otto prompt agent-backend "Use passport.js with    │
+│ [orchestrator] → june prompt agent-backend "Use passport.js with    │
 │                  Google and GitHub strategies"                      │
 │                                                                     │
 │ [agent-backend] Got it. Continuing with passport.js.                │
@@ -71,7 +71,7 @@ This document explores how otto would be used in real-world scenarios, testing o
 │ [agent-frontend] COMPLETE: Frontend done. PR ready.                 │
 │                                                                     │
 │ [orchestrator] Both agents done. Spawning review agent.             │
-│   → otto spawn claude "Review OAuth implementation..."              │
+│   → june spawn claude "Review OAuth implementation..."              │
 │                                                                     │
 │ [agent-review] Using requesting-code-review skill.                  │
 │                Reviewing commits abc123..def456                     │
@@ -108,24 +108,24 @@ This document explores how otto would be used in real-world scenarios, testing o
 | agent-review | requesting-code-review |
 | Orchestrator (final) | finishing-a-development-branch |
 
-### Otto Commands Used
+### June Commands Used
 
 ```bash
 # Orchestrator spawns agents
-otto spawn codex "Implement OAuth backend: passport.js, Google+GitHub..."
-otto spawn codex "Implement OAuth frontend: login form, token storage..."
-otto spawn claude "Review OAuth implementation for security issues"
+june spawn codex "Implement OAuth backend: passport.js, Google+GitHub..."
+june spawn codex "Implement OAuth frontend: login form, token storage..."
+june spawn claude "Review OAuth implementation for security issues"
 
 # Agents communicate
-otto dm --from agent-backend --to agent-frontend "backend ready for integration"
-otto ask --id agent-backend --human "Should I use passport.js or custom JWT?"
-otto dm --from agent-frontend --to orchestrator "Login form complete, starting token flow"
-otto complete --id agent-backend "Backend done. PR ready."
+june dm --from agent-backend --to agent-frontend "backend ready for integration"
+june ask --id agent-backend --human "Should I use passport.js or custom JWT?"
+june dm --from agent-frontend --to orchestrator "Login form complete, starting token flow"
+june complete --id agent-backend "Backend done. PR ready."
 
 # Orchestrator routes messages
-otto messages
-otto prompt agent-backend "Use passport.js with Google and GitHub strategies"
-otto status
+june messages
+june prompt agent-backend "Use passport.js with Google and GitHub strategies"
+june status
 ```
 
 ### API Assessment
@@ -156,7 +156,7 @@ otto status
 │ [human] Users are reporting intermittent 500 errors on login        │
 │                                                                     │
 │ [orchestrator] I'll spawn a debugging agent to investigate.         │
-│   → otto spawn claude "Investigate login 500 errors..."             │
+│   → june spawn claude "Investigate login 500 errors..."             │
 │                                                                     │
 │ [agent-debug] Using systematic-debugging skill.                     │
 │               Phase 1: Root cause investigation.                    │
@@ -173,9 +173,9 @@ otto status
 │                or should I spawn a separate implementation agent?   │
 │                                                                     │
 │ [agent-debug] I'll send findings to the channel for handoff.        │
-│   → otto dm --from agent-debug --to orchestrator "Root cause: ..."  │
+│   → june dm --from agent-debug --to orchestrator "Root cause: ..."  │
 │                                                                     │
-│ [orchestrator] → otto spawn codex "Fix connection pool leak..."     │
+│ [orchestrator] → june spawn codex "Fix connection pool leak..."     │
 │                  --context "Root cause: [agent-debug's findings]"   │
 │                                                                     │
 │ [agent-fix] Using test-driven-development. Writing failing test     │
@@ -187,7 +187,7 @@ otto status
 │ [agent-fix] COMPLETE: Fixed. Pool size increased to 20, added       │
 │             finally block to release connections. Tests pass.       │
 │                                                                     │
-│ [orchestrator] → otto spawn claude "Review connection pool fix"     │
+│ [orchestrator] → june spawn claude "Review connection pool fix"     │
 │                                                                     │
 │ [agent-review] Reviewed. ✓ Fix is correct. Good test coverage.      │
 │                One suggestion: add connection pool monitoring.      │
@@ -211,14 +211,14 @@ otto status
 | agent-fix | test-driven-development, verification-before-completion |
 | agent-review | requesting-code-review |
 
-### Otto Commands Used
+### June Commands Used
 
 ```bash
-otto spawn claude "Investigate login 500 errors. Use systematic-debugging."
-otto spawn codex "Fix connection pool leak" --context "Root cause: ..."
-otto spawn claude "Review connection pool fix"
-otto messages
-otto status
+june spawn claude "Investigate login 500 errors. Use systematic-debugging."
+june spawn codex "Fix connection pool leak" --context "Root cause: ..."
+june spawn claude "Review connection pool fix"
+june messages
+june status
 ```
 
 ### API Assessment
@@ -252,8 +252,8 @@ otto status
 │                They'll build the same feature with different        │
 │                approaches, then we'll compare.                      │
 │                                                                     │
-│   → otto spawn codex "Implement notifications with WebSockets..."   │
-│   → otto spawn codex "Implement notifications with SSE..."          │
+│   → june spawn codex "Implement notifications with WebSockets..."   │
+│   → june spawn codex "Implement notifications with SSE..."          │
 │                                                                     │
 │ [agent-ws] Starting WebSocket implementation.                       │
 │                                                                     │
@@ -282,7 +282,7 @@ otto status
 │            - Browser support: All modern except IE                  │
 │                                                                     │
 │ [orchestrator] Both complete. Spawning comparison reviewer.         │
-│   → otto spawn claude "Compare WebSocket vs SSE implementations..." │
+│   → june spawn claude "Compare WebSocket vs SSE implementations..." │
 │                                                                     │
 │ [agent-compare] Comparison:                                         │
 │                                                                     │
@@ -350,7 +350,7 @@ otto status
 │                10 phases, ~40 tasks. I'll spawn agents for          │
 │                Phase 1 (schema design).                             │
 │                                                                     │
-│ [orchestrator] → otto spawn claude "Design GraphQL schema..."       │
+│ [orchestrator] → june spawn claude "Design GraphQL schema..."       │
 │                                                                     │
 │ [agent-schema] Using brainstorming for schema design.               │
 │                                                                     │
@@ -371,8 +371,8 @@ otto status
 │                                                                     │
 │                Spawning Phase 2 agents.                             │
 │                                                                     │
-│ [orchestrator] → otto spawn codex "Implement User GraphQL resolver" │
-│                → otto spawn codex "Implement Post GraphQL resolver" │
+│ [orchestrator] → june spawn codex "Implement User GraphQL resolver" │
+│                → june spawn codex "Implement Post GraphQL resolver" │
 │                                                                     │
 │ [agent-user] Starting User resolver. Using executing-plans.         │
 │                                                                     │
@@ -403,7 +403,7 @@ otto status
 - Phases can be tracked in plan document
 
 ⚠️ Consider:
-- State tracking beyond just "what's done" - maybe store in otto.db?
+- State tracking beyond just "what's done" - maybe store in june.db?
 - Integration with TodoWrite for progress tracking
 
 ---
@@ -424,9 +424,9 @@ otto status
 │                                                                     │
 │ [orchestrator] I'll spawn specialized reviewers.                    │
 │                                                                     │
-│ → otto spawn claude "Security review of payment PR #142"            │
-│ → otto spawn claude "Architecture review of payment PR #142"        │
-│ → otto spawn claude "Test coverage review of payment PR #142"       │
+│ → june spawn claude "Security review of payment PR #142"            │
+│ → june spawn claude "Architecture review of payment PR #142"        │
+│ → june spawn claude "Test coverage review of payment PR #142"       │
 │                                                                     │
 │ [agent-security] Reviewing for security issues...                   │
 │                                                                     │

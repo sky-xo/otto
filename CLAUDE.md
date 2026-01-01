@@ -1,25 +1,25 @@
-# Otto - Project Context for Claude Code
+# June - Project Context for Claude Code
 
-## What is Otto?
+## What is June?
 
-Otto is a multi-agent orchestrator CLI that enables Claude Code to spawn and coordinate multiple AI agents (Claude Code and Codex) working in parallel.
+June is a multi-agent orchestrator CLI that enables Claude Code to spawn and coordinate multiple AI agents (Claude Code and Codex) working in parallel.
 
 ## Quick Commands
 
 ```bash
 make build    # Build the binary
 make test     # Run all tests
-./otto        # Run TUI (or: make watch)
+./june        # Run TUI (or: make watch)
 ```
 
 ## Architecture
 
 ```
-~/.otto/otto.db   # Global SQLite database (project/branch columns in tables)
+~/.june/june.db   # Global SQLite database (project/branch columns in tables)
 ```
 
 **Packages:**
-- `cmd/otto/` - Entry point
+- `cmd/june/` - Entry point
 - `internal/cli/` - Cobra root command
 - `internal/cli/commands/` - All CLI commands
 - `internal/repo/` - Database operations (agents, messages, tasks, logs)
@@ -32,7 +32,7 @@ make test     # Run all tests
 
 | Command | Purpose |
 |---------|---------|
-| `otto` | Launch TUI (same as `otto watch`) |
+| `june` | Launch TUI (same as `june watch`) |
 | `spawn <type> "<task>"` | Spawn claude/codex agent |
 | `prompt <agent> "<msg>"` | Send message to agent |
 | `dm/ask/complete` | Agent messaging |
@@ -56,7 +56,7 @@ Four tables with project/branch scoping:
 ## Documentation
 
 - `TODO.md` - Feature status and next priorities
-- `docs/ARCHITECTURE.md` - How Otto works
+- `docs/ARCHITECTURE.md` - How June works
 - `docs/SCENARIOS.md` - Usage scenarios / test cases
 - `docs/plans/` - Design docs and implementation plans
 
@@ -67,15 +67,15 @@ When brainstorming new features or design ideas:
 - Mark status at top: `Draft` → `Ready for review` → `Approved`
 - Keep TODO.md as quick overview, detailed design goes in plan files
 
-## Using Otto for Subagent Development
+## Using June for Subagent Development
 
-See `.claude/skills/otto-orchestrate/SKILL.md` for full details.
+See `.claude/skills/june-orchestrate/SKILL.md` for full details.
 
 **Key pattern:**
 1. Spawn with `run_in_background: true`
 2. Wait—you'll be notified automatically when the agent completes
 3. Use `BashOutput` to retrieve results
 
-You don't need to poll with `otto status` or `otto peek`—the notification comes automatically. But if things seem slow, feel free to check progress with `otto peek <agent>`.
+You don't need to poll with `june status` or `june peek`—the notification comes automatically. But if things seem slow, feel free to check progress with `june peek <agent>`.
 
 **Progress:** Task 1.1 complete (commit ea21dd7, spec review passed). Next: Task 1.2.

@@ -7,11 +7,11 @@ import (
 
 func DataDir() string {
 	if home := os.Getenv("HOME"); home != "" {
-		return filepath.Join(home, ".otto")
+		return filepath.Join(home, ".june")
 	}
 	home, _ := os.UserHomeDir()
 	if home == "" {
-		return ".otto"
+		return ".june"
 	}
-	return filepath.Join(home, ".otto")
+	return filepath.Join(home, ".june")
 }

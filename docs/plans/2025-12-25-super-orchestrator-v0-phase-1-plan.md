@@ -70,7 +70,7 @@ Update `internal/cli/commands/say.go` to use a single global DB path:
 
 ```go
 func openDB() (*sql.DB, error) {
-	dbPath := filepath.Join(config.DataDir(), "otto.db")
+	dbPath := filepath.Join(config.DataDir(), "june.db")
 	if err := os.MkdirAll(filepath.Dir(dbPath), 0o755); err != nil {
 		return nil, fmt.Errorf("create db dir: %w", err)
 	}
@@ -383,8 +383,8 @@ Agent names are normalized to lowercase; project and branch casing is preserved.
 ```go
 func TestParseMentionsWithScope(t *testing.T) {
 	ctx := scope.Context{Project: "app", Branch: "feature/login"}
-	mentions := parseMentions("ping @Impl-1 and @backend:main:Otto", ctx)
-	want := []string{"app:feature/login:impl-1", "backend:main:otto"}
+	mentions := parseMentions("ping @Impl-1 and @backend:main:June", ctx)
+	want := []string{"app:feature/login:impl-1", "backend:main:june"}
 	if !reflect.DeepEqual(mentions, want) {
 		t.Fatalf("mentions = %#v", mentions)
 	}
@@ -499,7 +499,7 @@ func ParseCodexEvent(line string) CodexEvent {
 Wire it into transcript capture:
 
 ```go
-func consumeTranscriptEntries(db *sql.DB, agentName string, output <-chan ottoexec.TranscriptChunk, onEvent func(CodexEvent)) <-chan error {
+func consumeTranscriptEntries(db *sql.DB, agentName string, output <-chan juneexec.TranscriptChunk, onEvent func(CodexEvent)) <-chan error {
 	...
 	if onEvent != nil && chunk.Stream == "stdout" {
 		line := strings.TrimSpace(stdoutBuffer[:newline])
@@ -563,7 +563,7 @@ git commit -m "feat: parse codex events and track compaction"
 
 ### Task 6: Daemon wake-ups and failure detection
 
-Wake-ups are triggered on any @mention or any agent process exit; V0 does not rely on `otto complete`.
+Wake-ups are triggered on any @mention or any agent process exit; V0 does not rely on `june complete`.
 
 **Files:**
 - Modify: `internal/cli/commands/watch.go`
@@ -640,7 +640,7 @@ if !process.IsProcessAlive(int(a.Pid.Int64)) {
 		MentionsJSON: "[]",
 		ReadByJSON: "[]",
 	})
-	_ = w.SendTo(fmt.Sprintf("%s:%s:otto", ctx.Project, ctx.Branch), buildExitContext(...))
+	_ = w.SendTo(fmt.Sprintf("%s:%s:june", ctx.Project, ctx.Branch), buildExitContext(...))
 }
 ```
 

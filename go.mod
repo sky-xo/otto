@@ -1,4 +1,4 @@
-module otto
+module june
 
 go 1.25.4
 

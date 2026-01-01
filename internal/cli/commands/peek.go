@@ -7,8 +7,8 @@ import (
 	"io"
 	"os"
 
-	"otto/internal/repo"
-	"otto/internal/scope"
+	"june/internal/repo"
+	"june/internal/scope"
 
 	"github.com/spf13/cobra"
 )
@@ -93,7 +93,7 @@ func runPeekFullLog(db *sql.DB, ctx scope.Context, agent repo.Agent, w io.Writer
 
 	// Show footer if capped
 	if totalCount > peekCapLines {
-		fmt.Fprintf(w, "\n[full log: %d lines - run 'otto log %s' for complete history]\n", totalCount, agent.Name)
+		fmt.Fprintf(w, "\n[full log: %d lines - run 'june log %s' for complete history]\n", totalCount, agent.Name)
 	}
 
 	return nil

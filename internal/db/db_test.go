@@ -9,7 +9,7 @@ import (
 
 func TestEnsureSchema(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "otto.db")
+	path := filepath.Join(dir, "june.db")
 
 	conn, err := Open(path)
 	if err != nil {
@@ -130,7 +130,7 @@ func columnExists(t *testing.T, conn *sql.DB, table, column string) bool {
 
 func TestCleanupOnOpen(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "otto.db")
+	path := filepath.Join(dir, "june.db")
 
 	conn, err := Open(path)
 	if err != nil {
@@ -283,7 +283,7 @@ func countRows(t *testing.T, conn *sql.DB, query string) int {
 
 func TestConcurrentAccess(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "otto.db")
+	path := filepath.Join(dir, "june.db")
 
 	// Open first connection to create schema
 	conn1, err := Open(path)

@@ -34,7 +34,7 @@
 ## Phase 2: User Message Storage (`chat` type)
 
 ### Task 2.1: Define and persist `chat` message type
-- **Description:** Add a new message type for user-entered text, and store it before spawning/prompting an agent. Ensure message fields follow design (`FromAgent: "you"`, `ToAgent: "otto"`, `Content: raw input`).
+- **Description:** Add a new message type for user-entered text, and store it before spawning/prompting an agent. Ensure message fields follow design (`FromAgent: "you"`, `ToAgent: "june"`, `Content: raw input`).
 - **Dependencies:** None.
 - **Files to modify:**
   - `internal/tui/watch.go` (store `chat` messages on submit)
@@ -56,7 +56,7 @@
 ## Phase 3: Unified Stream Rendering
 
 ### Task 3.1: Message formatting and filtering rules
-- **Description:** Implement Slack-style formatting for `chat` and `complete` (from otto) and compact activity lines for prompts/completions from sub-agents. Hide `exit` and orchestrator-to-otto `prompt` messages.
+- **Description:** Implement Slack-style formatting for `chat` and `complete` (from june) and compact activity lines for prompts/completions from sub-agents. Hide `exit` and orchestrator-to-june `prompt` messages.
 - **Dependencies:** Task 2.1
 - **Files to modify:**
   - `internal/tui/watch.go` (message filtering and formatting in `mainContentLines`/`formatMessage`)
@@ -73,7 +73,7 @@
 - **Complexity:** Medium
 
 ### Task 3.3: Stream selection behavior
-- **Description:** Enter on activity lines (prompt from otto to sub-agent) should select the agent in the left panel and open transcript view (if implemented in current UI). If not currently supported, define a follow-up stub or no-op.
+- **Description:** Enter on activity lines (prompt from june to sub-agent) should select the agent in the left panel and open transcript view (if implemented in current UI). If not currently supported, define a follow-up stub or no-op.
 - **Dependencies:** Task 3.1
 - **Files to modify:** `internal/tui/watch.go`
 - **Tests:** Add behavioral tests in `internal/tui/watch_test.go` (selection on activity line).
@@ -82,7 +82,7 @@
 ## Phase 4: Polish and Status Semantics
 
 ### Task 4.1: Color scheme updates
-- **Description:** Apply color styling to `you`, `otto`, sub-agents, and muted activity lines according to the design palette. Keep timestamps omitted.
+- **Description:** Apply color styling to `you`, `june`, sub-agents, and muted activity lines according to the design palette. Keep timestamps omitted.
 - **Dependencies:** Task 3.1
 - **Files to modify:** `internal/tui/watch.go`, `internal/tui/formatting.go`
 - **Tests:** Optional snapshot-style formatting tests in `internal/tui/formatting_test.go`.
@@ -95,11 +95,11 @@
 - **Tests:** Add wrap regression tests in `internal/tui/formatting_test.go` and `internal/tui/watch_test.go`.
 - **Complexity:** Small
 
-### Task 4.3: Scroll-to-bottom on new messages
-- **Description:** When new messages arrive and viewport is at bottom, keep it pinned after update; otherwise preserve scroll position. Apply to both chat stream and transcript view.
+### Task 4.3: Scroll-to-bjunem on new messages
+- **Description:** When new messages arrive and viewport is at bjunem, keep it pinned after update; otherwise preserve scroll position. Apply to both chat stream and transcript view.
 - **Dependencies:** Task 3.2
 - **Files to modify:** `internal/tui/watch.go`
-- **Tests:** Add TUI tests in `internal/tui/watch_test.go` for at-bottom vs not-at-bottom cases.
+- **Tests:** Add TUI tests in `internal/tui/watch_test.go` for at-bjunem vs not-at-bjunem cases.
 - **Complexity:** Medium
 
 ### Task 4.4: Introduce `finishing` agent status
@@ -109,7 +109,7 @@
   - `internal/repo/agents.go` (helper to set `finishing` status, or update status handling)
   - `internal/tui/watch.go` (status display and input blocking logic)
   - `internal/tui/watch_test.go` (status indicator and input blocking tests)
-  - Additional callouts if needed: `internal/cli/commands/complete.go`, `internal/cli/commands/spawn.go` to set `finishing` on `otto complete` and `complete` on process exit
+  - Additional callouts if needed: `internal/cli/commands/complete.go`, `internal/cli/commands/spawn.go` to set `finishing` on `june complete` and `complete` on process exit
 - **Tests:** Add/adjust repo tests in `internal/repo/agents_test.go` and TUI tests in `internal/tui/watch_test.go` for `finishing` state; add CLI tests if status transitions are updated.
 - **Complexity:** Large
 

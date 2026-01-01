@@ -2,15 +2,15 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Simplify agent messaging by adding `otto dm`, enhancing `otto peek` for completed agents, and removing `otto say`.
+**Goal:** Simplify agent messaging by adding `june dm`, enhancing `june peek` for completed agents, and removing `june say`.
 
-**Architecture:** Add direct messaging between agents via `otto dm --from --to`. Modify `peek` to show full log (capped at 100 lines) when agent status is complete/failed. Remove `say` command entirely.
+**Architecture:** Add direct messaging between agents via `june dm --from --to`. Modify `peek` to show full log (capped at 100 lines) when agent status is complete/failed. Remove `say` command entirely.
 
 **Tech Stack:** Go, Cobra CLI, SQLite
 
 ---
 
-### Task 1: Add `otto dm` command
+### Task 1: Add `june dm` command
 
 **Files:**
 - Create: `internal/cli/commands/dm.go`
@@ -26,8 +26,8 @@ package commands
 import (
 	"testing"
 
-	"otto/internal/db"
-	"otto/internal/repo"
+	"june/internal/db"
+	"june/internal/repo"
 )
 
 func TestRunDM(t *testing.T) {
@@ -108,8 +108,8 @@ import (
 	"database/sql"
 	"fmt"
 
-	"otto/internal/repo"
-	"otto/internal/scope"
+	"june/internal/repo"
+	"june/internal/scope"
 
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
@@ -187,7 +187,7 @@ Expected: PASS
 
 ```bash
 git add internal/cli/commands/dm.go internal/cli/commands/dm_test.go internal/cli/root.go
-git commit -m "feat(otto): add dm command for agent-to-agent messaging"
+git commit -m "feat(june): add dm command for agent-to-agent messaging"
 ```
 
 ---
@@ -208,7 +208,7 @@ import (
 	"database/sql"
 	"testing"
 
-	"otto/internal/db"
+	"june/internal/db"
 )
 
 func TestCountLogs(t *testing.T) {
@@ -272,7 +272,7 @@ git commit -m "feat(repo): add CountLogs helper"
 
 ---
 
-### Task 3: Enhance `otto peek` for completed agents
+### Task 3: Enhance `june peek` for completed agents
 
 **Files:**
 - Modify: `internal/cli/commands/peek.go`
@@ -422,8 +422,8 @@ import (
 	"io"
 	"os"
 
-	"otto/internal/repo"
-	"otto/internal/scope"
+	"june/internal/repo"
+	"june/internal/scope"
 
 	"github.com/spf13/cobra"
 )
@@ -508,7 +508,7 @@ func runPeekFullLog(db *sql.DB, ctx scope.Context, agent repo.Agent, w io.Writer
 
 	// Show footer if capped
 	if totalCount > peekCapLines {
-		fmt.Fprintf(w, "\n[full log: %d lines - run 'otto log %s' for complete history]\n", totalCount, agent.Name)
+		fmt.Fprintf(w, "\n[full log: %d lines - run 'june log %s' for complete history]\n", totalCount, agent.Name)
 	}
 
 	return nil
@@ -589,7 +589,7 @@ git commit -m "feat(peek): show full log for completed/failed agents (capped at 
 
 ---
 
-### Task 4: Remove `otto say` command
+### Task 4: Remove `june say` command
 
 **Files:**
 - Delete: `internal/cli/commands/say.go`
@@ -620,7 +620,7 @@ Expected: Success
 
 ```bash
 git add -A
-git commit -m "feat(otto): remove say command (use dm instead)"
+git commit -m "feat(june): remove say command (use dm instead)"
 ```
 
 ---
@@ -628,26 +628,26 @@ git commit -m "feat(otto): remove say command (use dm instead)"
 ### Task 5: Update skill documentation
 
 **Files:**
-- Modify: `.claude/skills/otto-orchestrate/SKILL.md`
-- Modify: `.codex/skills/otto-orchestrate/SKILL.md`
+- Modify: `.claude/skills/june-orchestrate/SKILL.md`
+- Modify: `.codex/skills/june-orchestrate/SKILL.md`
 
-**Step 1: Update .claude/skills/otto-orchestrate/SKILL.md**
+**Step 1: Update .claude/skills/june-orchestrate/SKILL.md**
 
 Key changes:
 1. Remove references to `block: true` (doesn't exist)
-2. Remove `otto say` documentation
-3. Add `otto dm` documentation
+2. Remove `june say` documentation
+3. Add `june dm` documentation
 4. Update workflow examples
 5. Document enhanced `peek` behavior for completed agents
 
-**Step 2: Update .codex/skills/otto-orchestrate/SKILL.md**
+**Step 2: Update .codex/skills/june-orchestrate/SKILL.md**
 
 Same changes as above.
 
 **Step 3: Commit**
 
 ```bash
-git add .claude/skills/otto-orchestrate/SKILL.md .codex/skills/otto-orchestrate/SKILL.md
+git add .claude/skills/june-orchestrate/SKILL.md .codex/skills/june-orchestrate/SKILL.md
 git commit -m "docs: update skill docs with dm command and remove say"
 ```
 

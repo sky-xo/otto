@@ -1,26 +1,26 @@
-# Codex Otto Skill Design
+# Codex June Skill Design
 
 Status: Draft
 
 ## Overview
 
-A minimal skill teaching Codex how to use Otto for spawning and monitoring agents.
+A minimal skill teaching Codex how to use June for spawning and monitoring agents.
 
 ---
 
 ## Proposed Skill Content
 
-**File location:** `~/.codex/skills/otto.md`
+**File location:** `~/.codex/skills/june.md`
 
 ```markdown
-# Using Otto
+# Using June
 
-Otto spawns and monitors AI agents. Use it when you need parallel workers or want to delegate tasks.
+June spawns and monitors AI agents. Use it when you need parallel workers or want to delegate tasks.
 
 ## Spawn an Agent
 
 ```bash
-otto spawn codex "your task description" --detach
+june spawn codex "your task description" --detach
 # Returns: agent-id
 ```
 
@@ -32,7 +32,7 @@ Options:
 ## Check Status
 
 ```bash
-otto status
+june status
 ```
 
 Shows all agents: `busy`, `complete`, `failed`, or `waiting`.
@@ -40,9 +40,9 @@ Shows all agents: `busy`, `complete`, `failed`, or `waiting`.
 ## Read Output
 
 ```bash
-otto peek <agent-id>    # New output since last peek (advances cursor)
-otto log <agent-id>     # Full history
-otto log <agent-id> --tail 20   # Last 20 entries
+june peek <agent-id>    # New output since last peek (advances cursor)
+june log <agent-id>     # Full history
+june log <agent-id> --tail 20   # Last 20 entries
 ```
 
 Use `peek` for polling. Use `log` to review history.
@@ -50,7 +50,7 @@ Use `peek` for polling. Use `log` to review history.
 ## Send Follow-up
 
 ```bash
-otto prompt <agent-id> "your message"
+june prompt <agent-id> "your message"
 ```
 
 Use when an agent finishes and you need more work, or to answer a `waiting` agent.
@@ -59,20 +59,20 @@ Use when an agent finishes and you need more work, or to answer a `waiting` agen
 
 ```bash
 # 1. Spawn
-otto spawn codex "implement feature X" --name feature-x --detach
+june spawn codex "implement feature X" --name feature-x --detach
 
 # 2. Poll until done
-otto status                    # Check if still busy
-otto peek feature-x            # Read new output
+june status                    # Check if still busy
+june peek feature-x            # Read new output
 
 # 3. Follow up if needed
-otto prompt feature-x "also add tests"
+june prompt feature-x "also add tests"
 ```
 
 ## Tips
 
 - Use `--name` for readable IDs instead of auto-generated slugs
-- Check `otto status` before `peek` to avoid polling completed agents
+- Check `june status` before `peek` to avoid polling completed agents
 - Agents see each other's messages - use `@agent-id` to mention specific agents
 ```
 
@@ -87,5 +87,5 @@ otto prompt feature-x "also add tests"
 ## Next Steps
 
 1. Review this content
-2. Add to `~/.codex/skills/otto.md`
+2. Add to `~/.codex/skills/june.md`
 3. Update `~/.codex/AGENTS.md` bootstrap to read from skills directory

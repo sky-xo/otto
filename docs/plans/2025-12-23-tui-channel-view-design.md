@@ -5,11 +5,11 @@
 
 ## Overview
 
-Redesign the Otto TUI to provide a channel-based interface where users can view the main coordination stream and drill into individual agent transcripts. Includes capturing full agent session logs (prompts sent + stdout output) and keeping completed agents resumable.
+Redesign the June TUI to provide a channel-based interface where users can view the main coordination stream and drill into individual agent transcripts. Includes capturing full agent session logs (prompts sent + stdout output) and keeping completed agents resumable.
 
 ## Key Changes
 
-1. **Rename `otto watch` to `otto`** - TUI becomes the default command
+1. **Rename `june watch` to `june`** - TUI becomes the default command
 2. **Channel-based layout** - Left panel lists channels (Main + agents), right panel shows content
 3. **Capture agent transcripts** - Store prompts sent to agents and their stdout output
 4. **Keep completed agents** - Don't delete on completion, mark with timestamp, cleanup after 7 days
@@ -19,7 +19,7 @@ Redesign the Otto TUI to provide a channel-based interface where users can view 
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ Otto                                                            │
+│ June                                                            │
 ├──────────────┬──────────────────────────────────────────────────┤
 │ Channels     │ Main                                             │
 │ ───────────  │                                                  │
@@ -62,7 +62,7 @@ Redesign the Otto TUI to provide a channel-based interface where users can view 
 - **j/k or arrows** to move selection
 - **Enter** to view selected channel
 - **Escape** returns to Main
-- **g/G** top/bottom of content
+- **g/G** top/bjunem of content
 
 ## Database Schema
 
@@ -112,7 +112,7 @@ CREATE INDEX idx_messages_to ON messages(to_id, created_at);
 3. Resume agent session, continue capturing stdout
 
 **When agent completes:**
-1. Agent calls `otto complete` → creates completion message
+1. Agent calls `june complete` → creates completion message
 2. Update agent: `status = 'complete'`, `completed_at = NOW()`
 3. Agent row persists (not deleted)
 
@@ -158,13 +158,13 @@ WHERE completed_at < datetime('now', '-7 days');
               ┌─────│  busy   │─────┐
               │     └────┬────┘     │
               │          │          │
-         otto ask    otto complete  process dies
+         june ask    june complete  process dies
               │          │          │
          ┌────▼────┐ ┌───▼────┐ ┌───▼────┐
          │ blocked │ │complete│ │ failed │
          └────┬────┘ └───┬────┘ └───┬────┘
               │          │          │
-         otto prompt     └────┬─────┘
+         june prompt     └────┬─────┘
               │               │
          ┌────▼────┐    7 days pass
          │  busy   │          │
@@ -179,9 +179,9 @@ Completed/failed agents remain in the database with their `session_id`. They can
 
 ```bash
 # Orchestrator prompts a completed agent
-otto prompt schema-db "What about the multi-agent prompt edge case?"
+june prompt schema-db "What about the multi-agent prompt edge case?"
 
-# Otto uses stored session_id to resume
+# June uses stored session_id to resume
 claude --resume <session-id> -p "..."
 # or
 codex exec resume <session-id> "..."
@@ -233,22 +233,22 @@ func (r *Runner) StartWithCapture(cmd string, agentID string, db *sql.DB) {
 
 ## Command Changes
 
-### `otto` (no args)
-- Launches TUI (previously `otto watch`)
+### `june` (no args)
+- Launches TUI (previously `june watch`)
 - Detects terminal vs pipe (TUI vs plain text)
 
-### `otto watch`
+### `june watch`
 - Removed (no alias)
 
-### `otto spawn`
+### `june spawn`
 - Now stores prompt in `messages` AND `transcript_entries`
 - Returns immediately, stdout captured in background
 
-### `otto prompt`
+### `june prompt`
 - Stores prompt in both tables
 - Resumes agent session
 
-### `otto complete`
+### `june complete`
 - Sets `status = 'complete'`, `completed_at = NOW()`
 - No longer deletes agent row
 

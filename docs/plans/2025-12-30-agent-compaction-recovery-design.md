@@ -12,7 +12,7 @@ When Claude Code subagents compact mid-task, recovery is painful:
 2. In vanilla Claude, recovery requires manual intervention:
    - `/export` the conversation
    - `/clear` to start fresh
-   - Tell new Claude to read export "from the bottom up"
+   - Tell new Claude to read export "from the bjunem up"
    - New Claude figures out where things left off
 3. This workflow is tedious and error-prone
 
@@ -20,7 +20,7 @@ When Claude Code subagents compact mid-task, recovery is painful:
 
 ## Proposed Solution
 
-Otto can provide automatic recovery by leveraging:
+June can provide automatic recovery by leveraging:
 - Task list as checkpoint (agents mark tasks complete as they go)
 - Activity logs persisted to SQLite
 - Orchestrator process independent of subagent processes
@@ -33,7 +33,7 @@ Otto can provide automatic recovery by leveraging:
 ├─────────────────────────────────────────────────────────────┤
 │  1. Orchestrator assigns tasks to agent                      │
 │  2. Agent works through tasks, marking complete as it goes   │
-│  3. Otto logs agent activity to SQLite                       │
+│  3. June logs agent activity to SQLite                       │
 │  4. Task list in SQLite = persistent checkpoint              │
 └─────────────────────────────────────────────────────────────┘
                             │
@@ -65,7 +65,7 @@ Otto can provide automatic recovery by leveraging:
 **How do we detect compaction/failure?**
 
 Options:
-- **Process status:** Check if agent process is still running (`otto status` already does this)
+- **Process status:** Check if agent process is still running (`june status` already does this)
 - **Heartbeat:** Agent periodically reports "still alive" (adds complexity)
 - **Timeout:** If agent hasn't reported progress in N minutes, assume dead (risk of false positives)
 - **Exit detection:** Monitor for process exit, check if tasks incomplete
@@ -151,13 +151,13 @@ To prevent infinite loops on tasks that consistently cause compaction:
 
 **Manual fallback:**
 - If auto-recovery fails (max retries), notify human
-- Provide command: `otto recover <agent-name>` to manually trigger recovery
+- Provide command: `june recover <agent-name>` to manually trigger recovery
 
 ## Implementation Plan
 
 ### Phase 1: Foundation
 1. Add agent exit detection to orchestrator
-2. Add `otto logs <agent> --tail N` command for retrieving recent logs
+2. Add `june logs <agent> --tail N` command for retrieving recent logs
 3. Add retry tracking (column or table)
 
 ### Phase 2: Recovery Logic
@@ -167,7 +167,7 @@ To prevent infinite loops on tasks that consistently cause compaction:
 
 ### Phase 3: Polish
 7. TUI indication of recovery events
-8. Manual `otto recover` command as fallback
+8. Manual `june recover` command as fallback
 9. Configurable retry limits and log context size
 
 ## Open Questions

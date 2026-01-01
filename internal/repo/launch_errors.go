@@ -5,13 +5,13 @@ import (
 	"os"
 	"path/filepath"
 
-	"otto/internal/config"
+	"june/internal/config"
 )
 
 // RecordLaunchError writes an error message to a log file for a failed agent launch.
-// The error is written to ~/.otto/orchestrators/<scope>/launch-errors/<agent-id>.log
+// The error is written to ~/.june/orchestrators/<scope>/launch-errors/<agent-id>.log
 func RecordLaunchError(scopePath, agentID, errorText string) error {
-	// Construct path: ~/.otto/orchestrators/<scope>/launch-errors/<agent-id>.log
+	// Construct path: ~/.june/orchestrators/<scope>/launch-errors/<agent-id>.log
 	errorDir := filepath.Join(config.DataDir(), "orchestrators", scopePath, "launch-errors")
 	if err := os.MkdirAll(errorDir, 0o755); err != nil {
 		return fmt.Errorf("create launch-errors dir: %w", err)

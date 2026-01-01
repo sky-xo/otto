@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"otto/internal/repo"
-	"otto/internal/scope"
+	"june/internal/repo"
+	"june/internal/scope"
 )
 
 // wakeupSender is an interface for sending wakeup notifications to agents

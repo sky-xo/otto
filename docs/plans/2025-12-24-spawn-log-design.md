@@ -6,7 +6,7 @@
 
 ## Problem Statement
 
-When using Codex as an orchestrator (instead of Claude Code), Otto's blocking spawn hits Codex's ~60 second tool timeout. Additionally, orchestrators need a way to check agent output (logs) without reading the full history every time (token efficiency).
+When using Codex as an orchestrator (instead of Claude Code), June's blocking spawn hits Codex's ~60 second tool timeout. Additionally, orchestrators need a way to check agent output (logs) without reading the full history every time (token efficiency).
 
 ### Root Causes
 
@@ -21,8 +21,8 @@ When using Codex as an orchestrator (instead of Claude Code), Otto's blocking sp
 **Keep blocking as default**, add `--detach` flag for Codex users.
 
 ```bash
-otto spawn codex "task"            # Blocking (works with Claude's run_in_background)
-otto spawn codex "task" --detach   # Returns immediately (for Codex orchestrators)
+june spawn codex "task"            # Blocking (works with Claude's run_in_background)
+june spawn codex "task" --detach   # Returns immediately (for Codex orchestrators)
 ```
 
 **Rationale:**
@@ -40,26 +40,26 @@ Rename `transcript_entries` → `logs` for simplicity.
 | `repo.TranscriptEntry` | `repo.LogEntry` |
 | `ListTranscriptEntries()` | `ListLogs()` |
 
-### 3. New Commands: `otto peek` and `otto log`
+### 3. New Commands: `june peek` and `june log`
 
 Add CLI access to agent logs (currently only visible in TUI). Follows codex-subagent's proven API design.
 
 **Two commands with different purposes:**
 
 ```bash
-otto peek <agent-id>             # Unread entries, advances cursor
-otto log <agent-id>              # Full history, no cursor change
-otto log <agent-id> --tail 5     # Last 5 entries, no cursor change
+june peek <agent-id>             # Unread entries, advances cursor
+june log <agent-id>              # Full history, no cursor change
+june log <agent-id> --tail 5     # Last 5 entries, no cursor change
 ```
 
-#### `otto peek` (incremental read)
+#### `june peek` (incremental read)
 
 - Shows only unread log entries since last peek
 - Advances cursor to latest entry shown
 - If no new entries: "No new log entries for <agent>"
 - Token efficient for polling orchestrators
 
-#### `otto log` (full history)
+#### `june log` (full history)
 
 - Shows all log entries (or last N with `--tail`)
 - Does NOT advance cursor
@@ -77,9 +77,9 @@ ALTER TABLE agents ADD COLUMN last_read_log_id TEXT;
 
 | Command | Cursor Effect |
 |---------|---------------|
-| `otto peek agent` | Advances to latest shown |
-| `otto log agent` | Unchanged |
-| `otto log agent --tail 5` | Unchanged |
+| `june peek agent` | Advances to latest shown |
+| `june log agent` | Unchanged |
+| `june log agent --tail 5` | Unchanged |
 
 **Why `log` doesn't advance cursor:**
 `log` is for viewing history, not consuming a stream. If you want to mark entries as read, use `peek`.
@@ -89,34 +89,34 @@ ALTER TABLE agents ADD COLUMN last_read_log_id TEXT;
 ### Spawn
 
 ```bash
-otto spawn <type> "<task>"              # Blocking, captures output
-otto spawn <type> "<task>" --detach     # Returns immediately
-otto spawn <type> "<task>" --name foo   # Custom agent name
-otto spawn <type> "<task>" --files x,y  # Relevant files
-otto spawn <type> "<task>" --context z  # Additional context
+june spawn <type> "<task>"              # Blocking, captures output
+june spawn <type> "<task>" --detach     # Returns immediately
+june spawn <type> "<task>" --name foo   # Custom agent name
+june spawn <type> "<task>" --files x,y  # Relevant files
+june spawn <type> "<task>" --context z  # Additional context
 ```
 
 ### Peek
 
 ```bash
-otto peek <agent-id>             # Unread entries, advances cursor
+june peek <agent-id>             # Unread entries, advances cursor
 ```
 
 ### Log
 
 ```bash
-otto log <agent-id>              # Full history
-otto log <agent-id> --tail N     # Last N entries
+june log <agent-id>              # Full history
+june log <agent-id> --tail N     # Last N entries
 ```
 
 ### Comparison with codex-subagent
 
-| codex-subagent | Otto | Notes |
+| codex-subagent | June | Notes |
 |----------------|------|-------|
-| `peek <thread>` | `otto peek <agent>` | Unread entries, advances cursor |
-| `log <thread>` | `otto log <agent>` | Full history, no cursor change |
-| `log --tail N` | `otto log --tail N` | Last N entries |
-| `status <thread>` | `otto status` | Agent status info |
+| `peek <thread>` | `june peek <agent>` | Unread entries, advances cursor |
+| `log <thread>` | `june log <agent>` | Full history, no cursor change |
+| `log --tail N` | `june log --tail N` | Last N entries |
+| `status <thread>` | `june status` | Agent status info |
 
 ## Implementation Notes
 
@@ -130,9 +130,9 @@ When `--detach` is used:
 
 Orchestrator workflow:
 ```bash
-otto spawn --detach codex "task"   # Returns: agent-id
-otto peek agent-id                  # Check for new output
-otto status                         # See if complete
+june spawn --detach codex "task"   # Returns: agent-id
+june peek agent-id                  # Check for new output
+june status                         # See if complete
 ```
 
 ### Log Storage
@@ -156,7 +156,7 @@ ALTER TABLE agents ADD COLUMN last_read_log_id TEXT;
 
 ## Future Considerations
 
-1. **`otto wait` command**: Block until specific agent(s) complete
+1. **`june wait` command**: Block until specific agent(s) complete
 2. **Notification system**: For super-orchestrator V1+
 3. **Log retention**: Currently 7-day cleanup on DB open
 
@@ -164,4 +164,4 @@ ALTER TABLE agents ADD COLUMN last_read_log_id TEXT;
 
 1. **Detached transcript capture**: When spawn returns immediately, who captures stdout? Current thinking: spawn process stays alive in background, captures to DB.
 
-2. **Log format**: Should `otto log` show raw output or parse JSON events (for Codex)?
+2. **Log format**: Should `june log` show raw output or parse JSON events (for Codex)?

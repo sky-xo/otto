@@ -7,8 +7,8 @@ import (
 	"os"
 	"syscall"
 
-	"otto/internal/repo"
-	"otto/internal/scope"
+	"june/internal/repo"
+	"june/internal/scope"
 
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"

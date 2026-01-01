@@ -7,10 +7,10 @@ import (
 	"os"
 	"time"
 
-	"otto/internal/process"
-	"otto/internal/repo"
-	"otto/internal/scope"
-	"otto/internal/tui"
+	"june/internal/process"
+	"june/internal/repo"
+	"june/internal/scope"
+	"june/internal/tui"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
@@ -29,7 +29,7 @@ func NewWatchCmd() *cobra.Command {
 }
 
 // RunWatchDefault runs the watch command with default settings.
-// Used by both "otto watch" and "otto" (no subcommand).
+// Used by both "june watch" and "june" (no subcommand).
 func RunWatchDefault(ctx context.Context) error {
 	conn, err := openDB()
 	if err != nil {
@@ -104,7 +104,7 @@ func cleanupStaleAgents(db *sql.DB, scopeCtx scope.Context) {
 				_ = repo.SetAgentFailed(db, a.Project, a.Branch, a.Name)
 
 				// Post exit message mentioning orchestrator for wakeup
-				orchestratorMention := fmt.Sprintf("%s:%s:otto", scopeCtx.Project, scopeCtx.Branch)
+				orchestratorMention := fmt.Sprintf("%s:%s:june", scopeCtx.Project, scopeCtx.Branch)
 				mentionsJSON := fmt.Sprintf(`["%s"]`, orchestratorMention)
 
 				msg := repo.Message{

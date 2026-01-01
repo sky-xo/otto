@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"otto/internal/repo"
+	"june/internal/repo"
 
 	_ "modernc.org/sqlite"
 )

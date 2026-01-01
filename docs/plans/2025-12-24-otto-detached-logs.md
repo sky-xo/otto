@@ -1,10 +1,10 @@
-# Otto Detached Logging Implementation Plan
+# June Detached Logging Implementation Plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan.
 
-**Goal:** Make `otto spawn --detach` behave like codex-subagent: detached agents still capture logs, update status on exit, and record Codex thread IDs.
+**Goal:** Make `june spawn --detach` behave like codex-subagent: detached agents still capture logs, update status on exit, and record Codex thread IDs.
 
-**Architecture:** Add a hidden detached worker subcommand (`otto worker-spawn`) that runs the same transcript-capture and lifecycle logic as non-detached `spawn`. `spawn --detach` creates the agent and prompt as usual, then launches the worker in the background, which reads the stored prompt, runs Codex/Claude with transcript capture, and updates DB state (logs, session ID, exit message, status).
+**Architecture:** Add a hidden detached worker subcommand (`june worker-spawn`) that runs the same transcript-capture and lifecycle logic as non-detached `spawn`. `spawn --detach` creates the agent and prompt as usual, then launches the worker in the background, which reads the stored prompt, runs Codex/Claude with transcript capture, and updates DB state (logs, session ID, exit message, status).
 
 **Tech Stack:** Go, Cobra CLI, SQLite (internal repo), os/exec
 
@@ -37,7 +37,7 @@ Expected: FAIL (worker command not implemented)
 
 ```go
 // internal/cli/commands/worker_spawn.go
-// Hidden command: `otto worker-spawn <agent-id>`
+// Hidden command: `june worker-spawn <agent-id>`
 // - open DB
 // - load agent + latest prompt
 // - run codex/claude with transcript capture
@@ -53,9 +53,9 @@ Expected: PASS
 
 Run:
 ```bash
-./otto spawn codex "quick skim" --name spike-detach --detach
-./otto log spike-detach --tail 5
-./otto status | rg spike-detach
+./june spawn codex "quick skim" --name spike-detach --detach
+./june log spike-detach --tail 5
+./june status | rg spike-detach
 ```
 Expected:
 - `log` shows at least prompt + some stdout/stderr chunks
@@ -65,7 +65,7 @@ Expected:
 
 ```bash
 git add internal/cli/commands/worker_spawn.go internal/cli/commands/worker_spawn_test.go internal/cli/commands/spawn.go internal/cli/root.go
-git commit -m "feat(otto): add detached worker spawn"
+git commit -m "feat(june): add detached worker spawn"
 ```
 
 ---
@@ -119,7 +119,7 @@ Expected: PASS
 
 ```bash
 git add internal/repo/messages.go internal/repo/messages_test.go internal/cli/commands/worker_spawn.go
-git commit -m "feat(otto): store and fetch latest prompt for detached worker"
+git commit -m "feat(june): store and fetch latest prompt for detached worker"
 ```
 
 ---
@@ -136,7 +136,7 @@ git commit -m "feat(otto): store and fetch latest prompt for detached worker"
 ```go
 func TestSpawnDetachLaunchesWorker(t *testing.T) {
   // stub runner to capture StartDetached call
-  // assert it runs otto worker-spawn <agent-id>
+  // assert it runs june worker-spawn <agent-id>
 }
 ```
 
@@ -150,8 +150,8 @@ Expected: FAIL
 ```go
 // internal/cli/commands/spawn.go
 // in detach path:
-// 1) build otto binary path
-// 2) StartDetached(ottoBin, "worker-spawn", agentID)
+// 1) build june binary path
+// 2) StartDetached(juneBin, "worker-spawn", agentID)
 // 3) on error: SetAgentFailed + create exit message
 ```
 
@@ -172,10 +172,10 @@ Expected: PASS
 
 Run:
 ```bash
-./otto spawn codex "quick skim" --name detach-worker --detach
-./otto peek detach-worker
-./otto log detach-worker --tail 20
-./otto status | rg detach-worker
+./june spawn codex "quick skim" --name detach-worker --detach
+./june peek detach-worker
+./june log detach-worker --tail 20
+./june status | rg detach-worker
 ```
 Expected:
 - `peek/log` shows output (not empty)
@@ -185,7 +185,7 @@ Expected:
 
 ```bash
 git add internal/cli/commands/spawn.go internal/cli/commands/spawn_test.go internal/exec/runner.go
-git commit -m "feat(otto): run detached spawn via worker"
+git commit -m "feat(june): run detached spawn via worker"
 ```
 
 ---
@@ -225,9 +225,9 @@ Expected: PASS
 
 Run:
 ```bash
-./otto spawn codex "quick skim" --name detach-thread --detach
-./otto status | rg detach-thread
-./otto prompt detach-thread "continue"
+./june spawn codex "quick skim" --name detach-thread --detach
+./june status | rg detach-thread
+./june prompt detach-thread "continue"
 ```
 Expected:
 - `prompt` succeeds (session_id exists)
@@ -236,7 +236,7 @@ Expected:
 
 ```bash
 git add internal/cli/commands/worker_spawn.go internal/cli/commands/worker_spawn_test.go
-git commit -m "feat(otto): capture thread_id for detached codex agents"
+git commit -m "feat(june): capture thread_id for detached codex agents"
 ```
 
 ---
@@ -266,7 +266,7 @@ Expected: FAIL
 
 ```go
 // internal/repo/launch_errors.go
-// Write error text to ~/.otto/orchestrators/<scope>/launch-errors/<agent-id>.log
+// Write error text to ~/.june/orchestrators/<scope>/launch-errors/<agent-id>.log
 ```
 
 **Step 4: Wire failure paths**
@@ -287,7 +287,7 @@ Expected: PASS
 
 ```bash
 git add internal/repo/launch_errors.go internal/repo/launch_errors_test.go internal/cli/commands/spawn.go internal/cli/commands/worker_spawn.go
-git commit -m "feat(otto): record launch errors for detached workers"
+git commit -m "feat(june): record launch errors for detached workers"
 ```
 
 ---
@@ -306,9 +306,9 @@ Expected: build succeeds
 
 Run:
 ```bash
-./otto spawn codex "skim repo" --name e2e-detach --detach
-./otto log e2e-detach --tail 10
-./otto status | rg e2e-detach
+./june spawn codex "skim repo" --name e2e-detach --detach
+./june log e2e-detach --tail 10
+./june status | rg e2e-detach
 ```
 Expected:
 - `log` has content
@@ -318,14 +318,14 @@ Expected:
 
 Run:
 ```bash
-./otto prompt e2e-detach "quick followup"
-./otto log e2e-detach --tail 10
+./june prompt e2e-detach "quick followup"
+./june log e2e-detach --tail 10
 ```
 Expected: prompt succeeds and new logs appear
 
 ---
 
-Plan complete and saved to `docs/plans/2025-12-24-otto-detached-logs.md`. Two execution options:
+Plan complete and saved to `docs/plans/2025-12-24-june-detached-logs.md`. Two execution options:
 
 1. Subagent-Driven (this session) – I dispatch fresh subagent per task, review between tasks.
 2. Parallel Session (separate) – Open new session with executing-plans for batch execution.

@@ -21,7 +21,7 @@
 ## Batch 1: Database Architecture — APPROVED
 
 **Decisions:**
-- Global DB at `~/.otto/otto.db` (via `config.DataDir()`) — verified in code
+- Global DB at `~/.june/june.db` (via `config.DataDir()`) — verified in code
 - Agent PK changes to `(project, branch, name)` — breaking change OK (greenfield)
 - Tasks table with `parent_id` + `result` for hierarchical state
 - **Skip legacy import helper** — not needed for V0
@@ -38,7 +38,7 @@
 **Example:**
 ```
 @Impl-1 → app:feature/login:impl-1 (agent lowercased)
-@backend:main:Otto → backend:main:otto (agent lowercased)
+@backend:main:June → backend:main:june (agent lowercased)
 ```
 
 ---
@@ -99,21 +99,21 @@ Orchestrator interprets and decides:
 - Status `complete` → move to next task
 - Status `failed` → handle error (retry, reassign, escalate)
 
-### `otto ask` Flow
+### `june ask` Flow
 
 ```
-1. Agent runs: otto ask "which approach?"
+1. Agent runs: june ask "which approach?"
    → Message stored, status = blocked
    → Agent process exits
 
 2. Daemon detects exit, sees status = blocked
    → Notifies orchestrator with question context
 
-3. Orchestrator answers: otto prompt impl-1 "use approach A"
+3. Orchestrator answers: june prompt impl-1 "use approach A"
    → Agent respawned with answer
 ```
 
-No implicit @otto mention needed — daemon notifies on any exit.
+No implicit @june mention needed — daemon notifies on any exit.
 
 ### Compaction Re-injection
 
@@ -129,7 +129,7 @@ No implicit @otto mention needed — daemon notifies on any exit.
 
 ### V0 Scope
 
-- **Skip `otto complete`** — process exit is sufficient
+- **Skip `june complete`** — process exit is sufficient
 - **No auto-retry on failure** — orchestrator decides
 
 ---
@@ -177,21 +177,21 @@ type CommandExecutionItem struct {
 | `agent_message` | Show content as-is |
 
 ### Layout
-- **Main view split:** Activity Feed (top) + Orchestrator Chat (bottom)
+- **Main view split:** Activity Feed (top) + Orchestrator Chat (bjunem)
 - **Navigation:** Click agent in sidebar → transcript view; Escape or click project → main view
 - **Activity Feed:** Status changes, completions, agent spawns
-- **Orchestrator Chat:** Messages mentioning @otto, ask/say content
+- **Orchestrator Chat:** Messages mentioning @june, ask/say content
 
 ---
 
 ## Open Items / Notes
 
-1. **`otto complete` command** — May be unnecessary for V0. Process exit detection is sufficient. Keep for future (multi-prompt agents) but don't require it.
+1. **`june complete` command** — May be unnecessary for V0. Process exit detection is sufficient. Keep for future (multi-prompt agents) but don't require it.
 
 2. **Plan updates needed:**
    - Task 4 regex already updated ✓
-   - Task 6 (daemon wake-ups) needs update: wake any mentioned agent, not just `@otto`
-   - Task 6 needs update: auto-detect completion via process exit, not explicit `otto complete`
+   - Task 6 (daemon wake-ups) needs update: wake any mentioned agent, not just `@june`
+   - Task 6 needs update: auto-detect completion via process exit, not explicit `june complete`
 
 ---
 

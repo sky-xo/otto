@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"otto/internal/repo"
-	"otto/internal/scope"
+	"june/internal/repo"
+	"june/internal/scope"
 
 	"github.com/google/uuid"
 )

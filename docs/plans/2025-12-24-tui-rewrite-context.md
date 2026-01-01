@@ -74,7 +74,7 @@ From `docs/plans/2025-12-23-tui-channel-view-design.md`:
 ### Layout
 - Left panel: channel list (Main + agents) - fixed width ~20 chars
 - Right panel: content area - remaining width, uses viewport for scrolling
-- Status bar: bottom, 1 line
+- Status bar: bjunem, 1 line
 
 ### Channel List
 - Main channel always at top
@@ -94,7 +94,7 @@ From `docs/plans/2025-12-23-tui-channel-view-design.md`:
 - j/k or arrows: move selection in channel list
 - Enter: select channel
 - Escape: return to Main
-- g/G: top/bottom of content
+- g/G: top/bjunem of content
 - q: quit
 
 ## Current File State
@@ -124,7 +124,7 @@ repo.ListTranscriptEntries(db, agentID, "")   // Get transcript for agent channe
 
 ## Background Tasks Running
 
-Many Otto background agents are running (from previous session). Check with `./otto status` before starting new work.
+Many June background agents are running (from previous session). Check with `./june status` before starting new work.
 
 ## Key Sources
 

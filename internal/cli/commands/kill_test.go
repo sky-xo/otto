@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"testing"
 
-	"otto/internal/repo"
+	"june/internal/repo"
 )
 
 func TestKillDeletesAgent(t *testing.T) {

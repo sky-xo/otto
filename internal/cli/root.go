@@ -3,14 +3,14 @@ package cli
 import (
 	"os"
 
-	"otto/internal/cli/commands"
+	"june/internal/cli/commands"
 
 	"github.com/spf13/cobra"
 )
 
 func Execute() {
 	rootCmd := &cobra.Command{
-		Use:   "otto",
+		Use:   "june",
 		Short: "Multi-agent orchestrator for Claude Code and Codex",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return commands.RunWatchDefault(cmd.Context())

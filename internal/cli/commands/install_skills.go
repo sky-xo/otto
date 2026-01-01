@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"otto/internal/scope"
+	"june/internal/scope"
 
 	"github.com/spf13/cobra"
 )
@@ -16,7 +16,7 @@ import (
 func NewInstallSkillsCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "install-skills",
-		Short: "Install bundled Otto skills into ~/.claude/skills and ~/.codex/skills",
+		Short: "Install bundled June skills into ~/.claude/skills and ~/.codex/skills",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			sourceRoot := scope.RepoRoot()
 			if sourceRoot == "" {
@@ -92,7 +92,7 @@ func runInstallSkills(source, dest string) ([]string, error) {
 		name := entry.Name()
 		destPath := filepath.Join(dest, name)
 		if _, err := os.Stat(destPath); err == nil {
-			if !strings.HasPrefix(name, "otto-") {
+			if !strings.HasPrefix(name, "june-") {
 				continue
 			}
 			if err := os.RemoveAll(destPath); err != nil {

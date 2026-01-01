@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"testing"
 
-	"otto/internal/repo"
+	"june/internal/repo"
 
 	_ "modernc.org/sqlite"
 )
@@ -12,11 +12,11 @@ import (
 func TestChatInputAppearsForProjectHeader(t *testing.T) {
 	m := NewModel(nil)
 	m.agents = []repo.Agent{
-		{Project: "otto", Branch: "main", Name: "impl-1", Status: "busy"},
+		{Project: "june", Branch: "main", Name: "impl-1", Status: "busy"},
 	}
 
 	// Select project header
-	m.activeChannelID = "otto/main"
+	m.activeChannelID = "june/main"
 
 	// Should show chat input
 	if !m.showChatInput() {
@@ -36,59 +36,59 @@ func TestChatInputAppearsForProjectHeader(t *testing.T) {
 	}
 }
 
-func TestGetOttoAgentForProjectBranch(t *testing.T) {
+func TestGetJuneAgentForProjectBranch(t *testing.T) {
 	m := NewModel(nil)
 	m.agents = []repo.Agent{
-		{Project: "otto", Branch: "main", Name: "otto", Status: "complete"},
-		{Project: "other", Branch: "feature", Name: "otto", Status: "busy"},
-		{Project: "otto", Branch: "main", Name: "impl-1", Status: "busy"},
+		{Project: "june", Branch: "main", Name: "june", Status: "complete"},
+		{Project: "other", Branch: "feature", Name: "june", Status: "busy"},
+		{Project: "june", Branch: "main", Name: "impl-1", Status: "busy"},
 	}
 
-	// Get otto for otto/main
-	otto := m.getOttoAgent("otto", "main")
-	if otto == nil {
-		t.Fatal("expected to find otto agent for otto/main")
+	// Get june for june/main
+	june := m.getJuneAgent("june", "main")
+	if june == nil {
+		t.Fatal("expected to find june agent for june/main")
 	}
-	if otto.Name != "otto" || otto.Project != "otto" || otto.Branch != "main" {
-		t.Errorf("got wrong agent: %+v", otto)
-	}
-
-	// Get otto for other/feature
-	otto = m.getOttoAgent("other", "feature")
-	if otto == nil {
-		t.Fatal("expected to find otto agent for other/feature")
-	}
-	if otto.Status != "busy" {
-		t.Errorf("expected busy otto, got %q", otto.Status)
+	if june.Name != "june" || june.Project != "june" || june.Branch != "main" {
+		t.Errorf("got wrong agent: %+v", june)
 	}
 
-	// Get otto for non-existent project/branch
-	otto = m.getOttoAgent("nonexistent", "branch")
-	if otto != nil {
+	// Get june for other/feature
+	june = m.getJuneAgent("other", "feature")
+	if june == nil {
+		t.Fatal("expected to find june agent for other/feature")
+	}
+	if june.Status != "busy" {
+		t.Errorf("expected busy june, got %q", june.Status)
+	}
+
+	// Get june for non-existent project/branch
+	june = m.getJuneAgent("nonexistent", "branch")
+	if june != nil {
 		t.Error("expected nil for non-existent project/branch")
 	}
 }
 
-func TestIsOttoBusy(t *testing.T) {
+func TestIsJuneBusy(t *testing.T) {
 	m := NewModel(nil)
 	m.agents = []repo.Agent{
-		{Project: "otto", Branch: "main", Name: "otto", Status: "busy"},
-		{Project: "other", Branch: "feature", Name: "otto", Status: "complete"},
+		{Project: "june", Branch: "main", Name: "june", Status: "busy"},
+		{Project: "other", Branch: "feature", Name: "june", Status: "complete"},
 	}
 
-	// otto/main has busy otto
-	if !m.isOttoBusy("otto", "main") {
-		t.Error("expected otto to be busy for otto/main")
+	// june/main has busy june
+	if !m.isJuneBusy("june", "main") {
+		t.Error("expected june to be busy for june/main")
 	}
 
-	// other/feature has complete otto
-	if m.isOttoBusy("other", "feature") {
-		t.Error("expected otto to NOT be busy for other/feature")
+	// other/feature has complete june
+	if m.isJuneBusy("other", "feature") {
+		t.Error("expected june to NOT be busy for other/feature")
 	}
 
-	// No otto for this project/branch
-	if m.isOttoBusy("nonexistent", "branch") {
-		t.Error("expected otto to NOT be busy when it doesn't exist")
+	// No june for this project/branch
+	if m.isJuneBusy("nonexistent", "branch") {
+		t.Error("expected june to NOT be busy when it doesn't exist")
 	}
 }
 
@@ -145,28 +145,28 @@ func TestGetChatSubmitAction(t *testing.T) {
 		expectedAction string // "none", "spawn", "prompt"
 	}{
 		{
-			name:           "otto is busy - no action",
-			dbAgents:       []repo.Agent{{Project: "p", Branch: "b", Name: "otto", Type: "codex", Task: "test", Status: "busy"}},
+			name:           "june is busy - no action",
+			dbAgents:       []repo.Agent{{Project: "p", Branch: "b", Name: "june", Type: "codex", Task: "test", Status: "busy"}},
 			project:        "p",
 			branch:         "b",
 			expectedAction: "none",
 		},
 		{
-			name:           "otto complete - prompt",
-			dbAgents:       []repo.Agent{{Project: "p", Branch: "b", Name: "otto", Type: "codex", Task: "test", Status: "complete"}},
+			name:           "june complete - prompt",
+			dbAgents:       []repo.Agent{{Project: "p", Branch: "b", Name: "june", Type: "codex", Task: "test", Status: "complete"}},
 			project:        "p",
 			branch:         "b",
 			expectedAction: "prompt",
 		},
 		{
-			name:           "otto failed - prompt",
-			dbAgents:       []repo.Agent{{Project: "p", Branch: "b", Name: "otto", Type: "codex", Task: "test", Status: "failed"}},
+			name:           "june failed - prompt",
+			dbAgents:       []repo.Agent{{Project: "p", Branch: "b", Name: "june", Type: "codex", Task: "test", Status: "failed"}},
 			project:        "p",
 			branch:         "b",
 			expectedAction: "prompt",
 		},
 		{
-			name:           "no otto - spawn",
+			name:           "no june - spawn",
 			dbAgents:       []repo.Agent{{Project: "p", Branch: "b", Name: "impl-1", Type: "codex", Task: "test", Status: "busy"}},
 			project:        "p",
 			branch:         "b",
@@ -200,13 +200,13 @@ func TestGetChatSubmitAction(t *testing.T) {
 }
 
 // TestGetChatSubmitActionRaceCondition verifies the fix for the race condition bug
-// where the TUI's cached m.agents is empty but otto exists in the database.
-// Before the fix, this would incorrectly return "spawn" and create "otto-2".
+// where the TUI's cached m.agents is empty but june exists in the database.
+// Before the fix, this would incorrectly return "spawn" and create "june-2".
 // After the fix, it correctly queries the DB and returns "prompt".
 func TestGetChatSubmitActionRaceCondition(t *testing.T) {
-	// Create database with an existing otto agent
+	// Create database with an existing june agent
 	db := createTestDBWithAgents(t, []repo.Agent{
-		{Project: "otto", Branch: "main", Name: "otto", Type: "codex", Task: "initial task", Status: "complete"},
+		{Project: "june", Branch: "main", Name: "june", Type: "codex", Task: "initial task", Status: "complete"},
 	})
 	defer db.Close()
 
@@ -215,13 +215,13 @@ func TestGetChatSubmitActionRaceCondition(t *testing.T) {
 	m := NewModel(db)
 	m.agents = []repo.Agent{} // Explicitly empty - simulates stale/uninitialized cache
 
-	// Without the fix, this would check m.agents (empty), find no otto, and return "spawn"
-	// With the fix, this queries the DB directly, finds otto, and returns "prompt"
-	action := m.getChatSubmitAction("otto", "main")
+	// Without the fix, this would check m.agents (empty), find no june, and return "spawn"
+	// With the fix, this queries the DB directly, finds june, and returns "prompt"
+	action := m.getChatSubmitAction("june", "main")
 
 	if action != "prompt" {
-		t.Errorf("Race condition bug! Expected 'prompt' (otto exists in DB), got %q. "+
-			"This would incorrectly spawn 'otto-2' instead of prompting existing 'otto'.", action)
+		t.Errorf("Race condition bug! Expected 'prompt' (june exists in DB), got %q. "+
+			"This would incorrectly spawn 'june-2' instead of prompting existing 'june'.", action)
 	}
 }
 
@@ -257,23 +257,23 @@ func TestHandleChatSubmitStoresChatMessage(t *testing.T) {
 	// Create model with test db
 	m := NewModel(db)
 	m.agents = []repo.Agent{
-		{Project: "otto", Branch: "main", Name: "impl-1", Status: "busy"},
+		{Project: "june", Branch: "main", Name: "impl-1", Status: "busy"},
 	}
 	// Inject no-op command runner to prevent fork bomb during tests
 	m.runCommand = func(name string, args ...string) error { return nil }
 
 	// Set activeChannelID to project header
-	m.activeChannelID = "otto/main"
+	m.activeChannelID = "june/main"
 
 	// Set chat input value
-	m.chatInput.SetValue("hello otto")
+	m.chatInput.SetValue("hello june")
 
 	// Call handleChatSubmit
 	_ = m.handleChatSubmit()
 
 	// Query messages from db
 	messages, err := repo.ListMessages(db, repo.MessageFilter{
-		Project: "otto",
+		Project: "june",
 		Branch:  "main",
 	})
 	if err != nil {
@@ -292,14 +292,14 @@ func TestHandleChatSubmitStoresChatMessage(t *testing.T) {
 	if msg.FromAgent != "you" {
 		t.Errorf("expected FromAgent to be 'you', got %q", msg.FromAgent)
 	}
-	if msg.ToAgent.Valid && msg.ToAgent.String != "otto" {
-		t.Errorf("expected ToAgent to be 'otto', got %q", msg.ToAgent.String)
+	if msg.ToAgent.Valid && msg.ToAgent.String != "june" {
+		t.Errorf("expected ToAgent to be 'june', got %q", msg.ToAgent.String)
 	}
-	if msg.Content != "hello otto" {
-		t.Errorf("expected Content to be 'hello otto', got %q", msg.Content)
+	if msg.Content != "hello june" {
+		t.Errorf("expected Content to be 'hello june', got %q", msg.Content)
 	}
-	if msg.Project != "otto" {
-		t.Errorf("expected Project to be 'otto', got %q", msg.Project)
+	if msg.Project != "june" {
+		t.Errorf("expected Project to be 'june', got %q", msg.Project)
 	}
 	if msg.Branch != "main" {
 		t.Errorf("expected Branch to be 'main', got %q", msg.Branch)
@@ -338,13 +338,13 @@ func TestHandleChatSubmitOptimisticUIUpdate(t *testing.T) {
 	// Create model with test db
 	m := NewModel(db)
 	m.agents = []repo.Agent{
-		{Project: "otto", Branch: "main", Name: "impl-1", Status: "busy"},
+		{Project: "june", Branch: "main", Name: "impl-1", Status: "busy"},
 	}
 	// Inject no-op command runner to prevent fork bomb during tests
 	m.runCommand = func(name string, args ...string) error { return nil }
 
 	// Set activeChannelID to project header
-	m.activeChannelID = "otto/main"
+	m.activeChannelID = "june/main"
 
 	// Verify initial state
 	if len(m.messages) != 0 {
@@ -377,8 +377,8 @@ func TestHandleChatSubmitOptimisticUIUpdate(t *testing.T) {
 	if msg.Content != "test message" {
 		t.Errorf("expected Content to be 'test message', got %q", msg.Content)
 	}
-	if msg.Project != "otto" {
-		t.Errorf("expected Project to be 'otto', got %q", msg.Project)
+	if msg.Project != "june" {
+		t.Errorf("expected Project to be 'june', got %q", msg.Project)
 	}
 	if msg.Branch != "main" {
 		t.Errorf("expected Branch to be 'main', got %q", msg.Branch)

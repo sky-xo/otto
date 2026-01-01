@@ -90,14 +90,14 @@ No unified view of what's happening across all agents/sessions.
 
 ## Observations
 
-**Problems 1-3 feel solvable with a superpowers plugin.** Better skill auto-detection, automatic plan updates, pre-context-clear hooks. This could be built without Otto - just make Claude smarter about its own discipline.
+**Problems 1-3 feel solvable with a superpowers plugin.** Better skill auto-detection, automatic plan updates, pre-context-clear hooks. This could be built without June - just make Claude smarter about its own discipline.
 
 **Problem 4 (multi-model) is the unique thing** that requires actual tooling. Claude Code can't spawn Codex or Gemini natively. If you want different models for different jobs, something needs to bridge them.
 
 **Problem 5 (visibility) depends on whether multi-model exists.** If everything is just Claude subagents, Claude Code's native UI might be fine. But if you're coordinating across Claude + Codex + Gemini, you need a unified view.
 
 **The core question:** Is multi-model orchestration the core value prop?
-- If yes → Otto exists to bridge models + provide visibility
+- If yes → June exists to bridge models + provide visibility
 - If no → Maybe it's just a superpowers plugin
 
 ---
@@ -105,6 +105,6 @@ No unified view of what's happening across all agents/sessions.
 ## Open Questions
 
 - Can problems 1-3 be solved purely with a superpowers plugin?
-- Is the multi-model bridge (problem 4) the core value of Otto?
+- Is the multi-model bridge (problem 4) the core value of June?
 - Is visibility (problem 5) worth building if Claude Code might add it natively?
 - What's the simplest thing that addresses the most pain?

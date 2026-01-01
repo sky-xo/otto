@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"otto/internal/config"
-	"otto/internal/scope"
+	"june/internal/config"
+	"june/internal/scope"
 )
 
 func TestRecordLaunchError(t *testing.T) {

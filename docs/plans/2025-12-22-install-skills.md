@@ -2,9 +2,9 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Add `otto install-skills` to copy repo skills into `~/.claude/skills/`, overwriting only `otto-*` skills and printing a summary.
+**Goal:** Add `june install-skills` to copy repo skills into `~/.claude/skills/`, overwriting only `june-*` skills and printing a summary.
 
-**Architecture:** Introduce a new Cobra command that calls a small helper to copy skill directories from `skills/` under the repo root to the user skills directory. The helper returns the list of installed skills; the command prints a concise summary. Only existing destination directories with the `otto-` prefix are overwritten.
+**Architecture:** Introduce a new Cobra command that calls a small helper to copy skill directories from `skills/` under the repo root to the user skills directory. The helper returns the list of installed skills; the command prints a concise summary. Only existing destination directories with the `june-` prefix are overwritten.
 
 **Tech Stack:** Go, Cobra, stdlib `os`, `io`, `io/fs`, `path/filepath`
 
@@ -16,7 +16,7 @@
 **Step 1: Write the failing test**
 
 ```go
-func TestRunInstallSkillsCopiesAndOverwritesOttoOnly(t *testing.T) {
+func TestRunInstallSkillsCopiesAndOverwritesJuneOnly(t *testing.T) {
 	tempHome := t.TempDir()
 	t.Setenv("HOME", tempHome)
 
@@ -25,30 +25,30 @@ func TestRunInstallSkillsCopiesAndOverwritesOttoOnly(t *testing.T) {
 		t.Fatalf("mkdir source: %v", err)
 	}
 
-	ottoSkill := filepath.Join(source, "otto-orchestrate")
+	juneSkill := filepath.Join(source, "june-orchestrate")
 	userSkill := filepath.Join(source, "user-skill")
-	if err := os.MkdirAll(ottoSkill, 0o755); err != nil {
-		t.Fatalf("mkdir otto: %v", err)
+	if err := os.MkdirAll(juneSkill, 0o755); err != nil {
+		t.Fatalf("mkdir june: %v", err)
 	}
 	if err := os.MkdirAll(userSkill, 0o755); err != nil {
 		t.Fatalf("mkdir user: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(ottoSkill, "SKILL.md"), []byte("otto new"), 0o644); err != nil {
-		t.Fatalf("write otto: %v", err)
+	if err := os.WriteFile(filepath.Join(juneSkill, "SKILL.md"), []byte("june new"), 0o644); err != nil {
+		t.Fatalf("write june: %v", err)
 	}
 	if err := os.WriteFile(filepath.Join(userSkill, "SKILL.md"), []byte("user new"), 0o644); err != nil {
 		t.Fatalf("write user: %v", err)
 	}
 
 	dest := filepath.Join(tempHome, ".claude", "skills")
-	if err := os.MkdirAll(filepath.Join(dest, "otto-orchestrate"), 0o755); err != nil {
-		t.Fatalf("mkdir dest otto: %v", err)
+	if err := os.MkdirAll(filepath.Join(dest, "june-orchestrate"), 0o755); err != nil {
+		t.Fatalf("mkdir dest june: %v", err)
 	}
 	if err := os.MkdirAll(filepath.Join(dest, "user-skill"), 0o755); err != nil {
 		t.Fatalf("mkdir dest user: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dest, "otto-orchestrate", "SKILL.md"), []byte("otto old"), 0o644); err != nil {
-		t.Fatalf("write dest otto: %v", err)
+	if err := os.WriteFile(filepath.Join(dest, "june-orchestrate", "SKILL.md"), []byte("june old"), 0o644); err != nil {
+		t.Fatalf("write dest june: %v", err)
 	}
 	if err := os.WriteFile(filepath.Join(dest, "user-skill", "SKILL.md"), []byte("user old"), 0o644); err != nil {
 		t.Fatalf("write dest user: %v", err)
@@ -59,14 +59,14 @@ func TestRunInstallSkillsCopiesAndOverwritesOttoOnly(t *testing.T) {
 		t.Fatalf("runInstallSkills: %v", err)
 	}
 
-	if len(installed) != 1 || installed[0] != "otto-orchestrate" {
-		t.Fatalf("expected only otto-orchestrate installed, got %v", installed)
+	if len(installed) != 1 || installed[0] != "june-orchestrate" {
+		t.Fatalf("expected only june-orchestrate installed, got %v", installed)
 	}
 
-	ottoBytes, _ := os.ReadFile(filepath.Join(dest, "otto-orchestrate", "SKILL.md"))
+	juneBytes, _ := os.ReadFile(filepath.Join(dest, "june-orchestrate", "SKILL.md"))
 	userBytes, _ := os.ReadFile(filepath.Join(dest, "user-skill", "SKILL.md"))
-	if string(ottoBytes) != "otto new" {
-		t.Fatalf("expected otto skill overwritten, got %q", string(ottoBytes))
+	if string(juneBytes) != "june new" {
+		t.Fatalf("expected june skill overwritten, got %q", string(juneBytes))
 	}
 	if string(userBytes) != "user old" {
 		t.Fatalf("expected user skill preserved, got %q", string(userBytes))
@@ -76,7 +76,7 @@ func TestRunInstallSkillsCopiesAndOverwritesOttoOnly(t *testing.T) {
 
 **Step 2: Run test to verify it fails**
 
-Run: `go test ./internal/cli/commands -run TestRunInstallSkillsCopiesAndOverwritesOttoOnly`
+Run: `go test ./internal/cli/commands -run TestRunInstallSkillsCopiesAndOverwritesJuneOnly`
 Expected: FAIL with `runInstallSkills` undefined.
 
 **Step 3: Commit**
@@ -98,7 +98,7 @@ git commit -m "test: cover install-skills copy semantics"
 func NewInstallSkillsCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "install-skills",
-		Short: "Install bundled Otto skills into ~/.claude/skills",
+		Short: "Install bundled June skills into ~/.claude/skills",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			sourceRoot := scope.RepoRoot()
 			if sourceRoot == "" {
@@ -151,7 +151,7 @@ func runInstallSkills(source, dest string) ([]string, error) {
 		name := entry.Name()
 		destPath := filepath.Join(dest, name)
 		if _, err := os.Stat(destPath); err == nil {
-			if !strings.HasPrefix(name, "otto-") {
+			if !strings.HasPrefix(name, "june-") {
 				continue
 			}
 			if err := os.RemoveAll(destPath); err != nil {
@@ -214,7 +214,7 @@ rootCmd.AddCommand(commands.NewInstallSkillsCmd())
 
 **Step 3: Run test to verify it passes**
 
-Run: `go test ./internal/cli/commands -run TestRunInstallSkillsCopiesAndOverwritesOttoOnly`
+Run: `go test ./internal/cli/commands -run TestRunInstallSkillsCopiesAndOverwritesJuneOnly`
 Expected: PASS.
 
 **Step 4: Commit**

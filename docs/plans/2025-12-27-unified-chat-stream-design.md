@@ -50,14 +50,14 @@ Two focus targets, Tab toggles between them:
 you
 hey there, can you hear me?
 
-otto
+june
 Confirmed I can hear you. Here's my analysis
 of the keyboard handling problem...
 
 you
 What about the viewport?
 
-otto
+june
 Good point. For the viewport we could...
 ```
 
@@ -69,9 +69,9 @@ Good point. For the viewport we could...
 **Activity notifications (compact, single line):**
 
 ```
-otto spawned brainstorm-keyboard — "Brainstorm solutions..."
+june spawned brainstorm-keyboard — "Brainstorm solutions..."
 brainstorm-keyboard completed
-otto spawned impl-keyboard — "Implement three-focus..."
+june spawned impl-keyboard — "Implement three-focus..."
 ```
 
 Format: `{agent} {action} {target} — "{truncated prompt}"`
@@ -83,15 +83,15 @@ Activity is dimmed/muted styling to distinguish from chat.
 | Type | Format | Example |
 |------|--------|---------|
 | User message | `you` + body | User's chat input |
-| Otto response | `otto` + body | Otto's replies |
-| Agent spawn | single line | `otto spawned foo — "prompt..."` |
+| June response | `june` + body | June's replies |
+| Agent spawn | single line | `june spawned foo — "prompt..."` |
 | Agent complete | single line | `foo completed` |
 | Agent message | `foo` + body | If sub-agents send messages back |
 
 ### What's Hidden (Noise)
 
 - `exited - process completed successfully` — implementation detail
-- `orchestrator spawned otto` — user message implies this
+- `orchestrator spawned june` — user message implies this
 - Internal state changes that don't affect the user
 
 ### Color Scheme (Tentative)
@@ -99,7 +99,7 @@ Activity is dimmed/muted styling to distinguish from chat.
 | Element | Color |
 |---------|-------|
 | `you` | white/default |
-| `otto` | blue |
+| `june` | blue |
 | sub-agents | green |
 | activity lines | dim/gray |
 | timestamps | omit for now |
@@ -110,14 +110,14 @@ Activity is dimmed/muted styling to distinguish from chat.
 
 The current display shows:
 ```
-orchestrator @otto spawned otto - hey there, can you hear me?
-otto completed - Confirmed I can hear you; no actions needed.
-otto exited - process completed successfully
+orchestrator @june spawned june - hey there, can you hear me?
+june completed - Confirmed I can hear you; no actions needed.
+june exited - process completed successfully
 ```
 
 Problems:
 1. User message shown as "orchestrator spawned" event
-2. Otto's response shown as "completed" event
+2. June's response shown as "completed" event
 3. "exited" noise visible
 4. "orchestrator" label is confusing
 
@@ -148,32 +148,32 @@ CREATE TABLE messages (
 **Current problem flow:**
 
 1. User types "hey there" in TUI chat
-2. TUI runs `otto spawn codex "hey there" --name otto`
-3. spawn.go line 111 creates summary: `"spawned otto - hey there"`
+2. TUI runs `june spawn codex "hey there" --name june`
+3. spawn.go line 111 creates summary: `"spawned june - hey there"`
 4. storePrompt() creates message:
    - `from_agent: "orchestrator"`
-   - `to_agent: "otto"`
+   - `to_agent: "june"`
    - `type: "prompt"`
-   - `content: "spawned otto - hey there"`
-5. TUI renders: `orchestrator @otto spawned otto - hey there`
+   - `content: "spawned june - hey there"`
+5. TUI renders: `orchestrator @june spawned june - hey there`
 
 **Proposed changes:**
 
 1. **Add new message type `chat`** for user-initiated messages
 2. **TUI stores user message directly** before calling spawn/prompt:
    - `from_agent: "you"` (or "user")
-   - `to_agent: "otto"`
+   - `to_agent: "june"`
    - `type: "chat"`
    - `content: "hey there"` (raw message, no "spawned" prefix)
 3. **Spawn still creates its internal `prompt` message** but with different from_agent:
-   - `from_agent: "otto"` (when otto spawns sub-agents)
-   - or hide entirely when spawning otto itself
+   - `from_agent: "june"` (when june spawns sub-agents)
+   - or hide entirely when spawning june itself
 4. **TUI rendering logic:**
    - `type: "chat"` → Slack-style user message
-   - `type: "prompt"` from otto → activity line "otto spawned foo"
-   - `type: "prompt"` from orchestrator to otto → hide (redundant)
+   - `type: "prompt"` from june → activity line "june spawned foo"
+   - `type: "prompt"` from orchestrator to june → hide (redundant)
    - `type: "complete"` → depends on who:
-     - otto → Slack-style response
+     - june → Slack-style response
      - sub-agents → activity line "foo completed"
    - `type: "exit"` → hide
 
@@ -379,7 +379,7 @@ Step 3: Write implementation (with code)
 ```go
 msg := repo.Message{
 	FromAgent: "you",
-	ToAgent:   "otto",
+	ToAgent:   "june",
 	Type:      repo.MessageTypeChat,
 	Content:   userInput,
 }
@@ -400,7 +400,7 @@ git commit -am "watch: store chat message before spawn"
 
 ### Phase 3: Message Rendering
 
-#### Task 3.1: Render chat and otto completions as Slack-style blocks
+#### Task 3.1: Render chat and june completions as Slack-style blocks
 
 Files: Modify `internal/tui/watch.go`; Test `internal/tui/watch_test.go`
 
@@ -431,8 +431,8 @@ Step 3: Write implementation (with code)
 case repo.MessageTypeChat:
 	return []string{msg.FromAgent, msg.Content, ""}
 case repo.MessageTypeComplete:
-	if msg.FromAgent == "otto" {
-		return []string{"otto", msg.Content, ""}
+	if msg.FromAgent == "june" {
+		return []string{"june", msg.Content, ""}
 	}
 ```
 
@@ -443,7 +443,7 @@ go test ./internal/tui -run TestFormatMessageChatBlock
 
 Step 5: Commit
 ```sh
-git commit -am "tui: render chat and otto completion blocks"
+git commit -am "tui: render chat and june completion blocks"
 ```
 
 #### Task 3.2: Render activity lines and hide noise
@@ -452,24 +452,24 @@ Files: Modify `internal/tui/watch.go`; Test `internal/tui/watch_test.go`
 
 Step 1: Write failing test (with code)
 ```go
-func TestFormatMessageHidesPromptToOtto(t *testing.T) {
-	msg := repo.Message{FromAgent: "orchestrator", ToAgent: "otto", Type: repo.MessageTypePrompt}
+func TestFormatMessageHidesPromptToJune(t *testing.T) {
+	msg := repo.Message{FromAgent: "orchestrator", ToAgent: "june", Type: repo.MessageTypePrompt}
 	lines := formatMessage(msg)
 	if len(lines) != 0 {
-		t.Fatalf("expected prompt-to-otto to be hidden")
+		t.Fatalf("expected prompt-to-june to be hidden")
 	}
 }
 ```
 
 Step 2: Run test, expect FAIL
 ```sh
-go test ./internal/tui -run TestFormatMessageHidesPromptToOtto
+go test ./internal/tui -run TestFormatMessageHidesPromptToJune
 ```
 
 Step 3: Write implementation (with code)
 ```go
 case repo.MessageTypePrompt:
-	if msg.ToAgent == "otto" {
+	if msg.ToAgent == "june" {
 		return nil
 	}
 	return []string{fmt.Sprintf("%s spawned %s — %q", msg.FromAgent, msg.ToAgent, msg.Content), ""}
@@ -479,7 +479,7 @@ case repo.MessageTypeExit:
 
 Step 4: Run test, expect PASS
 ```sh
-go test ./internal/tui -run TestFormatMessageHidesPromptToOtto
+go test ./internal/tui -run TestFormatMessageHidesPromptToJune
 ```
 
 Step 5: Commit
@@ -496,8 +496,8 @@ Files: Modify `internal/tui/watch.go`; Test `internal/tui/watch_test.go`
 Step 1: Write failing test (with code)
 ```go
 func TestMessageStyles(t *testing.T) {
-	if messageStyle("otto") == "" {
-		t.Fatal("expected non-empty style for otto")
+	if messageStyle("june") == "" {
+		t.Fatal("expected non-empty style for june")
 	}
 }
 ```
@@ -511,7 +511,7 @@ Step 3: Write implementation (with code)
 ```go
 var (
 	styleYou  = lipgloss.NewStyle().Foreground(lipgloss.Color("7"))
-	styleOtto = lipgloss.NewStyle().Foreground(lipgloss.Color("4"))
+	styleJune = lipgloss.NewStyle().Foreground(lipgloss.Color("4"))
 	styleDim  = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
 )
 ```
@@ -535,7 +535,7 @@ Step 1: Write failing test (with code)
 func TestChatWrapsToViewportWidth(t *testing.T) {
 	m := NewModel(nil)
 	m.width = 40
-	lines := wrapChat("otto", strings.Repeat("a", 120), m.width)
+	lines := wrapChat("june", strings.Repeat("a", 120), m.width)
 	for _, line := range lines {
 		if len(line) > 40 {
 			t.Fatalf("expected wrapped line, got %q", line)
@@ -566,13 +566,13 @@ Step 5: Commit
 git commit -am "tui: wrap chat blocks to viewport width"
 ```
 
-#### Task 4.3: Scroll to bottom on new messages
+#### Task 4.3: Scroll to bjunem on new messages
 
 Files: Modify `internal/tui/watch.go`; Test `internal/tui/watch_test.go`
 
 Step 1: Write failing test (with code)
 ```go
-func TestScrollToBottomOnNewMessages(t *testing.T) {
+func TestScrollToBjunemOnNewMessages(t *testing.T) {
 	m := NewModel(nil)
 	m.viewport.Height = 10
 	m.messages = []repo.Message{{Content: "a"}, {Content: "b"}}
@@ -580,31 +580,31 @@ func TestScrollToBottomOnNewMessages(t *testing.T) {
 
 	m = m.refreshViewport()
 	if m.viewport.YPosition == 0 {
-		t.Fatal("expected viewport to scroll to bottom")
+		t.Fatal("expected viewport to scroll to bjunem")
 	}
 }
 ```
 
 Step 2: Run test, expect FAIL
 ```sh
-go test ./internal/tui -run TestScrollToBottomOnNewMessages
+go test ./internal/tui -run TestScrollToBjunemOnNewMessages
 ```
 
 Step 3: Write implementation (with code)
 ```go
 if m.viewport.YPosition < m.viewport.ScrollPercent()*float64(m.viewport.TotalLineCount()) {
-	m.viewport.GotoBottom()
+	m.viewport.GotoBjunem()
 }
 ```
 
 Step 4: Run test, expect PASS
 ```sh
-go test ./internal/tui -run TestScrollToBottomOnNewMessages
+go test ./internal/tui -run TestScrollToBjunemOnNewMessages
 ```
 
 Step 5: Commit
 ```sh
-git commit -am "tui: scroll to bottom on new messages"
+git commit -am "tui: scroll to bjunem on new messages"
 ```
 
 ## Review Decisions
@@ -620,15 +620,15 @@ Based on Codex review feedback and discussion:
 you
 hey there
 
-⚠ Failed to start otto: exec: "codex": executable file not found
+⚠ Failed to start june: exec: "codex": executable file not found
 ```
 
 ### 2. Two-Phase Completion ("finishing" status)
 
-**Problem:** Agent calls `otto complete` but process continues outputting for 10-30 more seconds. Status shows "complete" while still talking.
+**Problem:** Agent calls `june complete` but process continues outputting for 10-30 more seconds. Status shows "complete" while still talking.
 
 **Decision:** Add `finishing` status:
-- `otto complete` sets status to `finishing` (not `complete`)
+- `june complete` sets status to `finishing` (not `complete`)
 - Status changes to `complete` on process exit
 - `finishing` blocks new input (like `busy`)
 - Visual: ● gray filled (between green busy and hollow complete)
@@ -643,7 +643,7 @@ hey there
 
 ### 3. `complete` Message Content
 
-**Confirmed:** The `complete` message content IS the agent's response (whatever they pass to `otto complete "..."`). Render otto's completions as Slack-style chat messages, not activity lines.
+**Confirmed:** The `complete` message content IS the agent's response (whatever they pass to `june complete "..."`). Render june's completions as Slack-style chat messages, not activity lines.
 
 ## Alternatives Considered
 

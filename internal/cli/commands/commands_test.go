@@ -8,15 +8,15 @@ import (
 	"testing"
 	"time"
 
-	"otto/internal/config"
-	"otto/internal/db"
-	"otto/internal/repo"
-	"otto/internal/scope"
+	"june/internal/config"
+	"june/internal/db"
+	"june/internal/repo"
+	"june/internal/scope"
 )
 
 func openTestDB(t *testing.T) *sql.DB {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "otto.db")
+	path := filepath.Join(t.TempDir(), "june.db")
 	conn, err := db.Open(path)
 	if err != nil {
 		t.Fatalf("open: %v", err)
@@ -76,8 +76,8 @@ func TestOpenDBCreatesDirectory(t *testing.T) {
 	tempHome := t.TempDir()
 	t.Setenv("HOME", tempHome)
 
-	// Global DB path is now ~/.otto/otto.db
-	dbPath := filepath.Join(config.DataDir(), "otto.db")
+	// Global DB path is now ~/.june/june.db
+	dbPath := filepath.Join(config.DataDir(), "june.db")
 	dbDir := filepath.Dir(dbPath)
 
 	if _, err := os.Stat(dbDir); !os.IsNotExist(err) {

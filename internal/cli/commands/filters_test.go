@@ -3,7 +3,7 @@ package commands
 import (
 	"testing"
 
-	"otto/internal/scope"
+	"june/internal/scope"
 )
 
 func TestParseMessagesFlags(t *testing.T) {

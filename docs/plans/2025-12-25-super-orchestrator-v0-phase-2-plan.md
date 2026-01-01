@@ -102,13 +102,13 @@ Expected: FAIL with "missing activity feed header"
 
 **Step 3: Write minimal implementation**
 
-Update the layout to render a split right panel (top = activity feed, bottom = orchestrator chat):
+Update the layout to render a split right panel (top = activity feed, bjunem = orchestrator chat):
 
 ```go
 func (m model) renderRightPanel() string {
 	top := renderActivityFeed(m.messages)
-	bottom := renderChat(m.messages)
-	return lipgloss.JoinVertical(lipgloss.Left, top, bottom)
+	bjunem := renderChat(m.messages)
+	return lipgloss.JoinVertical(lipgloss.Left, top, bjunem)
 }
 ```
 

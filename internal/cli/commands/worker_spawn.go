@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"os"
 
-	ottoexec "otto/internal/exec"
-	"otto/internal/repo"
-	"otto/internal/scope"
+	juneexec "june/internal/exec"
+	"june/internal/repo"
+	"june/internal/scope"
 
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
@@ -28,13 +28,13 @@ func NewWorkerSpawnCmd() *cobra.Command {
 			}
 			defer conn.Close()
 
-			return runWorkerSpawn(conn, &ottoexec.DefaultRunner{}, agentID)
+			return runWorkerSpawn(conn, &juneexec.DefaultRunner{}, agentID)
 		},
 	}
 	return cmd
 }
 
-func runWorkerSpawn(db *sql.DB, runner ottoexec.Runner, agentID string) error {
+func runWorkerSpawn(db *sql.DB, runner juneexec.Runner, agentID string) error {
 	ctx := scope.CurrentContext()
 
 	// Load agent
@@ -135,7 +135,7 @@ func runWorkerSpawn(db *sql.DB, runner ottoexec.Runner, agentID string) error {
 	return nil
 }
 
-func runWorkerCodexSpawn(db *sql.DB, runner ottoexec.Runner, ctx scope.Context, agentID string, cmdArgs []string) error {
+func runWorkerCodexSpawn(db *sql.DB, runner juneexec.Runner, ctx scope.Context, agentID string, cmdArgs []string) error {
 	codexHome, err := ensureCodexHome()
 	if err != nil {
 		return err

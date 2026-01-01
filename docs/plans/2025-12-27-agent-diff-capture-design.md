@@ -185,7 +185,7 @@ $ command output...
 
 📝 internal/cli/commands/spawn.go (update)
 ┌──────────────────────────────────────────────
-│ -    tempDir, err := os.MkdirTemp("", "otto-codex-*")
+│ -    tempDir, err := os.MkdirTemp("", "june-codex-*")
 │ +    codexHome, err := ensureCodexHome()
 │      if err != nil {
 │ -        return fmt.Errorf("create temp CODEX_HOME: %w", err)

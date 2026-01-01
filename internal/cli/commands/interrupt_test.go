@@ -3,12 +3,12 @@ package commands
 import (
 	"testing"
 
-	"otto/internal/repo"
+	"june/internal/repo"
 )
 
 // Note: Full integration test of runInterrupt with real process signaling
 // would require spawning a real process. The tests below cover validation logic.
-// Manual testing: otto spawn claude "task", then otto interrupt <id>
+// Manual testing: june spawn claude "task", then june interrupt <id>
 
 func TestInterruptAgentNotFound(t *testing.T) {
 	db := openTestDB(t)

@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"os"
 
-	ottoexec "otto/internal/exec"
-	"otto/internal/repo"
-	"otto/internal/scope"
+	juneexec "june/internal/exec"
+	"june/internal/repo"
+	"june/internal/scope"
 
 	"github.com/spf13/cobra"
 )
@@ -33,13 +33,13 @@ func NewPromptCmd() *cobra.Command {
 			}
 			defer conn.Close()
 
-			return runPrompt(conn, &ottoexec.DefaultRunner{}, agentID, message)
+			return runPrompt(conn, &juneexec.DefaultRunner{}, agentID, message)
 		},
 	}
 	return cmd
 }
 
-func runPrompt(db *sql.DB, runner ottoexec.Runner, agentID, message string) error {
+func runPrompt(db *sql.DB, runner juneexec.Runner, agentID, message string) error {
 	ctx := scope.CurrentContext()
 
 	// Look up agent
@@ -113,7 +113,7 @@ func runPrompt(db *sql.DB, runner ottoexec.Runner, agentID, message string) erro
 	return nil
 }
 
-func runCodexPrompt(db *sql.DB, runner ottoexec.Runner, ctx scope.Context, agentID string, cmdArgs []string) error {
+func runCodexPrompt(db *sql.DB, runner juneexec.Runner, ctx scope.Context, agentID string, cmdArgs []string) error {
 	codexHome, err := ensureCodexHome()
 	if err != nil {
 		return err

@@ -4,13 +4,13 @@
 
 ## Overview
 
-A persistent todo system in otto.db that both Claude and Codex agents can use. Replaces ephemeral TodoWrite with durable, shared tracking.
+A persistent todo system in june.db that both Claude and Codex agents can use. Replaces ephemeral TodoWrite with durable, shared tracking.
 
 ## Why Not TodoWrite?
 
 - **TodoWrite is session-bound** - if conversation ends, todos are gone
 - **TodoWrite is Claude-only** - Codex agents can't use it
-- **Otto agents persist** - they survive session restarts, work across days
+- **June agents persist** - they survive session restarts, work across days
 
 ## Core Concept
 
@@ -57,17 +57,17 @@ CREATE INDEX idx_todos_status ON todos(status);
 
 ```bash
 # View todos
-otto todos                      # all todos across agents
-otto todos --agent authbackend  # just this agent's todos
+june todos                      # all todos across agents
+june todos --agent authbackend  # just this agent's todos
 
 # Agent commands (require --id)
-otto todo add --id agent "implement login"
-otto todo start --id agent "implement login"
-otto todo done --id agent "implement login"
+june todo add --id agent "implement login"
+june todo start --id agent "implement login"
+june todo done --id agent "implement login"
 
 # Orchestrator commands (no --id)
-otto todo add "Implement OAuth backend"
-otto todo assign authbackend "Implement OAuth backend"
+june todo add "Implement OAuth backend"
+june todo assign authbackend "Implement OAuth backend"
 ```
 
 ## TUI Integration
@@ -94,7 +94,7 @@ Plan stays as reference, todos track live state.
 ## Benefits
 
 - **Persistent** - survives session restarts
-- **Shared** - Claude and Codex both access via otto CLI or SQL
+- **Shared** - Claude and Codex both access via june CLI or SQL
 - **Visible** - orchestrator sees all agent progress
 - **Hierarchical** - high-level view and detailed breakdown
 

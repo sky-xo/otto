@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"otto/internal/db"
-	"otto/internal/repo"
+	"june/internal/db"
+	"june/internal/repo"
 )
 
 func TestRunLog(t *testing.T) {

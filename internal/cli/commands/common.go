@@ -8,13 +8,13 @@ import (
 	"regexp"
 	"strings"
 
-	"otto/internal/config"
-	"otto/internal/db"
-	"otto/internal/scope"
+	"june/internal/config"
+	"june/internal/db"
+	"june/internal/scope"
 )
 
 func openDB() (*sql.DB, error) {
-	dbPath := filepath.Join(config.DataDir(), "otto.db")
+	dbPath := filepath.Join(config.DataDir(), "june.db")
 	if err := os.MkdirAll(filepath.Dir(dbPath), 0o755); err != nil {
 		return nil, fmt.Errorf("create db dir: %w", err)
 	}

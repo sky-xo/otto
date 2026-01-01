@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"otto/internal/process"
-	"otto/internal/repo"
-	"otto/internal/scope"
+	"june/internal/process"
+	"june/internal/repo"
+	"june/internal/scope"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -166,7 +166,7 @@ func usernameColor(name string) lipgloss.Color {
 	switch name {
 	case "you":
 		return lipgloss.Color("10") // light green
-	case "otto":
+	case "june":
 		return lipgloss.Color("4") // blue
 	}
 
@@ -192,7 +192,7 @@ type transcriptsMsg struct {
 	entries []repo.LogEntry
 }
 
-type ottoMessagesMsg struct {
+type juneMessagesMsg struct {
 	entries []repo.LogEntry
 }
 
@@ -200,7 +200,7 @@ type ottoMessagesMsg struct {
 type SidebarItemKind int
 
 const (
-	SidebarChannelHeader  SidebarItemKind = iota // Project/branch header (e.g., "otto/main")
+	SidebarChannelHeader  SidebarItemKind = iota // Project/branch header (e.g., "june/main")
 	SidebarAgentRow                              // An agent in the channel
 	SidebarArchivedSection                       // "N archived" collapsible section
 	SidebarDivider                               // Visual separator between channels
@@ -238,7 +238,7 @@ type chatItem struct {
 	timestamp string
 	fromAgent string
 	content   string
-	itemType  string // "chat", "otto_response", "activity", "complete", etc.
+	itemType  string // "chat", "june_response", "activity", "complete", etc.
 	toAgent   string // for activity lines
 }
 
@@ -262,8 +262,8 @@ type model struct {
 	transcripts         map[string][]repo.LogEntry
 	lastMessageID       string
 	lastTranscriptIDs   map[string]string
-	ottoMessages        []repo.LogEntry // Otto's agent_message entries for main view
-	lastOttoMessageID   string          // Cursor for incremental fetch
+	juneMessages        []repo.LogEntry // June's agent_message entries for main view
+	lastJuneMessageID   string          // Cursor for incremental fetch
 	width             int
 	height            int
 	cursorIndex       int
@@ -275,14 +275,14 @@ type model struct {
 	mouseY            int             // Mouse Y position for hover detection
 	err               error
 	viewport          viewport.Model
-	chatInput         textinput.Model // Text input for sending messages to @otto
+	chatInput         textinput.Model // Text input for sending messages to @june
 	runCommand        CommandRunner   // Injected command runner (for testing)
 }
 
 func NewModel(db *sql.DB) model {
 	vp := viewport.New(0, 0)
 	ti := textinput.New()
-	ti.Placeholder = "Message @otto..."
+	ti.Placeholder = "Message @june..."
 	ti.CharLimit = 500
 	ti.Width = 50
 
@@ -509,9 +509,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.activeChannelID != mainChannelID && !isProjectHeader(m.activeChannelID) {
 			cmds = append(cmds, fetchTranscriptsCmd(m.db, m.activeChannelID, m.lastTranscriptIDs[m.activeChannelID]))
 		}
-		// Fetch otto's agent_message entries for the main view
+		// Fetch june's agent_message entries for the main view
 		if isProjectHeader(m.activeChannelID) {
-			cmds = append(cmds, fetchOttoMessagesCmd(m.db, project, branch, m.lastOttoMessageID))
+			cmds = append(cmds, fetchJuneMessagesCmd(m.db, project, branch, m.lastJuneMessageID))
 		}
 		return m, tea.Batch(cmds...)
 
@@ -560,17 +560,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-	case ottoMessagesMsg:
+	case juneMessagesMsg:
 		if len(msg.entries) > 0 {
-			// Validate otto messages are for the currently selected project
+			// Validate june messages are for the currently selected project
 			entry := msg.entries[0]
 			msgProject := entry.Project + "/" + entry.Branch
 			if msgProject != m.messagesProject {
 				// Discard messages from wrong project
 				break
 			}
-			m.ottoMessages = append(m.ottoMessages, msg.entries...)
-			m.lastOttoMessageID = msg.entries[len(msg.entries)-1].ID
+			m.juneMessages = append(m.juneMessages, msg.entries...)
+			m.lastJuneMessageID = msg.entries[len(msg.entries)-1].ID
 			// Update viewport if viewing project header
 			if isProjectHeader(m.activeChannelID) {
 				m.updateViewportContent()
@@ -619,11 +619,11 @@ func (m model) View() string {
 
 		// Render chat input with status hint
 		var inputLine string
-		if m.isOttoBusy(project, branch) {
-			// Otto is busy - show grayed input with hint
+		if m.isJuneBusy(project, branch) {
+			// June is busy - show grayed input with hint
 			disabledInputStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
 			disabledInput := m.chatInput.View()
-			hint := " (Otto is working...)"
+			hint := " (June is working...)"
 			inputLine = disabledInputStyle.Render(disabledInput + hint)
 		} else {
 			// Normal input
@@ -667,7 +667,7 @@ func (m model) renderChannels(width, height int) string {
 	return strings.Join(lines, "\n")
 }
 
-// buildChatItems merges messages and otto log entries into a sorted list
+// buildChatItems merges messages and june log entries into a sorted list
 func (m model) buildChatItems() []chatItem {
 	var items []chatItem
 
@@ -685,14 +685,14 @@ func (m model) buildChatItems() []chatItem {
 		items = append(items, item)
 	}
 
-	// Add otto's agent_message entries
-	for _, entry := range m.ottoMessages {
+	// Add june's agent_message entries
+	for _, entry := range m.juneMessages {
 		if entry.Content.Valid && entry.Content.String != "" {
 			items = append(items, chatItem{
 				timestamp: entry.CreatedAt,
-				fromAgent: "otto",
+				fromAgent: "june",
 				content:   entry.Content.String,
-				itemType:  "otto_response",
+				itemType:  "june_response",
 			})
 		}
 	}
@@ -722,9 +722,9 @@ func (m model) mainContentLines(width int) []string {
 
 	lines := make([]string, 0, len(items))
 	for _, item := range items {
-		// Slack-style for: user chat, otto responses, say messages
+		// Slack-style for: user chat, june responses, say messages
 		useSlackStyle := item.itemType == repo.MessageTypeChat ||
-			item.itemType == "otto_response" ||
+			item.itemType == "june_response" ||
 			item.itemType == "say"
 
 		if useSlackStyle {
@@ -740,19 +740,19 @@ func (m model) mainContentLines(width int) []string {
 		}
 
 		// Hide noisy messages
-		if item.itemType == "prompt" && item.toAgent == "otto" {
+		if item.itemType == "prompt" && item.toAgent == "june" {
 			continue
 		}
 		if item.itemType == "exit" {
 			continue
 		}
-		// Hide complete messages from otto (now we show actual response)
-		if item.itemType == "complete" && item.fromAgent == "otto" {
+		// Hide complete messages from june (now we show actual response)
+		if item.itemType == "complete" && item.fromAgent == "june" {
 			continue
 		}
 
 		// Activity line for spawning other agents
-		if item.itemType == "prompt" && item.toAgent != "" && item.toAgent != "otto" {
+		if item.itemType == "prompt" && item.toAgent != "" && item.toAgent != "june" {
 			activityLine := fmt.Sprintf("%s spawned %s — \"%s\"",
 				item.fromAgent, item.toAgent, item.content)
 			lines = append(lines, mutedStyle.Render(activityLine))
@@ -761,7 +761,7 @@ func (m model) mainContentLines(width int) []string {
 		}
 
 		// Sub-agent completions as activity lines
-		if item.itemType == "complete" && item.fromAgent != "otto" {
+		if item.itemType == "complete" && item.fromAgent != "june" {
 			activityLine := fmt.Sprintf("%s completed", item.fromAgent)
 			lines = append(lines, mutedStyle.Render(activityLine))
 			lines = append(lines, "")
@@ -1205,8 +1205,8 @@ func (m *model) activateSelection() tea.Cmd {
 		if m.messagesProject != selected.ID {
 			m.messages = nil
 			m.lastMessageID = ""
-			m.ottoMessages = nil
-			m.lastOttoMessageID = ""
+			m.juneMessages = nil
+			m.lastJuneMessageID = ""
 			m.messagesProject = selected.ID
 		}
 
@@ -1313,8 +1313,8 @@ func (m *model) ensureSelection() {
 					if m.messagesProject != ch.ID {
 						m.messages = nil
 						m.lastMessageID = ""
-						m.ottoMessages = nil
-						m.lastOttoMessageID = ""
+						m.juneMessages = nil
+						m.lastJuneMessageID = ""
 						m.messagesProject = ch.ID
 					}
 					// Focus chat input if focus is on messages panel
@@ -1652,13 +1652,13 @@ func fetchTranscriptsCmd(db *sql.DB, agentID, sinceID string) tea.Cmd {
 	}
 }
 
-func fetchOttoMessagesCmd(db *sql.DB, project, branch, sinceID string) tea.Cmd {
+func fetchJuneMessagesCmd(db *sql.DB, project, branch, sinceID string) tea.Cmd {
 	return func() tea.Msg {
-		entries, err := repo.ListAgentMessages(db, project, branch, "otto", sinceID)
+		entries, err := repo.ListAgentMessages(db, project, branch, "june", sinceID)
 		if err != nil {
 			return err
 		}
-		return ottoMessagesMsg{entries: entries}
+		return juneMessagesMsg{entries: entries}
 	}
 }
 
@@ -1700,57 +1700,57 @@ func (m model) showChatInput() bool {
 	return isProjectHeader(m.activeChannelID)
 }
 
-// getOttoAgent finds the @otto agent for the given project/branch from the in-memory cache
+// getJuneAgent finds the @june agent for the given project/branch from the in-memory cache
 // Returns nil if not found. Used for rendering (where stale data is acceptable).
-func (m model) getOttoAgent(project, branch string) *repo.Agent {
+func (m model) getJuneAgent(project, branch string) *repo.Agent {
 	for i := range m.agents {
 		agent := &m.agents[i]
-		if agent.Project == project && agent.Branch == branch && agent.Name == "otto" {
+		if agent.Project == project && agent.Branch == branch && agent.Name == "june" {
 			return agent
 		}
 	}
 	return nil
 }
 
-// getOttoAgentFromDB queries the database directly for the @otto agent
+// getJuneAgentFromDB queries the database directly for the @june agent
 // Returns nil if not found or if db is nil. Used for actions where fresh data is critical.
-func (m model) getOttoAgentFromDB(project, branch string) *repo.Agent {
+func (m model) getJuneAgentFromDB(project, branch string) *repo.Agent {
 	if m.db == nil {
 		return nil
 	}
-	agent, err := repo.GetAgent(m.db, project, branch, "otto")
+	agent, err := repo.GetAgent(m.db, project, branch, "june")
 	if err != nil {
 		return nil
 	}
 	return &agent
 }
 
-// isOttoBusy checks if @otto exists and is busy for the given project/branch
-func (m model) isOttoBusy(project, branch string) bool {
-	otto := m.getOttoAgent(project, branch)
-	if otto == nil {
+// isJuneBusy checks if @june exists and is busy for the given project/branch
+func (m model) isJuneBusy(project, branch string) bool {
+	june := m.getJuneAgent(project, branch)
+	if june == nil {
 		return false
 	}
-	return otto.Status == "busy"
+	return june.Status == "busy"
 }
 
 // getChatSubmitAction determines what action to take when user submits a message
-// Returns: "none" (otto is busy), "spawn" (no otto exists), "prompt" (otto exists and is finished)
+// Returns: "none" (june is busy), "spawn" (no june exists), "prompt" (june exists and is finished)
 // Uses direct DB query to avoid race condition where m.agents is stale/empty at TUI startup.
 func (m model) getChatSubmitAction(project, branch string) string {
-	otto := m.getOttoAgentFromDB(project, branch)
-	if otto == nil {
+	june := m.getJuneAgentFromDB(project, branch)
+	if june == nil {
 		return "spawn"
 	}
-	if otto.Status == "busy" {
+	if june.Status == "busy" {
 		return "none"
 	}
-	// Otto exists and is complete or failed - resume session
+	// June exists and is complete or failed - resume session
 	return "prompt"
 }
 
 // handleChatSubmit processes chat input submission
-// Spawns or prompts @otto based on current state
+// Spawns or prompts @june based on current state
 func (m *model) handleChatSubmit() tea.Cmd {
 	if !m.showChatInput() {
 		return nil
@@ -1770,7 +1770,7 @@ func (m *model) handleChatSubmit() tea.Cmd {
 	// Determine action
 	action := m.getChatSubmitAction(project, branch)
 	if action == "none" {
-		// Otto is busy - ignore submit
+		// June is busy - ignore submit
 		return nil
 	}
 
@@ -1780,7 +1780,7 @@ func (m *model) handleChatSubmit() tea.Cmd {
 		Project:   project,
 		Branch:    branch,
 		FromAgent: "you",
-		ToAgent:   sql.NullString{String: "otto", Valid: true},
+		ToAgent:   sql.NullString{String: "june", Valid: true},
 		Type:      repo.MessageTypeChat,
 		Content:   message,
 	}
@@ -1801,19 +1801,19 @@ func (m *model) handleChatSubmit() tea.Cmd {
 
 	// Get the path to the currently running executable
 	// This ensures we use the same binary even if not in PATH
-	ottoBin, err := os.Executable()
+	juneBin, err := os.Executable()
 	if err != nil {
 		return func() tea.Msg { return err }
 	}
 
 	// Execute command in background (non-blocking) using injected runner
 	if action == "spawn" {
-		if err := m.runCommand(ottoBin, "spawn", "codex", message, "--name", "otto"); err != nil {
+		if err := m.runCommand(juneBin, "spawn", "codex", message, "--name", "june"); err != nil {
 			return func() tea.Msg { return err }
 		}
 	} else {
 		// action == "prompt"
-		if err := m.runCommand(ottoBin, "prompt", "otto", message); err != nil {
+		if err := m.runCommand(juneBin, "prompt", "june", message); err != nil {
 			return func() tea.Msg { return err }
 		}
 	}

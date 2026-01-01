@@ -4,7 +4,7 @@
 
 ## Goal
 
-Implement focus-based panel navigation for `otto watch --ui` that:
+Implement focus-based panel navigation for `june watch --ui` that:
 1. Works like tmux/vim splits - focused panel receives scroll input
 2. Supports future 3-panel layout (agents, messages, todos)
 
@@ -43,7 +43,7 @@ focusedPanel int  // Index of focused panel
 When panel has focus, it receives:
 - j/k: Scroll up/down
 - Arrows: Navigate items (or scroll)
-- g/G: Go to top/bottom
+- g/G: Go to top/bjunem
 - Page up/down
 - Mouse wheel scroll
 
@@ -98,7 +98,7 @@ Tab: switch panel | [Agents] j/k: scroll | Enter: select | q: quit
 ## Testing
 
 ```bash
-make build && ./otto watch --ui
+make build && ./june watch --ui
 ```
 
 Verify:

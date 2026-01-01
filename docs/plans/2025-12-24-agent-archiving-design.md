@@ -4,18 +4,18 @@
 
 ## Summary
 
-Make `otto status` an inbox by hiding archived agents by default. Agents move to an archived state only when the orchestrator explicitly archives them (single agent or bulk). Archived agents can be expanded in the TUI and listed with `--all`. Retention cleanup deletes agents only after they have been archived for 7 days.
+Make `june status` an inbox by hiding archived agents by default. Agents move to an archived state only when the orchestrator explicitly archives them (single agent or bulk). Archived agents can be expanded in the TUI and listed with `--all`. Retention cleanup deletes agents only after they have been archived for 7 days.
 
 ## Goals
 
-- Keep `otto status` focused on active and unacknowledged agents.
+- Keep `june status` focused on active and unacknowledged agents.
 - Allow quick bulk archiving after reviewing status.
 - Preserve a short history for reference without clutter.
 - Support expanding/collapsing archived agents in the TUI list.
 
 ## Non-Goals
 
-- Automatic archiving just by running `otto status`.
+- Automatic archiving just by running `june status`.
 - Agent-driven unarchiving (e.g., `ask`/`say` from agents).
 - Long-term history storage beyond retention cleanup.
 
@@ -38,9 +38,9 @@ CREATE INDEX idx_agents_archived ON agents(archived_at) WHERE archived_at IS NOT
 
 ### Status
 
-- `otto status`: Show active agents (busy/blocked + complete/failed without `archived_at`).
-- `otto status --all`: Show all agents, including archived.
-- `otto status --archive`: Archive all complete/failed agents in the current status output.
+- `june status`: Show active agents (busy/blocked + complete/failed without `archived_at`).
+- `june status --all`: Show all agents, including archived.
+- `june status --archive`: Archive all complete/failed agents in the current status output.
 
 Output should mark archived agents when `--all` is used.
 
@@ -49,7 +49,7 @@ Output should mark archived agents when `--all` is used.
 New command:
 
 ```
-otto archive <agent-id>
+june archive <agent-id>
 ```
 
 Rules:
@@ -58,7 +58,7 @@ Rules:
 
 ### Unarchive (implicit)
 
-- `otto prompt <agent-id>` and `otto attach <agent-id>` should clear `archived_at`.
+- `june prompt <agent-id>` and `june attach <agent-id>` should clear `archived_at`.
 - This only applies to orchestrator actions, not agent messages.
 
 ## TUI Behavior

@@ -94,10 +94,10 @@ type TranscriptEntry struct {
 
 ## Implementation Approach
 
-**Bootstrap from Otto's existing TUI:**
+**Bootstrap from June's existing TUI:**
 - Keep: Bubbletea structure, panel layout, transcript rendering
 - Remove: SQLite, messaging, spawning, most CLI commands
-- Change: Data source from Otto DB → Claude Code jsonl files
+- Change: Data source from June DB → Claude Code jsonl files
 
 **Key changes:**
 1. Replace `fetchAgentsCmd` → scan for `agent-*.jsonl` files
@@ -108,7 +108,7 @@ type TranscriptEntry struct {
 ## File Structure
 
 ```
-cmd/otto/main.go           # Entry point (simplified)
+cmd/june/main.go           # Entry point (simplified)
 internal/
   claude/                  # NEW: Claude Code file parsing
     projects.go            # Find project directory
@@ -128,6 +128,6 @@ internal/
 ## Next Steps
 
 1. Write the Claude Code file parser (`internal/claude/`)
-2. Gut Otto's TUI to remove unneeded features
+2. Gut June's TUI to remove unneeded features
 3. Wire up new data source
 4. Test with real subagent sessions

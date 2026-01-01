@@ -69,15 +69,15 @@ subagent-driven-dev  OR  executing-plans
 
 ### 1. Wake-up Trigger
 
-Agent gets woken up via `otto prompt` (triggered by @mention or event):
+Agent gets woken up via `june prompt` (triggered by @mention or event):
 
 ```bash
-otto prompt backend "Message from @otto: Check on Task 2 progress"
+june prompt backend "Message from @june: Check on Task 2 progress"
 ```
 
 ### 2. Context Assembly
 
-Before injecting the prompt, Otto assembles context:
+Before injecting the prompt, June assembles context:
 
 ```go
 func AssembleWakeUpContext(db *sql.DB, agentID string) string {
@@ -172,7 +172,7 @@ Full template for orchestrator wake-up:
 ```markdown
 # Orchestrator Wake-up Context
 
-You are @otto, the orchestrator for this project.
+You are @june, the orchestrator for this project.
 
 ## Current Skill
 You are using `subagent-driven-development` to execute the implementation plan.

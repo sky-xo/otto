@@ -1,8 +1,8 @@
-# Otto Interrupt Command Implementation Plan
+# June Interrupt Command Implementation Plan
 
 > **For Claude:** Use subagent-driven-development to implement.
 
-**Goal:** Add `otto interrupt <agent-id>` command that sends SIGINT to gracefully stop an agent while preserving its session for resume.
+**Goal:** Add `june interrupt <agent-id>` command that sends SIGINT to gracefully stop an agent while preserving its session for resume.
 
 **Tech Stack:** Go, Cobra, syscall
 
@@ -15,7 +15,7 @@
 - Modify: `internal/cli/root.go`
 
 **Requirements:**
-1. New command `otto interrupt <agent-id>`
+1. New command `june interrupt <agent-id>`
 2. Look up agent by ID, get PID
 3. Send SIGINT to process (syscall.SIGINT)
 4. Update agent status to `idle`

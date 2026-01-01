@@ -1,14 +1,14 @@
-# Otto Architecture
+# June Architecture
 
-How Otto works under the hood. For feature status, see `TODO.md`. For usage examples, see `SCENARIOS.md`.
+How June works under the hood. For feature status, see `TODO.md`. For usage examples, see `SCENARIOS.md`.
 
 ## Overview
 
-Otto is a CLI tool that enables a single Claude Code session to orchestrate multiple AI agents (Claude Code and Codex), allowing them to work on tasks in parallel and communicate with each other.
+June is a CLI tool that enables a single Claude Code session to orchestrate multiple AI agents (Claude Code and Codex), allowing them to work on tasks in parallel and communicate with each other.
 
 **The core idea:** You chat with Claude Code as the "orchestrator." It spawns background agents, monitors their progress, surfaces questions to you, and coordinates handoffs between agents.
 
-## Why Otto?
+## Why June?
 
 - **Unified interface** for both Claude Code and Codex
 - **Cross-tool communication** - design in Claude Code, implement in Codex, review in Claude Code
@@ -22,10 +22,10 @@ Otto is a CLI tool that enables a single Claude Code session to orchestrate mult
 ┌─────────────────────────────────────────────────────────────┐
 │  You ←→ Claude Code (orchestrator)                          │
 │         │                                                   │
-│         │ calls otto CLI                                    │
+│         │ calls june CLI                                    │
 │         ▼                                                   │
 │  ┌─────────────────────────────────────────────────────┐   │
-│  │  otto CLI                                            │   │
+│  │  june CLI                                            │   │
 │  │  - spawn agents                                      │   │
 │  │  - check status                                      │   │
 │  │  - send/receive messages                             │   │
@@ -42,7 +42,7 @@ Otto is a CLI tool that enables a single Claude Code session to orchestrate mult
 │         │                  │                   │           │
 │         └──────────────────┴───────────────────┘           │
 │                            │                                │
-│                   ~/.otto/ (SQLite messaging)               │
+│                   ~/.june/ (SQLite messaging)               │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -56,7 +56,7 @@ A key architectural insight: **the orchestrator conversation is ephemeral, but s
 ┌─────────────────────────────────────────────────────────────┐
 │ DURABLE STATE (persists forever)                            │
 │                                                             │
-│  otto.db           → agents, messages, status               │
+│  june.db           → agents, messages, status               │
 │  docs/plans/*.md   → what we're building, why, progress     │
 │  .worktrees/       → isolated agent workspaces              │
 │  git history       → what was actually done                 │
@@ -68,7 +68,7 @@ A key architectural insight: **the orchestrator conversation is ephemeral, but s
 │ EPHEMERAL ORCHESTRATOR (current Claude Code session)        │
 │                                                             │
 │  - Reads plan documents to understand context               │
-│  - Queries otto for current state                           │
+│  - Queries june for current state                           │
 │  - Makes decisions, spawns agents, answers questions        │
 │  - Can end anytime - state persists without it              │
 │  - New session picks up from durable state                  │
@@ -79,16 +79,16 @@ A key architectural insight: **the orchestrator conversation is ephemeral, but s
 
 1. **Conversations can be short** - End a session, start a new one, lose nothing important.
 2. **Context comes from docs, not chat** - Plan documents are the source of truth.
-3. **No special "resume" needed** - A new session just reads the plan and runs `otto status`.
+3. **No special "resume" needed** - A new session just reads the plan and runs `june status`.
 4. **Agents are truly independent** - They don't need the orchestrator session to exist.
 
 ### Orchestrator
 
-The orchestrator is just Claude Code with knowledge of otto commands. It:
-- Spawns agents via `otto spawn`
-- Checks for messages via `otto messages`
-- Sends responses via `otto prompt`
-- Tracks agent status via `otto status`
+The orchestrator is just Claude Code with knowledge of june commands. It:
+- Spawns agents via `june spawn`
+- Checks for messages via `june messages`
+- Sends responses via `june prompt`
+- Tracks agent status via `june status`
 
 There's no separate UI - the conversation with Claude Code IS the interface.
 
@@ -118,7 +118,7 @@ Orchestrators are auto-scoped by project and branch:
 
 ```bash
 cd ~/code/my-app  # on branch feature-auth
-otto spawn codex "build login"
+june spawn codex "build login"
 # → orchestrator: my-app/feature-auth
 ```
 
@@ -127,11 +127,11 @@ otto spawn codex "build login"
 ### Directory Structure
 
 ```
-~/.otto/
+~/.june/
   orchestrators/
     <project>/
       <branch>/
-        otto.db             # SQLite database
+        june.db             # SQLite database
         agents/
           <agent-id>/
             context.md      # handoff context
@@ -196,11 +196,11 @@ All agents share a single message stream - like a shared chat room:
 - **Queryable:** Filter by type, agent, unread status
 - **Atomic:** No race conditions on concurrent writes
 - **Single file:** Easy to backup
-- **Debuggable:** `sqlite3 otto.db "SELECT * FROM messages"`
+- **Debuggable:** `sqlite3 june.db "SELECT * FROM messages"`
 
 ## Agent Prompt Template
 
-When otto spawns an agent, it includes these instructions:
+When june spawns an agent, it includes these instructions:
 
 ```markdown
 You are an agent working on: <task>
@@ -214,10 +214,10 @@ Use @mentions to direct attention to specific agents.
 IMPORTANT: Always include your ID (--id <agent-id>) in every command.
 
 ### Commands
-otto messages --id <agent-id>                           # check unread
-otto dm --from <agent-id> --to <recipient> "message"    # post message
-otto ask --id <agent-id> "question"                     # ask (sets WAITING)
-otto complete --id <agent-id> "summary"                 # mark done
+june messages --id <agent-id>                           # check unread
+june dm --from <agent-id> --to <recipient> "message"    # post message
+june ask --id <agent-id> "question"                     # ask (sets WAITING)
+june complete --id <agent-id> "summary"                 # mark done
 
 ## Guidelines
 
@@ -237,12 +237,12 @@ Can I resolve with current context? ──YES──→ Continue
         NO
         │
         ▼
-Requires human judgment? ──YES──→ otto ask --human "..."
+Requires human judgment? ──YES──→ june ask --human "..."
         │
         NO
         │
         ▼
-otto ask "..." → Orchestrator answers
+june ask "..." → Orchestrator answers
 ```
 
 ## Tech Stack
@@ -257,11 +257,11 @@ otto ask "..." → Orchestrator answers
 
 ### packnplay
 
-Otto works inside [packnplay](https://github.com/obra/packnplay) containers - `claude` and `codex` are available, project is mounted, credentials configured.
+June works inside [packnplay](https://github.com/obra/packnplay) containers - `claude` and `codex` are available, project is mounted, credentials configured.
 
 ### superpowers
 
-Otto complements superpowers skills:
+June complements superpowers skills:
 - Orchestrator uses `brainstorming`, `writing-plans`
 - Implementation agents use `executing-plans`, `test-driven-development`
 - All agents use `verification-before-completion`

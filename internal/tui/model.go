@@ -935,10 +935,22 @@ func formatDiff(oldStr, newStr string, maxLen int, filePath string) []string {
 					} else {
 						bgANSI = ANSIBgDeleteLight
 					}
-					highlightedWithBg := highlightWithBackground(content, filePath, bgANSI)
-					if highlightedWithBg != content {
-						// Highlighting was applied - prefix gets same background treatment
-						styled = "    " + bgANSI + prefix + "\x1b[0m" + highlightedWithBg
+					// Calculate available width for content (after "    " indent and prefix)
+					indentWidth := 4
+					prefixLen := len(prefix)
+					contentWidth := maxLen - indentWidth - prefixLen
+					if contentWidth < 0 {
+						contentWidth = 0
+					}
+					// Pad content with spaces to fill the available width
+					paddedContent := content
+					if len(paddedContent) < contentWidth {
+						paddedContent = paddedContent + strings.Repeat(" ", contentWidth-len(paddedContent))
+					}
+					highlightedWithBg := highlightWithBackground(paddedContent, filePath, bgANSI)
+					if highlightedWithBg != paddedContent {
+						// Highlighting was applied - prefix gets same background, flows into content
+						styled = "    " + bgANSI + prefix + highlightedWithBg
 					} else {
 						// Fallback to normal styling
 						display = prefix + content
@@ -965,10 +977,22 @@ func formatDiff(oldStr, newStr string, maxLen int, filePath string) []string {
 					} else {
 						bgANSI = ANSIBgInsertLight
 					}
-					highlightedWithBg := highlightWithBackground(content, filePath, bgANSI)
-					if highlightedWithBg != content {
-						// Highlighting was applied - prefix gets same background treatment
-						styled = "    " + bgANSI + prefix + "\x1b[0m" + highlightedWithBg
+					// Calculate available width for content (after "    " indent and prefix)
+					indentWidth := 4
+					prefixLen := len(prefix)
+					contentWidth := maxLen - indentWidth - prefixLen
+					if contentWidth < 0 {
+						contentWidth = 0
+					}
+					// Pad content with spaces to fill the available width
+					paddedContent := content
+					if len(paddedContent) < contentWidth {
+						paddedContent = paddedContent + strings.Repeat(" ", contentWidth-len(paddedContent))
+					}
+					highlightedWithBg := highlightWithBackground(paddedContent, filePath, bgANSI)
+					if highlightedWithBg != paddedContent {
+						// Highlighting was applied - prefix gets same background, flows into content
+						styled = "    " + bgANSI + prefix + highlightedWithBg
 					} else {
 						// Fallback to normal styling
 						display = prefix + content

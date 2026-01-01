@@ -55,6 +55,14 @@ func getCustomStyle() *chroma.Style {
 		builder.Add(chroma.Text, "#f8f8f2")
 		builder.Add(chroma.TextWhitespace, "#f8f8f2")
 
+		// Clear backgrounds from Comment tokens - monokai has grayish backgrounds
+		// on comments that override the diff line backgrounds.
+		builder.Add(chroma.Comment, "italic #75715e")
+		builder.Add(chroma.CommentSingle, "italic #75715e")
+		builder.Add(chroma.CommentMultiline, "italic #75715e")
+		builder.Add(chroma.CommentSpecial, "italic #75715e")
+		builder.Add(chroma.CommentPreproc, "italic #75715e")
+
 		var err error
 		customStyle, err = builder.Build()
 		if err != nil {

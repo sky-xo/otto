@@ -24,8 +24,9 @@ var (
 	selectedBgStyle = lipgloss.NewStyle().Background(lipgloss.AdaptiveColor{Light: "254", Dark: "8"}) // highlighted background
 	promptStyle     = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "4", Dark: "6"}).Bold(true) // blue/cyan, bold
 	promptBarStyle  = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "4", Dark: "6"})            // blue/cyan for half-block
-	toolStyle       = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#2E7D32", Dark: "#C8FB9E"}) // lime green (matches focused border)
-	toolDimStyle    = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "243", Dark: "240"})        // dim gray for command details
+	toolStyle       = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#2E7D32", Dark: "#C8FB9E"})        // lime green (matches focused border)
+	toolBoldStyle   = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#2E7D32", Dark: "#C8FB9E"}).Bold(true) // lime green bold for Tool( and )
+	toolDimStyle    = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "243", Dark: "240"})                   // dim gray for command details
 	diffAddStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.AdaptiveColor{Light: "#2E7D32", Dark: "#98FB98"}).
 			Background(lipgloss.AdaptiveColor{Light: "#E8F5E9", Dark: "#1B3D1B"}) // green fg + subtle green bg
@@ -682,12 +683,13 @@ func formatToolUse(e claude.Entry, toolName string, width int) []string {
 		cmd, _ := input["command"].(string)
 
 		if desc != "" {
-			// Show description in lime green
-			line := "Bash: " + desc
-			if maxLen > 0 && len(line) > maxLen {
-				line = line[:maxLen-3] + "..."
+			// Truncate description if needed
+			if maxLen > 0 && len(desc) > maxLen-7 { // "Bash(" + ")" = 6 chars + some padding
+				desc = desc[:maxLen-10] + "..."
 			}
-			result = append(result, toolStyle.Render("  "+line))
+			// Format: Bash(description) with Bash( and ) in bold lime green, description in normal
+			line := "  " + toolBoldStyle.Render("Bash(") + desc + toolBoldStyle.Render(")")
+			result = append(result, line)
 
 			// Show command dimmed below if present
 			if cmd != "" {
@@ -708,11 +710,12 @@ func formatToolUse(e claude.Entry, toolName string, width int) []string {
 			if idx := strings.Index(cmd, "\n"); idx != -1 {
 				cmd = cmd[:idx] + "..."
 			}
-			line := "Bash: " + cmd
-			if maxLen > 0 && len(line) > maxLen {
-				line = line[:maxLen-3] + "..."
+			if maxLen > 0 && len(cmd) > maxLen-7 {
+				cmd = cmd[:maxLen-10] + "..."
 			}
-			result = append(result, toolStyle.Render("  "+line))
+			// Format: Bash(command)
+			line := "  " + toolBoldStyle.Render("Bash(") + cmd + toolBoldStyle.Render(")")
+			result = append(result, line)
 			return result
 		}
 	}
@@ -724,13 +727,14 @@ func formatToolUse(e claude.Entry, toolName string, width int) []string {
 		oldStr, _ := input["old_string"].(string)
 		newStr, _ := input["new_string"].(string)
 
-		// Show file path in Update(path) format
+		// Show file path in Edit(path) format with split styling
 		shortPath := shortenPath(filePath)
-		line := "Update(" + shortPath + ")"
-		if maxLen > 0 && len(line) > maxLen {
-			line = line[:maxLen-3] + "..."
+		if maxLen > 0 && len(shortPath) > maxLen-7 { // "Edit(" + ")" = 6 chars + some padding
+			shortPath = shortPath[:maxLen-10] + "..."
 		}
-		result = append(result, toolStyle.Render("  "+line))
+		// Format: Edit(path) with Edit( and ) in bold lime green, path in normal
+		line := "  " + toolBoldStyle.Render("Edit(") + shortPath + toolBoldStyle.Render(")")
+		result = append(result, line)
 
 		// Show summary line
 		summaryLine := formatDiffSummary(oldStr, newStr)
@@ -743,11 +747,24 @@ func formatToolUse(e claude.Entry, toolName string, width int) []string {
 	}
 
 	// Default: use ToolSummary for other tools
+	// ToolSummary returns "Tool: detail" format, convert to "Tool(detail)" with split styling
 	summary := e.ToolSummary()
-	if maxLen > 0 && len(summary) > maxLen {
-		summary = summary[:maxLen-3] + "..."
+
+	// Parse "Tool: detail" format
+	if idx := strings.Index(summary, ": "); idx != -1 {
+		name := summary[:idx]
+		detail := summary[idx+2:]
+		if maxLen > 0 && len(detail) > maxLen-len(name)-3 { // name + "(" + ")" + some padding
+			detail = detail[:maxLen-len(name)-6] + "..."
+		}
+		// Format: Tool(detail) with Tool( and ) in bold lime green, detail in normal
+		line := "  " + toolBoldStyle.Render(name+"(") + detail + toolBoldStyle.Render(")")
+		result = append(result, line)
+	} else {
+		// No detail, just the tool name: show as Tool()
+		line := "  " + toolBoldStyle.Render(summary+"()")
+		result = append(result, line)
 	}
-	result = append(result, toolStyle.Render("  "+summary))
 	return result
 }
 

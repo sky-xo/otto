@@ -573,3 +573,100 @@ func TestFormatDiff_SkipsEmptyLinesButCountsThem(t *testing.T) {
 		t.Errorf("Expected '3 - line3' (line 2 was empty), got: %s", stripped)
 	}
 }
+
+func TestFormatToolUse_TodoWrite(t *testing.T) {
+	// Create a mock entry with TodoWrite tool use
+	entry := claude.Entry{
+		Type: "assistant",
+		Message: claude.Message{
+			Content: []interface{}{
+				map[string]interface{}{
+					"type": "tool_use",
+					"name": "TodoWrite",
+					"input": map[string]interface{}{
+						"todos": []interface{}{
+							map[string]interface{}{
+								"content":    "First task",
+								"status":     "completed",
+								"activeForm": "Doing first task",
+							},
+							map[string]interface{}{
+								"content":    "Second task",
+								"status":     "in_progress",
+								"activeForm": "Doing second task",
+							},
+							map[string]interface{}{
+								"content":    "Third task",
+								"status":     "pending",
+								"activeForm": "Doing third task",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	result := formatToolUse(entry, "TodoWrite", 80)
+	output := strings.Join(result, "\n")
+	stripped := stripANSI(output)
+
+	// Should contain TodoWrite header
+	if !strings.Contains(stripped, "TodoWrite") {
+		t.Errorf("Expected 'TodoWrite' in output, got: %s", stripped)
+	}
+
+	// Should contain each todo content
+	if !strings.Contains(stripped, "First task") {
+		t.Errorf("Expected 'First task' in output, got: %s", stripped)
+	}
+	if !strings.Contains(stripped, "Second task") {
+		t.Errorf("Expected 'Second task' in output, got: %s", stripped)
+	}
+	if !strings.Contains(stripped, "Third task") {
+		t.Errorf("Expected 'Third task' in output, got: %s", stripped)
+	}
+
+	// Should contain status indicators (checkmark, half circle, empty box)
+	if !strings.Contains(output, "\u2713") { // checkmark for completed
+		t.Errorf("Expected checkmark for completed task, got: %s", output)
+	}
+	if !strings.Contains(output, "\u25d0") { // half circle for in_progress
+		t.Errorf("Expected half circle for in_progress task, got: %s", output)
+	}
+	if !strings.Contains(output, "\u2610") { // empty box for pending
+		t.Errorf("Expected empty box for pending task, got: %s", output)
+	}
+}
+
+func TestFormatToolUse_TodoWriteEmpty(t *testing.T) {
+	// Test TodoWrite with no todos
+	entry := claude.Entry{
+		Type: "assistant",
+		Message: claude.Message{
+			Content: []interface{}{
+				map[string]interface{}{
+					"type": "tool_use",
+					"name": "TodoWrite",
+					"input": map[string]interface{}{
+						"todos": []interface{}{},
+					},
+				},
+			},
+		},
+	}
+
+	result := formatToolUse(entry, "TodoWrite", 80)
+	output := strings.Join(result, "\n")
+	stripped := stripANSI(output)
+
+	// Should still contain TodoWrite header even with no todos
+	if !strings.Contains(stripped, "TodoWrite") {
+		t.Errorf("Expected 'TodoWrite' in output, got: %s", stripped)
+	}
+
+	// Should only have one line (the header)
+	if len(result) != 1 {
+		t.Errorf("Expected 1 line for empty todo list, got: %d", len(result))
+	}
+}

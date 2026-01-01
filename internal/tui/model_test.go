@@ -453,3 +453,123 @@ func TestFormatTranscript_AssistantMarkdownRendered(t *testing.T) {
 		t.Errorf("Expected 'bold' to be present: %s", stripped)
 	}
 }
+
+func TestFormatDiffSummary_AddedOnly(t *testing.T) {
+	// When old_string is empty, should show "Added N lines"
+	result := formatDiffSummary("", "line1\nline2\nline3")
+	stripped := stripANSI(result)
+
+	if !strings.Contains(stripped, "Added 3 lines") {
+		t.Errorf("Expected 'Added 3 lines', got: %s", stripped)
+	}
+	// Should contain the corner character
+	if !strings.Contains(result, "\u2514") {
+		t.Errorf("Expected corner character, got: %s", result)
+	}
+}
+
+func TestFormatDiffSummary_AddedOneLine(t *testing.T) {
+	// Single line should use singular "line"
+	result := formatDiffSummary("", "single line")
+	stripped := stripANSI(result)
+
+	if !strings.Contains(stripped, "Added 1 line") {
+		t.Errorf("Expected 'Added 1 line', got: %s", stripped)
+	}
+}
+
+func TestFormatDiffSummary_RemovedOnly(t *testing.T) {
+	// When new_string is empty, should show "Removed N lines"
+	result := formatDiffSummary("line1\nline2", "")
+	stripped := stripANSI(result)
+
+	if !strings.Contains(stripped, "Removed 2 lines") {
+		t.Errorf("Expected 'Removed 2 lines', got: %s", stripped)
+	}
+}
+
+func TestFormatDiffSummary_RemovedOneLine(t *testing.T) {
+	// Single line should use singular "line"
+	result := formatDiffSummary("single line", "")
+	stripped := stripANSI(result)
+
+	if !strings.Contains(stripped, "Removed 1 line") {
+		t.Errorf("Expected 'Removed 1 line', got: %s", stripped)
+	}
+}
+
+func TestFormatDiffSummary_Changed(t *testing.T) {
+	// When both have content, should show "-N +M lines"
+	result := formatDiffSummary("old1\nold2", "new1\nnew2\nnew3")
+	stripped := stripANSI(result)
+
+	if !strings.Contains(stripped, "-2 +3 lines") {
+		t.Errorf("Expected '-2 +3 lines', got: %s", stripped)
+	}
+}
+
+func TestFormatDiffSummary_IgnoresEmptyLines(t *testing.T) {
+	// Empty lines should not be counted
+	result := formatDiffSummary("", "line1\n\n\nline2")
+	stripped := stripANSI(result)
+
+	if !strings.Contains(stripped, "Added 2 lines") {
+		t.Errorf("Expected 'Added 2 lines' (ignoring empty lines), got: %s", stripped)
+	}
+}
+
+func TestFormatDiff_HasLineNumbers(t *testing.T) {
+	// Test that diff lines have line numbers
+	result := formatDiff("old line", "new line", 80)
+	output := strings.Join(result, "\n")
+	stripped := stripANSI(output)
+
+	// Should contain line numbers with diff markers
+	if !strings.Contains(stripped, "1 -") {
+		t.Errorf("Expected '1 -' for deletion line number, got: %s", stripped)
+	}
+	if !strings.Contains(stripped, "1 +") {
+		t.Errorf("Expected '1 +' for addition line number, got: %s", stripped)
+	}
+}
+
+func TestFormatDiff_MultipleLineNumbers(t *testing.T) {
+	// Test line numbers increment correctly
+	result := formatDiff("line1\nline2", "newA\nnewB\nnewC", 80)
+	output := strings.Join(result, "\n")
+	stripped := stripANSI(output)
+
+	// Check deletion line numbers
+	if !strings.Contains(stripped, "1 - line1") {
+		t.Errorf("Expected '1 - line1', got: %s", stripped)
+	}
+	if !strings.Contains(stripped, "2 - line2") {
+		t.Errorf("Expected '2 - line2', got: %s", stripped)
+	}
+
+	// Check addition line numbers
+	if !strings.Contains(stripped, "1 + newA") {
+		t.Errorf("Expected '1 + newA', got: %s", stripped)
+	}
+	if !strings.Contains(stripped, "2 + newB") {
+		t.Errorf("Expected '2 + newB', got: %s", stripped)
+	}
+	if !strings.Contains(stripped, "3 + newC") {
+		t.Errorf("Expected '3 + newC', got: %s", stripped)
+	}
+}
+
+func TestFormatDiff_SkipsEmptyLinesButCountsThem(t *testing.T) {
+	// Empty lines should be skipped in output but counted for line numbers
+	result := formatDiff("line1\n\nline3", "", 80)
+	output := strings.Join(result, "\n")
+	stripped := stripANSI(output)
+
+	// Line 1 and line 3 should be present, line 2 (empty) skipped
+	if !strings.Contains(stripped, "1 - line1") {
+		t.Errorf("Expected '1 - line1', got: %s", stripped)
+	}
+	if !strings.Contains(stripped, "3 - line3") {
+		t.Errorf("Expected '3 - line3' (line 2 was empty), got: %s", stripped)
+	}
+}

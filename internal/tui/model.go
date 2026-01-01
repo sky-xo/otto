@@ -26,8 +26,12 @@ var (
 	promptBarStyle  = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "4", Dark: "6"})            // blue/cyan for half-block
 	toolStyle       = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#2E7D32", Dark: "#C8FB9E"}) // lime green (matches focused border)
 	toolDimStyle    = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "243", Dark: "240"})        // dim gray for command details
-	diffAddStyle    = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#2E7D32", Dark: "#98FB98"}) // green for additions
-	diffDelStyle    = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#C62828", Dark: "#FF6B6B"}) // red for deletions
+	diffAddStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.AdaptiveColor{Light: "#2E7D32", Dark: "#98FB98"}).
+			Background(lipgloss.AdaptiveColor{Light: "#E8F5E9", Dark: "#1B3D1B"}) // green fg + subtle green bg
+	diffDelStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.AdaptiveColor{Light: "#C62828", Dark: "#FF6B6B"}).
+			Background(lipgloss.AdaptiveColor{Light: "#FFEBEE", Dark: "#3D1B1B"}) // red fg + subtle red bg
 	statusBarStyle  = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "243", Dark: "8"})          // gray
 
 	focusedBorderColor   = lipgloss.AdaptiveColor{Light: "#2E7D32", Dark: "#C8FB9E"} // green (darker on light, pale on dark)
@@ -717,13 +721,17 @@ func formatToolUse(e claude.Entry, toolName string, width int) []string {
 		oldStr, _ := input["old_string"].(string)
 		newStr, _ := input["new_string"].(string)
 
-		// Show file path
+		// Show file path in Update(path) format
 		shortPath := shortenPath(filePath)
-		line := "Edit: " + shortPath
+		line := "Update(" + shortPath + ")"
 		if maxLen > 0 && len(line) > maxLen {
 			line = line[:maxLen-3] + "..."
 		}
 		result = append(result, toolStyle.Render("  "+line))
+
+		// Show summary line
+		summaryLine := formatDiffSummary(oldStr, newStr)
+		result = append(result, toolDimStyle.Render("    "+summaryLine))
 
 		// Show diff
 		diffLines := formatDiff(oldStr, newStr, maxLen)
@@ -754,7 +762,42 @@ func shortenPath(path string) string {
 	return path
 }
 
-// formatDiff renders old/new strings as a simple diff.
+// formatDiffSummary returns a summary line for the diff like "Added N lines" or "-N +M lines".
+func formatDiffSummary(oldStr, newStr string) string {
+	// Count non-empty lines
+	countLines := func(s string) int {
+		if strings.TrimSpace(s) == "" {
+			return 0
+		}
+		count := 0
+		for _, line := range strings.Split(s, "\n") {
+			if strings.TrimSpace(line) != "" {
+				count++
+			}
+		}
+		return count
+	}
+
+	oldCount := countLines(oldStr)
+	newCount := countLines(newStr)
+
+	if oldCount == 0 && newCount > 0 {
+		if newCount == 1 {
+			return "\u2514 Added 1 line"
+		}
+		return fmt.Sprintf("\u2514 Added %d lines", newCount)
+	}
+	if newCount == 0 && oldCount > 0 {
+		if oldCount == 1 {
+			return "\u2514 Removed 1 line"
+		}
+		return fmt.Sprintf("\u2514 Removed %d lines", oldCount)
+	}
+	// Both have content
+	return fmt.Sprintf("\u2514 -%d +%d lines", oldCount, newCount)
+}
+
+// formatDiff renders old/new strings as a simple diff with line numbers.
 func formatDiff(oldStr, newStr string, maxLen int) []string {
 	var result []string
 
@@ -765,6 +808,8 @@ func formatDiff(oldStr, newStr string, maxLen int) []string {
 	newLines := strings.Split(newStr, "\n")
 
 	lineCount := 0
+	delLineNum := 1
+	addLineNum := 1
 
 	// Show deletions (old lines)
 	for _, line := range oldLines {
@@ -774,14 +819,17 @@ func formatDiff(oldStr, newStr string, maxLen int) []string {
 		}
 		line = strings.TrimRight(line, " \t")
 		if line == "" {
+			delLineNum++
 			continue // Skip empty lines for brevity
 		}
-		display := "- " + line
+		// Format: "N -" where N is line number
+		display := fmt.Sprintf("%d - %s", delLineNum, line)
 		if maxLen > 0 && len(display) > maxLen {
 			display = display[:maxLen-3] + "..."
 		}
 		result = append(result, diffDelStyle.Render("    "+display))
 		lineCount++
+		delLineNum++
 	}
 
 	// Show additions (new lines)
@@ -792,14 +840,17 @@ func formatDiff(oldStr, newStr string, maxLen int) []string {
 		}
 		line = strings.TrimRight(line, " \t")
 		if line == "" {
+			addLineNum++
 			continue // Skip empty lines for brevity
 		}
-		display := "+ " + line
+		// Format: "N +" where N is line number
+		display := fmt.Sprintf("%d + %s", addLineNum, line)
 		if maxLen > 0 && len(display) > maxLen {
 			display = display[:maxLen-3] + "..."
 		}
 		result = append(result, diffAddStyle.Render("    "+display))
 		lineCount++
+		addLineNum++
 	}
 
 	return result

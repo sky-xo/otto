@@ -17,12 +17,12 @@ import (
 const sidebarWidth = 23
 
 var (
-	activeStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("10")) // green
-	doneStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))  // gray
-	selectedBgStyle = lipgloss.NewStyle().Background(lipgloss.Color("8")) // highlighted background
-	promptStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("6")).Bold(true)
-	toolStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
-	statusBarStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+	activeStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("10")) // green
+	doneStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))  // gray
+	selectedBgStyle = lipgloss.NewStyle().Background(lipgloss.Color("8"))  // highlighted background
+	promptStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("6")).Bold(true).Background(lipgloss.Color("236")) // cyan on subtle dark gray
+	toolStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
+	statusBarStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
 
 	focusedBorderColor   = lipgloss.Color("#C8FB9E") // Pale lime green
 	unfocusedBorderColor = lipgloss.Color("8") // Dim
@@ -661,8 +661,15 @@ func renderMarkdown(text string, width int) string {
 		return text
 	}
 
-	// glamour adds trailing newlines, trim them to avoid extra spacing
-	return strings.TrimRight(rendered, "\n")
+	// glamour adds trailing newlines and leading whitespace, clean them up
+	rendered = strings.TrimRight(rendered, "\n")
+
+	// Strip leading whitespace from each line
+	lines := strings.Split(rendered, "\n")
+	for i, line := range lines {
+		lines[i] = strings.TrimLeft(line, " ")
+	}
+	return strings.Join(lines, "\n")
 }
 
 // formatTimestamp formats a timestamp intelligently based on how recent it is:

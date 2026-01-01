@@ -623,9 +623,11 @@ func formatTranscript(entries []claude.Entry, width int) string {
 			if e.IsToolResult() {
 				continue
 			}
-			content := e.TextContent()
+			content := strings.TrimSpace(e.TextContent())
 			if content != "" {
-				lines = append(lines, promptStyle.Render("> "+content))
+				// Style only the actual text, then add a reset to prevent background bleed
+				styled := promptStyle.Render("> " + content)
+				lines = append(lines, styled+"\033[0m")
 				lines = append(lines, "")
 			}
 		case "assistant":

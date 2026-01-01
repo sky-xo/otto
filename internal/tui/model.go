@@ -800,60 +800,97 @@ func formatDiffSummary(oldStr, newStr string) string {
 	return fmt.Sprintf("\u2514 -%d +%d lines", oldCount, newCount)
 }
 
-// formatDiff renders old/new strings as a simple diff with line numbers.
+// formatDiff renders old/new strings as a unified diff with context lines and hunks.
+// Shows unchanged context lines around changes, with "..." separators between distant hunks.
 func formatDiff(oldStr, newStr string, maxLen int) []string {
 	var result []string
 
-	// Limit total diff lines to keep output reasonable
-	const maxDiffLines = 8
+	// Configuration
+	const (
+		maxDiffLines  = 15 // Limit total output lines
+		contextLines  = 3  // Lines of context before/after changes
+		gapThreshold  = 3  // Unchanged lines between changes before new hunk
+	)
 
 	oldLines := strings.Split(oldStr, "\n")
 	newLines := strings.Split(newStr, "\n")
 
-	lineCount := 0
-	delLineNum := 1
-	addLineNum := 1
+	// Compute the diff
+	diff := computeDiff(oldLines, newLines)
 
-	// Show deletions (old lines)
-	for _, line := range oldLines {
-		if lineCount >= maxDiffLines {
-			result = append(result, toolDimStyle.Render("    ... (more lines)"))
-			break
-		}
-		line = strings.TrimRight(line, " \t")
-		if line == "" {
-			delLineNum++
-			continue // Skip empty lines for brevity
-		}
-		// Format: "N -" where N is line number
-		display := fmt.Sprintf("%d - %s", delLineNum, line)
-		if maxLen > 0 && len(display) > maxLen {
-			display = display[:maxLen-3] + "..."
-		}
-		result = append(result, diffDelStyle.Render("    "+display))
-		lineCount++
-		delLineNum++
+	// Extract hunks with context
+	hunks := extractHunks(diff, contextLines, gapThreshold)
+
+	if len(hunks) == 0 {
+		return result
 	}
 
-	// Show additions (new lines)
-	for _, line := range newLines {
-		if lineCount >= maxDiffLines {
-			result = append(result, toolDimStyle.Render("    ... (more lines)"))
+	lineCount := 0
+	truncated := false
+
+	for hunkIdx, hunk := range hunks {
+		// Add separator between hunks
+		if hunkIdx > 0 {
+			if lineCount >= maxDiffLines {
+				truncated = true
+				break
+			}
+			result = append(result, toolDimStyle.Render("    ..."))
+			lineCount++
+		}
+
+		for _, d := range hunk.Lines {
+			if lineCount >= maxDiffLines {
+				truncated = true
+				break
+			}
+
+			content := strings.TrimRight(d.Content, " \t")
+
+			// Determine line number to display
+			lineNum := d.OldLineNum
+			if lineNum == 0 {
+				lineNum = d.NewLineNum
+			}
+
+			var display string
+			var styled string
+
+			switch d.Op {
+			case DiffEqual:
+				// Context line: show line number, dim style
+				display = fmt.Sprintf("%d   %s", lineNum, content)
+				if maxLen > 0 && len(display) > maxLen {
+					display = display[:maxLen-3] + "..."
+				}
+				styled = toolDimStyle.Render("    " + display)
+			case DiffDelete:
+				// Deletion: show with "-" marker
+				display = fmt.Sprintf("%d - %s", lineNum, content)
+				if maxLen > 0 && len(display) > maxLen {
+					display = display[:maxLen-3] + "..."
+				}
+				styled = diffDelStyle.Render("    " + display)
+			case DiffInsert:
+				// Addition: show with "+" marker
+				display = fmt.Sprintf("%d + %s", lineNum, content)
+				if maxLen > 0 && len(display) > maxLen {
+					display = display[:maxLen-3] + "..."
+				}
+				styled = diffAddStyle.Render("    " + display)
+			}
+
+			result = append(result, styled)
+			lineCount++
+		}
+
+		if truncated {
 			break
 		}
-		line = strings.TrimRight(line, " \t")
-		if line == "" {
-			addLineNum++
-			continue // Skip empty lines for brevity
-		}
-		// Format: "N +" where N is line number
-		display := fmt.Sprintf("%d + %s", addLineNum, line)
-		if maxLen > 0 && len(display) > maxLen {
-			display = display[:maxLen-3] + "..."
-		}
-		result = append(result, diffAddStyle.Render("    "+display))
-		lineCount++
-		addLineNum++
+	}
+
+	if truncated {
+		result = append(result, toolDimStyle.Render("    ... (more lines)"))
 	}
 
 	return result

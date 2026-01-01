@@ -140,3 +140,28 @@ func TestScanAgentsSortingWithActive(t *testing.T) {
 		t.Error("last two agents should be inactive")
 	}
 }
+
+func TestScanAgentsExtractsDescription(t *testing.T) {
+	dir := t.TempDir()
+
+	// Create agent file with user message containing task description
+	content := `{"type":"user","message":{"role":"user","content":"Implement feature X: add button\n\nMore details here..."}}
+{"type":"assistant","message":{"role":"assistant","content":"I'll implement that."}}`
+	f, _ := os.Create(filepath.Join(dir, "agent-test123.jsonl"))
+	f.WriteString(content)
+	f.Close()
+
+	agents, err := ScanAgents(dir)
+	if err != nil {
+		t.Fatalf("ScanAgents: %v", err)
+	}
+
+	if len(agents) != 1 {
+		t.Fatalf("expected 1 agent, got %d", len(agents))
+	}
+
+	expected := "Implement feature X: add button"
+	if agents[0].Description != expected {
+		t.Errorf("expected description %q, got %q", expected, agents[0].Description)
+	}
+}

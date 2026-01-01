@@ -2,6 +2,8 @@
 package claude
 
 import (
+	"bufio"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"sort"
@@ -13,9 +15,52 @@ const activeThreshold = 10 * time.Second
 
 // Agent represents a Claude Code subagent session.
 type Agent struct {
-	ID       string    // Extracted from filename: agent-{id}.jsonl
-	FilePath string    // Full path to jsonl file
-	LastMod  time.Time // File modification time
+	ID          string    // Extracted from filename: agent-{id}.jsonl
+	FilePath    string    // Full path to jsonl file
+	LastMod     time.Time // File modification time
+	Description string    // First line of first user message (task description)
+}
+
+// extractDescription reads the first user message from a JSONL file
+// and returns its first line as the description.
+func extractDescription(path string) string {
+	f, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	// Set larger buffer for potentially long lines
+	buf := make([]byte, 0, 64*1024)
+	scanner.Buffer(buf, 256*1024)
+
+	for scanner.Scan() {
+		var entry struct {
+			Type    string `json:"type"`
+			Message struct {
+				Role    string `json:"role"`
+				Content string `json:"content"`
+			} `json:"message"`
+		}
+		if err := json.Unmarshal(scanner.Bytes(), &entry); err != nil {
+			continue
+		}
+
+		// Look for first user message
+		if entry.Type == "user" && entry.Message.Role == "user" && entry.Message.Content != "" {
+			content := entry.Message.Content
+			// Extract first line (up to newline or 80 chars)
+			if idx := strings.Index(content, "\n"); idx != -1 {
+				content = content[:idx]
+			}
+			if len(content) > 80 {
+				content = content[:77] + "..."
+			}
+			return strings.TrimSpace(content)
+		}
+	}
+	return ""
 }
 
 // IsActive returns true if the agent was modified within the active threshold.
@@ -54,9 +99,10 @@ func ScanAgents(dir string) ([]Agent, error) {
 		}
 
 		agents = append(agents, Agent{
-			ID:       id,
-			FilePath: filepath.Join(dir, name),
-			LastMod:  info.ModTime(),
+			ID:          id,
+			FilePath:    filepath.Join(dir, name),
+			LastMod:     info.ModTime(),
+			Description: extractDescription(filepath.Join(dir, name)),
 		})
 	}
 

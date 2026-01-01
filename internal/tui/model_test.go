@@ -413,7 +413,7 @@ func TestRenderMarkdown_ZeroWidth(t *testing.T) {
 }
 
 func TestFormatTranscript_UserPromptStyle(t *testing.T) {
-	// Test that user prompts are styled with > prefix
+	// Test that user prompts contain the content
 	entries := []claude.Entry{
 		{Type: "user", Message: claude.Message{
 			Content: "Hello there",
@@ -422,9 +422,9 @@ func TestFormatTranscript_UserPromptStyle(t *testing.T) {
 
 	result := formatTranscript(entries, 80)
 
-	// User prompts should have the > prefix
-	if !strings.Contains(result, ">") {
-		t.Errorf("Expected user prompt to have '>' prefix: %s", result)
+	// User prompts should contain the content
+	if !strings.Contains(result, "Hello there") {
+		t.Errorf("Expected user prompt content to be present: %s", result)
 	}
 }
 

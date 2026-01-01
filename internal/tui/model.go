@@ -629,12 +629,8 @@ func formatTranscript(entries []claude.Entry, width int) string {
 				// Use a colored bar on the left as visual indicator, then styled text
 				bar := promptBarStyle.Render(" ")
 				contentLines := strings.Split(content, "\n")
-				for i, line := range contentLines {
-					prefix := "> "
-					if i > 0 {
-						prefix = "  " // continuation lines
-					}
-					lines = append(lines, bar+" "+promptStyle.Render(prefix+strings.TrimRight(line, " ")))
+				for _, line := range contentLines {
+					lines = append(lines, bar+promptStyle.Render(" "+strings.TrimRight(line, " ")))
 				}
 				lines = append(lines, "")
 			}

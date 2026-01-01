@@ -59,3 +59,80 @@ func TestAgentIsActive(t *testing.T) {
 		t.Error("agent modified 30s ago should not be active")
 	}
 }
+
+func TestScanAgentsSorting(t *testing.T) {
+	// Create temp directory with agent files
+	dir := t.TempDir()
+
+	// Create agents with specific IDs: charlie, alice, bob
+	// All will be inactive (old mod time)
+	for _, id := range []string{"charlie", "alice", "bob"} {
+		f, _ := os.Create(filepath.Join(dir, "agent-"+id+".jsonl"))
+		f.WriteString(`{"type":"user","message":{"content":"test"}}`)
+		f.Close()
+		// Set old mod time to make them all inactive
+		oldTime := time.Now().Add(-1 * time.Hour)
+		os.Chtimes(filepath.Join(dir, "agent-"+id+".jsonl"), oldTime, oldTime)
+	}
+
+	agents, err := ScanAgents(dir)
+	if err != nil {
+		t.Fatalf("ScanAgents: %v", err)
+	}
+
+	if len(agents) != 3 {
+		t.Fatalf("got %d agents, want 3", len(agents))
+	}
+
+	// All inactive, should be sorted alphabetically by ID
+	expectedOrder := []string{"alice", "bob", "charlie"}
+	for i, expected := range expectedOrder {
+		if agents[i].ID != expected {
+			t.Errorf("position %d: got %s, want %s", i, agents[i].ID, expected)
+		}
+	}
+}
+
+func TestScanAgentsSortingWithActive(t *testing.T) {
+	// Create temp directory with agent files
+	dir := t.TempDir()
+
+	// Create 4 agents
+	for _, id := range []string{"delta", "alpha", "gamma", "beta"} {
+		f, _ := os.Create(filepath.Join(dir, "agent-"+id+".jsonl"))
+		f.WriteString(`{"type":"user","message":{"content":"test"}}`)
+		f.Close()
+	}
+
+	// Make alpha and gamma inactive (old mod time)
+	oldTime := time.Now().Add(-1 * time.Hour)
+	os.Chtimes(filepath.Join(dir, "agent-alpha.jsonl"), oldTime, oldTime)
+	os.Chtimes(filepath.Join(dir, "agent-gamma.jsonl"), oldTime, oldTime)
+
+	// delta and beta are active (recent mod time - already set by Create)
+
+	agents, err := ScanAgents(dir)
+	if err != nil {
+		t.Fatalf("ScanAgents: %v", err)
+	}
+
+	if len(agents) != 4 {
+		t.Fatalf("got %d agents, want 4", len(agents))
+	}
+
+	// Active agents first (beta, delta), then inactive (alpha, gamma) - all alphabetical within group
+	expectedOrder := []string{"beta", "delta", "alpha", "gamma"}
+	for i, expected := range expectedOrder {
+		if agents[i].ID != expected {
+			t.Errorf("position %d: got %s, want %s (active: %v)", i, agents[i].ID, expected, agents[i].IsActive())
+		}
+	}
+
+	// Verify first two are active, last two are not
+	if !agents[0].IsActive() || !agents[1].IsActive() {
+		t.Error("first two agents should be active")
+	}
+	if agents[2].IsActive() || agents[3].IsActive() {
+		t.Error("last two agents should be inactive")
+	}
+}

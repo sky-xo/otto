@@ -24,7 +24,7 @@ func (a Agent) IsActive() bool {
 }
 
 // ScanAgents finds all agent-*.jsonl files in a directory.
-// Returns agents sorted by LastMod descending (most recent first).
+// Returns agents sorted by: 1) active status (active first), 2) agent ID (alphabetical).
 func ScanAgents(dir string) ([]Agent, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -60,9 +60,15 @@ func ScanAgents(dir string) ([]Agent, error) {
 		})
 	}
 
-	// Sort by LastMod descending
+	// Sort by: 1) active status (active first), 2) agent ID (alphabetical, stable)
 	sort.Slice(agents, func(i, j int) bool {
-		return agents[i].LastMod.After(agents[j].LastMod)
+		iActive := agents[i].IsActive()
+		jActive := agents[j].IsActive()
+		if iActive != jActive {
+			return iActive // active agents come first
+		}
+		// Within same status, sort alphabetically by ID for stable ordering
+		return agents[i].ID < agents[j].ID
 	})
 
 	return agents, nil

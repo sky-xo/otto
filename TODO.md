@@ -24,21 +24,12 @@ The core viewer is working. See `docs/plans/2026-01-01-subagent-viewer-mvp.md` f
 - Auto-scroll follow mode for active agents
 - Status icon colors preserved when highlighted
 
-## Next Up: Diff Rendering Improvements
+## Next Up
 
-### Batch 3: Syntax highlighting
-- [ ] Syntax highlighting for code in diffs (consider chroma library)
-
-### Batch 4: Inline diff and full-width backgrounds
+- [ ] Cleanup old 'otto' code that isn't being used
+- [ ] Selection mode - Click and drag in content area to select text for copy/paste
 - [ ] Character-level diff highlighting within changed lines (show specific changes, not just whole line)
 - [ ] Full-width background - extend red/green background to right edge of panel
-
-## Future Ideas
-
-- **Agent naming** - Extract task description from first user message
-- **Selection mode** - Click and drag in content area to select text for copy/paste
-- **TodoWrite details** - Show todo items/count instead of just "TodoWrite"
-- ~~**Show tool details**~~ - ✓ Done (Bash shows description + command, Edit shows diffs)
 
 ## Docs
 

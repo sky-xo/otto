@@ -775,6 +775,74 @@ func formatToolUse(e claude.Entry, toolName string, width int) []string {
 		return result
 	}
 
+	// Special handling for Write: show file path + content with syntax highlighting
+	if toolName == "Write" {
+		input := e.ToolInput()
+		filePath, _ := input["file_path"].(string)
+		content, _ := input["content"].(string)
+
+		// Show file path in Write(path) format with split styling
+		shortPath := shortenPath(filePath)
+		if maxLen > 0 && len(shortPath) > maxLen-8 { // "Write(" + ")" = 7 chars + some padding
+			shortPath = shortPath[:maxLen-11] + "..."
+		}
+		// Format: Write(path) with Write in bold lime green, parens in regular lime green
+		line := "  " + toolBoldStyle.Render("Write") + toolStyle.Render("(") + shortPath + toolStyle.Render(")")
+		result = append(result, line)
+
+		// Show summary line with line count
+		summaryLine := formatWriteSummary(content)
+		result = append(result, toolDimStyle.Render("    "+summaryLine))
+
+		// Show content with syntax highlighting based on file type
+		contentLines := formatWriteContent(content, maxLen, filePath)
+		result = append(result, contentLines...)
+		return result
+	}
+
+	// Special handling for TodoWrite: show todo list with status indicators
+	if toolName == "TodoWrite" {
+		input := e.ToolInput()
+		todos, _ := input["todos"].([]interface{})
+
+		// Show TodoWrite header
+		line := "  " + toolBoldStyle.Render("TodoWrite") + toolStyle.Render("()")
+		result = append(result, line)
+
+		// Show each todo with status indicator
+		for _, todo := range todos {
+			if todoMap, ok := todo.(map[string]interface{}); ok {
+				content, _ := todoMap["content"].(string)
+				status, _ := todoMap["status"].(string)
+
+				// Choose indicator based on status
+				var indicator string
+				var style lipgloss.Style
+				switch status {
+				case "completed":
+					indicator = "\u2713" // checkmark
+					style = doneStyle
+				case "in_progress":
+					indicator = "\u25d0" // half circle
+					style = activeStyle
+				default: // pending
+					indicator = "\u2610" // empty box
+					style = toolDimStyle
+				}
+
+				// Truncate content if needed
+				displayContent := content
+				if maxLen > 0 && len(displayContent) > maxLen-6 { // indicator + spaces
+					displayContent = displayContent[:maxLen-9] + "..."
+				}
+
+				todoLine := "    " + style.Render(indicator+" "+displayContent)
+				result = append(result, todoLine)
+			}
+		}
+		return result
+	}
+
 	// Default: use ToolSummary for other tools
 	// ToolSummary returns "Tool: detail" format, convert to "Tool(detail)" with split styling
 	summary := e.ToolSummary()
@@ -1018,6 +1086,93 @@ func formatDiff(oldStr, newStr string, maxLen int, filePath string) []string {
 		if truncated {
 			break
 		}
+	}
+
+	if truncated {
+		result = append(result, toolDimStyle.Render("    ... (more lines)"))
+	}
+
+	return result
+}
+
+// formatWriteSummary returns a summary line for write content like "N lines".
+func formatWriteSummary(content string) string {
+	if strings.TrimSpace(content) == "" {
+		return "\u2514 Empty file"
+	}
+	lines := strings.Split(content, "\n")
+	count := len(lines)
+	if count == 1 {
+		return "\u2514 1 line"
+	}
+	return fmt.Sprintf("\u2514 %d lines", count)
+}
+
+// formatWriteContent renders file content with syntax highlighting and line numbers.
+// Shows content with line numbers, no +/- markers since it's all new content.
+func formatWriteContent(content string, maxLen int, filePath string) []string {
+	var result []string
+
+	if strings.TrimSpace(content) == "" {
+		return result
+	}
+
+	const maxContentLines = 15 // Limit total output lines (same as diff)
+
+	lines := strings.Split(content, "\n")
+
+	// Calculate max line number width for consistent alignment
+	maxLineNum := len(lines)
+	lineNumWidth := len(fmt.Sprintf("%d", maxLineNum))
+
+	lineCount := 0
+	truncated := false
+
+	for i, line := range lines {
+		if lineCount >= maxContentLines {
+			truncated = true
+			break
+		}
+
+		lineNum := i + 1
+		lineContent := strings.TrimRight(line, " \t")
+
+		// Format line with line number
+		prefix := fmt.Sprintf("%*d   ", lineNumWidth, lineNum)
+
+		if filePath != "" {
+			// Calculate available width for content (after "    " indent and prefix)
+			indentWidth := 4
+			prefixLen := len(prefix)
+			contentWidth := maxLen - indentWidth - prefixLen
+			if contentWidth < 0 {
+				contentWidth = 0
+			}
+
+			// Apply syntax highlighting (no special background for write - it's not a diff)
+			highlighted := syntaxHighlight(lineContent, filePath)
+			if highlighted != lineContent {
+				// Highlighting was applied
+				styled := "    " + toolDimStyle.Render(prefix) + highlighted
+				result = append(result, styled)
+			} else {
+				// No highlighting, use dim style for line number, regular for content
+				display := prefix + lineContent
+				if maxLen > 0 && len(display) > maxLen {
+					display = display[:maxLen-3] + "..."
+				}
+				result = append(result, toolDimStyle.Render("    "+prefix)+lineContent)
+			}
+		} else {
+			// No filepath, use dim style for everything
+			display := prefix + lineContent
+			if maxLen > 0 && len(display) > maxLen {
+				display = display[:maxLen-3] + "..."
+			}
+			result = append(result, toolDimStyle.Render("    "+display))
+		}
+
+		lineCount++
 	}
 
 	if truncated {

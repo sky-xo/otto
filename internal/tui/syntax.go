@@ -5,12 +5,57 @@ import (
 	"bytes"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/alecthomas/chroma/v2"
 	"github.com/alecthomas/chroma/v2/formatters"
 	"github.com/alecthomas/chroma/v2/lexers"
 	"github.com/alecthomas/chroma/v2/styles"
 )
+
+// Custom style based on monokai but with white/default color for regular code text.
+// The original monokai uses lime/green (#a6e22e) for names like functions, classes, etc.
+// This custom style changes those to white (#f8f8f2) for better readability.
+var (
+	customStyleOnce sync.Once
+	customStyle     *chroma.Style
+)
+
+// getCustomStyle returns a modified monokai style with white default text color.
+// Uses sync.Once to ensure the style is only built once.
+func getCustomStyle() *chroma.Style {
+	customStyleOnce.Do(func() {
+		baseStyle := styles.Get("monokai")
+		if baseStyle == nil {
+			baseStyle = styles.Fallback
+		}
+
+		// Create a builder from the base style
+		builder := baseStyle.Builder()
+
+		// The lime/green color (#a6e22e) is used for various "Name" tokens in monokai.
+		// Change them to white (#f8f8f2) to match regular text, while keeping
+		// special syntax like keywords, strings, and comments colored.
+		whiteText := "#f8f8f2 bg:#272822"
+
+		// Override the lime-colored tokens to use white instead
+		builder.Add(chroma.NameFunction, whiteText)
+		builder.Add(chroma.NameClass, whiteText)
+		builder.Add(chroma.NameOther, whiteText)
+		builder.Add(chroma.NameDecorator, whiteText)
+		builder.Add(chroma.NameException, whiteText)
+		builder.Add(chroma.NameAttribute, whiteText)
+		// Keep GenericInserted green as it's used for diff highlighting
+
+		var err error
+		customStyle, err = builder.Build()
+		if err != nil {
+			// Fall back to the base style if building fails
+			customStyle = baseStyle
+		}
+	})
+	return customStyle
+}
 
 // syntaxHighlight applies syntax highlighting to code content based on file extension.
 // Returns the original content if highlighting fails or language is not detected.
@@ -33,12 +78,9 @@ func syntaxHighlight(content, filePath string) string {
 	// Coalesce runs of identical token types for cleaner output
 	lexer = chroma.Coalesce(lexer)
 
-	// Use monokai style - works well on dark terminals
-	// For light terminals, we could use a different style, but monokai is readable on both
-	style := styles.Get("monokai")
-	if style == nil {
-		style = styles.Fallback
-	}
+	// Use custom style based on monokai with white text for regular code
+	// This changes lime/green function/class names to white for better readability
+	style := getCustomStyle()
 
 	// Use Terminal256 formatter for ANSI output
 	formatter := formatters.Get("terminal256")

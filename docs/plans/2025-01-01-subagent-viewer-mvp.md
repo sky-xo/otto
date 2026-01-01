@@ -1,7 +1,18 @@
 # Subagent Viewer MVP
 
-**Status:** Draft
+**Status:** In Progress
 **Date:** 2025-01-01
+**Branch:** `june`
+
+## Progress
+
+- [x] Decided on single app approach (viewer + future spawner in one binary)
+- [x] Renamed project: otto → june (for voice dictation compatibility)
+- [x] Preserved old orchestration experiment in `otto-v0` branch
+- [ ] Gut TUI to remove unneeded features
+- [ ] Write Claude Code file parser (`internal/claude/`)
+- [ ] Wire up new data source
+- [ ] Test with real subagent sessions
 
 ## Goal
 
@@ -119,6 +130,14 @@ internal/
     ...
 ```
 
+## Key Decisions
+
+1. **Single app, not two** - June will be both viewer and (later) multi-model spawner. Internally separated but one binary.
+
+2. **Future: Codex/Gemini spawning** - June will later add `june spawn codex` for multi-model orchestration. Viewer-only for MVP.
+
+3. **Superpowers plugin separate** - Problems 1-3 (skill amnesia, state amnesia, context cliff) will be addressed by a separate superpowers plugin, not June.
+
 ## Open Questions
 
 - How to detect "active" vs "done"? File modification time? Parse for completion message?
@@ -127,7 +146,7 @@ internal/
 
 ## Next Steps
 
-1. Write the Claude Code file parser (`internal/claude/`)
-2. Gut June's TUI to remove unneeded features
+1. Gut June's TUI to remove unneeded features (SQLite, messaging, spawning)
+2. Write the Claude Code file parser (`internal/claude/`)
 3. Wire up new data source
 4. Test with real subagent sessions

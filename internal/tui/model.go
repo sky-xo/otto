@@ -23,7 +23,7 @@ var (
 	toolStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
 	statusBarStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
 
-	focusedBorderColor   = lipgloss.Color("6") // Cyan
+	focusedBorderColor   = lipgloss.Color("#B4FA72") // Lime green
 	unfocusedBorderColor = lipgloss.Color("8") // Dim
 )
 

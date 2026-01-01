@@ -20,7 +20,8 @@ var (
 	activeStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("10")) // green
 	doneStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))  // gray
 	selectedBgStyle = lipgloss.NewStyle().Background(lipgloss.Color("8"))  // highlighted background
-	promptStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("6")).Bold(true).Background(lipgloss.Color("236")) // cyan on subtle dark gray
+	promptStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("6")).Bold(true) // cyan, bold
+	promptBarStyle  = lipgloss.NewStyle().Background(lipgloss.Color("6"))           // cyan background for left indicator
 	toolStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
 	statusBarStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
 
@@ -625,9 +626,16 @@ func formatTranscript(entries []claude.Entry, width int) string {
 			}
 			content := strings.TrimSpace(e.TextContent())
 			if content != "" {
-				// Style only the actual text, then add a reset to prevent background bleed
-				styled := promptStyle.Render("> " + content)
-				lines = append(lines, styled+"\033[0m")
+				// Use a colored bar on the left as visual indicator, then styled text
+				bar := promptBarStyle.Render(" ")
+				contentLines := strings.Split(content, "\n")
+				for i, line := range contentLines {
+					prefix := "> "
+					if i > 0 {
+						prefix = "  " // continuation lines
+					}
+					lines = append(lines, bar+" "+promptStyle.Render(prefix+strings.TrimRight(line, " ")))
+				}
 				lines = append(lines, "")
 			}
 		case "assistant":

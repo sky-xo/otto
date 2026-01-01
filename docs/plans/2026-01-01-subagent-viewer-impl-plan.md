@@ -1,12 +1,12 @@
 # Subagent Viewer MVP Implementation Plan
 
-**Status:** ✅ MVP COMPLETE (2025-01-01)
+**Status:** ✅ MVP COMPLETE (2026-01-01)
 
 > **For Claude:** Use superpowers:subagent-driven-development to implement this plan with parallel subagents where possible.
 
 **Goal:** Build a read-only TUI that displays Claude Code subagent sessions from `agent-*.jsonl` files.
 
-**Design Doc:** See `docs/plans/2025-01-01-subagent-viewer-mvp.md` for full context on what we're building and why.
+**Design Doc:** See `docs/plans/2026-01-01-subagent-viewer-mvp.md` for full context on what we're building and why.
 
 **Architecture:** New `internal/claude/` package reads Claude Code's project files. Existing TUI is gutted to remove SQLite/messaging/spawning, then rewired to use the new file-based data source.
 
@@ -366,8 +366,8 @@ func TestParseTranscript(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "agent-test.jsonl")
 
-	content := `{"type":"user","message":{"role":"user","content":"Hello"},"timestamp":"2025-01-01T12:00:00Z","agentId":"test"}
-{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Hi there"}]},"timestamp":"2025-01-01T12:00:01Z","agentId":"test"}`
+	content := `{"type":"user","message":{"role":"user","content":"Hello"},"timestamp":"2026-01-01T12:00:00Z","agentId":"test"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Hi there"}]},"timestamp":"2026-01-01T12:00:01Z","agentId":"test"}`
 
 	os.WriteFile(path, []byte(content), 0644)
 

@@ -1,7 +1,7 @@
 # Subagent Viewer MVP
 
 **Status:** Ready for Implementation
-**Date:** 2025-01-01
+**Date:** 2026-01-01
 **Branch:** `june`
 
 ## Goal
@@ -45,7 +45,7 @@ Each `agent-*.jsonl` file contains the full subagent conversation:
   },
   "agentId": "abc123",
   "sessionId": "parent-session-uuid",
-  "timestamp": "2025-01-01T12:00:00.000Z"
+  "timestamp": "2026-01-01T12:00:00.000Z"
 }
 ```
 

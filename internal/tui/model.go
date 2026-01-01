@@ -12,14 +12,18 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-const sidebarWidth = 20
+const sidebarWidth = 23
 
 var (
-	activeStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("10"))           // green
-	doneStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))            // gray
-	selectedStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("6")) // cyan
-	promptStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("6")).Bold(true)
-	toolStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
+	activeStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("10")) // green
+	doneStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))  // gray
+	selectedBgStyle = lipgloss.NewStyle().Background(lipgloss.Color("8")) // highlighted background
+	promptStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("6")).Bold(true)
+	toolStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
+	statusBarStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+
+	focusedBorderColor   = lipgloss.Color("6") // Cyan
+	unfocusedBorderColor = lipgloss.Color("8") // Dim
 )
 
 // Model is the TUI state.
@@ -84,14 +88,45 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					cmds = append(cmds, loadTranscriptCmd(*agent))
 				}
 			}
+		case "g":
+			m.viewport.GotoTop()
+		case "G":
+			m.viewport.GotoBottom()
+		}
+
+	case tea.MouseMsg:
+		leftWidth, _, _, _ := m.layout()
+		inLeftPanel := msg.X < leftWidth
+
+		// Handle scroll wheel in right panel
+		if !inLeftPanel && msg.Action == tea.MouseActionPress {
+			switch msg.Button {
+			case tea.MouseButtonWheelUp:
+				m.viewport.LineUp(3)
+				return m, nil
+			case tea.MouseButtonWheelDown:
+				m.viewport.LineDown(3)
+				return m, nil
+			}
+		}
+
+		// Handle clicks in left panel to select agents
+		if inLeftPanel && msg.Button == tea.MouseButtonLeft && msg.Action == tea.MouseActionRelease {
+			// Calculate which agent was clicked
+			// Subtract 1 for top border
+			clickedIndex := msg.Y - 1
+			if clickedIndex >= 0 && clickedIndex < len(m.agents) {
+				m.selectedIdx = clickedIndex
+				if agent := m.SelectedAgent(); agent != nil {
+					cmds = append(cmds, loadTranscriptCmd(*agent))
+				}
+			}
 		}
 
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		// Viewport takes remaining width minus sidebar, separator, and padding
-		m.viewport.Width = msg.Width - sidebarWidth - 3
-		m.viewport.Height = msg.Height - 3 // Account for header and separator
+		m.updateViewportDimensions()
 		m.updateViewport()
 
 	case tickMsg:
@@ -100,11 +135,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case agentsMsg:
 		prevLen := len(m.agents)
 		m.agents = msg
-		// On first load, ensure selectedIdx is 0 and load transcript
 		if prevLen == 0 && len(m.agents) > 0 {
 			m.selectedIdx = 0
 		}
-		// Load transcript for selected agent
 		if agent := m.SelectedAgent(); agent != nil {
 			cmds = append(cmds, loadTranscriptCmd(*agent))
 		}
@@ -112,6 +145,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case transcriptMsg:
 		m.transcripts[msg.agentID] = msg.entries
 		m.updateViewport()
+		// Scroll to bottom when transcript loads
+		m.viewport.GotoBottom()
 
 	case errMsg:
 		m.err = msg
@@ -127,6 +162,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
+func (m *Model) updateViewportDimensions() {
+	_, rightWidth, _, contentHeight := m.layout()
+	m.viewport.Width = rightWidth - 2  // Subtract borders
+	m.viewport.Height = contentHeight
+}
+
 func (m *Model) updateViewport() {
 	agent := m.SelectedAgent()
 	if agent == nil {
@@ -137,57 +178,72 @@ func (m *Model) updateViewport() {
 	m.viewport.SetContent(formatTranscript(entries))
 }
 
-// View renders the UI.
-func (m Model) View() string {
-	if m.err != nil {
-		return fmt.Sprintf("Error: %v\n\nPress q to quit.", m.err)
+// layout calculates panel dimensions
+func (m Model) layout() (leftWidth, rightWidth, panelHeight, contentHeight int) {
+	// Height: subtract status bar (1) + border top/bottom (2) = 3
+	panelHeight = m.height - 1
+	if panelHeight < 3 {
+		panelHeight = 3
+	}
+	contentHeight = panelHeight - 2
+
+	// Width: both panels have borders (2 chars each = 4 total)
+	availableWidth := m.width
+	leftWidth = sidebarWidth
+	minRight := 20
+
+	if availableWidth-leftWidth < minRight {
+		leftWidth = availableWidth - minRight
+		if leftWidth < 10 {
+			leftWidth = 10
+		}
+	}
+	rightWidth = availableWidth - leftWidth
+	if rightWidth < minRight {
+		rightWidth = minRight
 	}
 
-	// Handle zero dimensions (before first WindowSizeMsg)
-	if m.width < 40 || m.height < 10 {
-		return "Loading..."
-	}
-
-	// Calculate panel dimensions
-	contentWidth := m.width - sidebarWidth - 1
-	if contentWidth < 10 {
-		contentWidth = 10
-	}
-
-	// Left panel: agent list
-	sidebar := m.renderSidebar()
-
-	// Separator - build as lines to match sidebar/content panel line count
-	sepStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
-	var sepLines []string
-	for i := 0; i < m.height; i++ {
-		sepLines = append(sepLines, sepStyle.Render("│"))
-	}
-	separator := strings.Join(sepLines, "\n")
-
-	// Right panel: transcript
-	var title string
-	if agent := m.SelectedAgent(); agent != nil {
-		title = agent.ID
-	}
-
-	// Build content panel
-	content := m.renderContentPanel(title, contentWidth)
-
-	// Combine horizontally
-	return lipgloss.JoinHorizontal(lipgloss.Top, sidebar, separator, content)
+	return
 }
 
-func (m Model) renderSidebar() string {
+// View renders the UI.
+func (m Model) View() string {
+	if m.width == 0 || m.height == 0 {
+		return "Initializing..."
+	}
+
+	leftWidth, rightWidth, panelHeight, contentHeight := m.layout()
+
+	// Left panel: agent list
+	leftContent := m.renderSidebarContent(leftWidth-2, contentHeight)
+	leftPanel := renderPanelWithTitle("Subagents", leftContent, leftWidth, panelHeight, unfocusedBorderColor)
+
+	// Right panel: transcript
+	var rightTitle string
+	if agent := m.SelectedAgent(); agent != nil {
+		rightTitle = agent.ID
+	}
+	rightPanel := renderPanelWithTitle(rightTitle, m.viewport.View(), rightWidth, panelHeight, focusedBorderColor)
+
+	panels := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel)
+
+	// Status bar
+	status := statusBarStyle.Render("j/k: navigate | g/G: top/bottom | q: quit")
+
+	return lipgloss.JoinVertical(lipgloss.Left, panels, status)
+}
+
+func (m Model) renderSidebarContent(width, height int) string {
+	if len(m.agents) == 0 || height <= 0 {
+		return "No agents found"
+	}
+
 	var lines []string
-
-	// Header
-	headerStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("6"))
-	lines = append(lines, headerStyle.Render("Subagents"))
-	lines = append(lines, strings.Repeat("─", sidebarWidth-2))
-
-	// Agent list
 	for i, agent := range m.agents {
+		if len(lines) >= height {
+			break
+		}
+
 		var indicator string
 		if agent.IsActive() {
 			indicator = activeStyle.Render("●")
@@ -196,55 +252,113 @@ func (m Model) renderSidebar() string {
 		}
 
 		name := agent.ID
-		if len(name) > sidebarWidth-4 {
-			name = name[:sidebarWidth-4]
+		maxNameLen := width - 3 // indicator + space + name
+		if len(name) > maxNameLen {
+			name = name[:maxNameLen]
 		}
 
-		line := fmt.Sprintf("%s %s", indicator, name)
+		// Build the line content
+		lineContent := fmt.Sprintf("%s %s", indicator, name)
+
+		// For selected item, pad to full width and apply background
 		if i == m.selectedIdx {
-			line = selectedStyle.Render(line)
+			// Pad to full width so background spans entire row
+			visualWidth := lipgloss.Width(lineContent)
+			if visualWidth < width {
+				lineContent = lineContent + strings.Repeat(" ", width-visualWidth)
+			}
+			lineContent = selectedBgStyle.Render(lineContent)
 		}
-		lines = append(lines, line)
-	}
 
-	// Pad to height
-	for len(lines) < m.height {
-		lines = append(lines, "")
-	}
-
-	// Pad each line to sidebarWidth for proper horizontal joining
-	for i, line := range lines {
-		lineWidth := lipgloss.Width(line)
-		if lineWidth < sidebarWidth {
-			lines[i] = line + strings.Repeat(" ", sidebarWidth-lineWidth)
-		}
+		lines = append(lines, lineContent)
 	}
 
 	return strings.Join(lines, "\n")
 }
 
-func (m Model) renderContentPanel(title string, width int) string {
-	var lines []string
+// renderPanelWithTitle renders a panel with the title embedded in the top border
+// like: ╭─ Title ────────╮
+// This is copied from the old working TUI code.
+func renderPanelWithTitle(title, content string, width, height int, borderColor lipgloss.Color) string {
+	// Border characters (rounded)
+	topLeft := "╭"
+	topRight := "╮"
+	bottomLeft := "╰"
+	bottomRight := "╯"
+	horizontal := "─"
+	vertical := "│"
 
-	// Header with title
-	headerStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("6"))
-	if title != "" {
-		lines = append(lines, headerStyle.Render(title))
+	borderStyle := lipgloss.NewStyle().Foreground(borderColor)
+	titleStyle := lipgloss.NewStyle().Foreground(borderColor).Bold(true)
+
+	// Content width is width - 2 (for left and right borders)
+	contentWidth := width - 2
+	if contentWidth < 0 {
+		contentWidth = 0
+	}
+
+	// Build top border with embedded title
+	var topBorder string
+	if title == "" {
+		topBorder = borderStyle.Render(topLeft + strings.Repeat(horizontal, contentWidth) + topRight)
 	} else {
-		lines = append(lines, headerStyle.Render("Transcript"))
+		titleText := " " + title + " "
+		titleLen := len([]rune(titleText))
+
+		remainingWidth := contentWidth - titleLen
+		leftDashes := 1
+		rightDashes := remainingWidth - leftDashes
+		if rightDashes < 0 {
+			rightDashes = 0
+		}
+
+		topBorder = borderStyle.Render(topLeft+strings.Repeat(horizontal, leftDashes)) +
+			titleStyle.Render(titleText) +
+			borderStyle.Render(strings.Repeat(horizontal, rightDashes)+topRight)
 	}
-	lines = append(lines, strings.Repeat("─", width-2))
 
-	// Viewport content
-	viewportLines := strings.Split(m.viewport.View(), "\n")
-	lines = append(lines, viewportLines...)
+	// Build bottom border
+	bottomBorder := borderStyle.Render(bottomLeft + strings.Repeat(horizontal, contentWidth) + bottomRight)
 
-	// Pad to height
-	for len(lines) < m.height {
-		lines = append(lines, "")
+	// Split content into lines and pad/truncate to fit
+	lines := strings.Split(content, "\n")
+	contentLines := height - 2 // Subtract top and bottom borders
+	if contentLines < 0 {
+		contentLines = 0
 	}
 
-	return strings.Join(lines, "\n")
+	// Render middle lines with side borders
+	var middleLines []string
+	for i := 0; i < contentLines; i++ {
+		var line string
+		if i < len(lines) {
+			line = lines[i]
+		}
+		// Use lipgloss.Width for visual width (handles ANSI codes)
+		visualWidth := lipgloss.Width(line)
+		if visualWidth < contentWidth {
+			line = line + strings.Repeat(" ", contentWidth-visualWidth)
+		} else if visualWidth > contentWidth {
+			// Truncate line to fit
+			runes := []rune(line)
+			for len(runes) > 0 && lipgloss.Width(string(runes)) > contentWidth {
+				runes = runes[:len(runes)-1]
+			}
+			line = string(runes)
+			// Pad if truncation left us short
+			if lipgloss.Width(line) < contentWidth {
+				line = line + strings.Repeat(" ", contentWidth-lipgloss.Width(line))
+			}
+		}
+		middleLines = append(middleLines, borderStyle.Render(vertical)+line+borderStyle.Render(vertical))
+	}
+
+	// Join all parts
+	allLines := []string{topBorder}
+	allLines = append(allLines, middleLines...)
+	allLines = append(allLines, bottomBorder)
+
+	return strings.Join(allLines, "\n")
 }
 
 func formatTranscript(entries []claude.Entry) string {
@@ -254,12 +368,10 @@ func formatTranscript(entries []claude.Entry) string {
 		switch e.Type {
 		case "user":
 			if e.IsToolResult() {
-				// Skip tool results in display (too verbose)
 				continue
 			}
 			content := e.TextContent()
 			if content != "" {
-				// Show first 200 chars of prompt
 				if len(content) > 200 {
 					content = content[:200] + "..."
 				}
@@ -270,7 +382,6 @@ func formatTranscript(entries []claude.Entry) string {
 			if tool := e.ToolName(); tool != "" {
 				lines = append(lines, toolStyle.Render("  "+tool))
 			} else if text := e.TextContent(); text != "" {
-				// Show first 500 chars of response
 				if len(text) > 500 {
 					text = text[:500] + "..."
 				}

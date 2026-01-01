@@ -26,11 +26,11 @@ The core viewer is working. See `docs/plans/2026-01-01-subagent-viewer-mvp.md` f
 
 ## Next Up: Diff Rendering Improvements
 
-### Batch 1: Display polish
-- [ ] Line numbers on each diff line
-- [ ] Background tint (green for additions, red for deletions)
-- [ ] Summary line (`└ Added N lines`)
-- [ ] Header format: `Update(path)` instead of `Edit: path`
+### Batch 1: Display polish ✓
+- [x] Line numbers on each diff line
+- [x] Background tint (green for additions, red for deletions)
+- [x] Summary line (`└ Added N lines`)
+- [x] Header format: `Update(path)` instead of `Edit: path`
 
 ### Batch 2: Context and hunks
 - [ ] Context lines - show unchanged surrounding lines (dimmed)

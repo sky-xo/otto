@@ -623,6 +623,8 @@ func formatTranscript(entries []claude.Entry, width int) string {
 	var lines []string
 	lines = append(lines, "") // top padding
 
+	lastWasText := false // track if previous entry was text (for spacing before tools)
+
 	for _, e := range entries {
 		switch e.Type {
 		case "user":
@@ -638,14 +640,21 @@ func formatTranscript(entries []claude.Entry, width int) string {
 					lines = append(lines, bar+promptStyle.Render(" "+strings.TrimRight(line, " ")))
 				}
 				lines = append(lines, "")
+				lastWasText = true
 			}
 		case "assistant":
 			if tool := e.ToolName(); tool != "" {
+				// Add blank line before tools if previous was text
+				if lastWasText {
+					lines = append(lines, "")
+				}
 				toolLines := formatToolUse(e, tool, width)
 				lines = append(lines, toolLines...)
+				lastWasText = false
 			} else if text := e.TextContent(); text != "" {
 				rendered := renderMarkdown(text, width)
 				lines = append(lines, rendered)
+				lastWasText = true
 			}
 		}
 	}

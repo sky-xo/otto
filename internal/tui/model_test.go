@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"june/internal/claude"
+
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 func TestFormatTimestamp(t *testing.T) {
@@ -668,5 +670,95 @@ func TestFormatToolUse_TodoWriteEmpty(t *testing.T) {
 	// Should only have one line (the header)
 	if len(result) != 1 {
 		t.Errorf("Expected 1 line for empty todo list, got: %d", len(result))
+	}
+}
+
+func TestUpdate_KKeyAtTopBoundary_DoesNotScrollContent(t *testing.T) {
+	// Test that when K is pressed at top of sidebar, it doesn't scroll content panel
+	agents := createTestAgents(5)
+	m := createModelWithAgents(agents, 80, 40)
+	m.focusedPanel = panelLeft
+	m.selectedIdx = 0 // Already at top
+
+	// Set up viewport with some content that can be scrolled
+	m.viewport.SetContent("Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6\nLine 7\nLine 8\nLine 9\nLine 10")
+	m.viewport.Height = 5
+	m.viewport.GotoBottom() // Scroll to bottom
+	initialYOffset := m.viewport.YOffset
+
+	// Press K while at top of sidebar
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}}
+	newModel, _ := m.Update(msg)
+	updatedModel := newModel.(Model)
+
+	// Viewport offset should NOT have changed
+	if updatedModel.viewport.YOffset != initialYOffset {
+		t.Errorf("Viewport should not scroll when K pressed at sidebar top. YOffset was %d, now %d",
+			initialYOffset, updatedModel.viewport.YOffset)
+	}
+
+	// Selection should still be at 0
+	if updatedModel.selectedIdx != 0 {
+		t.Errorf("Selection should remain at 0 when K pressed at top, got %d", updatedModel.selectedIdx)
+	}
+}
+
+func TestUpdate_JKeyAtBottomBoundary_DoesNotScrollContent(t *testing.T) {
+	// Test that when J is pressed at bottom of sidebar, it doesn't scroll content panel
+	agents := createTestAgents(5)
+	m := createModelWithAgents(agents, 80, 40)
+	m.focusedPanel = panelLeft
+	m.selectedIdx = len(agents) - 1 // Already at bottom
+
+	// Set up viewport with some content that can be scrolled
+	m.viewport.SetContent("Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6\nLine 7\nLine 8\nLine 9\nLine 10")
+	m.viewport.Height = 5
+	m.viewport.GotoTop() // Scroll to top
+	initialYOffset := m.viewport.YOffset
+
+	// Press J while at bottom of sidebar
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}}
+	newModel, _ := m.Update(msg)
+	updatedModel := newModel.(Model)
+
+	// Viewport offset should NOT have changed
+	if updatedModel.viewport.YOffset != initialYOffset {
+		t.Errorf("Viewport should not scroll when J pressed at sidebar bottom. YOffset was %d, now %d",
+			initialYOffset, updatedModel.viewport.YOffset)
+	}
+
+	// Selection should still be at bottom
+	if updatedModel.selectedIdx != len(agents)-1 {
+		t.Errorf("Selection should remain at bottom when J pressed at bottom, got %d", updatedModel.selectedIdx)
+	}
+}
+
+func TestUpdate_KKeyInMiddleOfSidebar_DoesNotScrollContent(t *testing.T) {
+	// Test that when K is pressed in middle of sidebar, it navigates sidebar but doesn't scroll content
+	agents := createTestAgents(5)
+	m := createModelWithAgents(agents, 80, 40)
+	m.focusedPanel = panelLeft
+	m.selectedIdx = 2 // In the middle
+
+	// Set up viewport with some content that can be scrolled
+	m.viewport.SetContent("Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6\nLine 7\nLine 8\nLine 9\nLine 10")
+	m.viewport.Height = 5
+	m.viewport.GotoBottom() // Scroll to bottom
+	initialYOffset := m.viewport.YOffset
+
+	// Press K in middle of sidebar
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}}
+	newModel, _ := m.Update(msg)
+	updatedModel := newModel.(Model)
+
+	// Viewport offset should NOT have changed
+	if updatedModel.viewport.YOffset != initialYOffset {
+		t.Errorf("Viewport should not scroll when K pressed in sidebar. YOffset was %d, now %d",
+			initialYOffset, updatedModel.viewport.YOffset)
+	}
+
+	// Selection should have moved up
+	if updatedModel.selectedIdx != 1 {
+		t.Errorf("Selection should have moved up from 2 to 1, got %d", updatedModel.selectedIdx)
 	}
 }

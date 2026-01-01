@@ -172,6 +172,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						cmds = append(cmds, loadTranscriptCmd(*agent))
 					}
 				}
+				// Return early to prevent viewport from also handling this key
+				return m, tea.Batch(cmds...)
 			} else {
 				// Scroll transcript
 				m.viewport.LineUp(1)
@@ -186,6 +188,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						cmds = append(cmds, loadTranscriptCmd(*agent))
 					}
 				}
+				// Return early to prevent viewport from also handling this key
+				return m, tea.Batch(cmds...)
 			} else {
 				// Scroll transcript
 				m.viewport.LineDown(1)

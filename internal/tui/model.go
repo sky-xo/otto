@@ -328,11 +328,40 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, tickCmd(), scanAgentsCmd(m.projectDir))
 
 	case agentsMsg:
+		// Preserve selection by agent ID, not index position
+		var selectedID string
+		if m.selectedIdx >= 0 && m.selectedIdx < len(m.agents) {
+			selectedID = m.agents[m.selectedIdx].ID
+		}
+
 		prevLen := len(m.agents)
 		m.agents = msg
+
 		if prevLen == 0 && len(m.agents) > 0 {
+			// First agents appeared, select the first one
 			m.selectedIdx = 0
+		} else if selectedID != "" {
+			// Find the previously selected agent in the new list
+			found := false
+			for i, agent := range m.agents {
+				if agent.ID == selectedID {
+					m.selectedIdx = i
+					found = true
+					break
+				}
+			}
+			if !found {
+				// Agent no longer exists, keep selection at valid index
+				if m.selectedIdx >= len(m.agents) {
+					m.selectedIdx = len(m.agents) - 1
+				}
+				if m.selectedIdx < 0 {
+					m.selectedIdx = 0
+				}
+			}
 		}
+
+		m.ensureSelectedVisible()
 		if agent := m.SelectedAgent(); agent != nil {
 			cmds = append(cmds, loadTranscriptCmd(*agent))
 		}

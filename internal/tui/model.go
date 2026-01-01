@@ -180,7 +180,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "u":
 			if m.focusedPanel == panelLeft {
-				// Page up in agent list - selection jumps to top of visible area
+				// Page up - vim-style until hitting top, then jump to first
+				visualRow := m.selectedIdx - m.sidebarOffset
+				oldOffset := m.sidebarOffset
 				_, _, _, contentHeight := m.layout()
 				pageSize := contentHeight / 2
 				if pageSize < 1 {
@@ -190,8 +192,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if m.sidebarOffset < 0 {
 					m.sidebarOffset = 0
 				}
-				// Selection jumps to top of visible area
-				m.selectedIdx = m.sidebarOffset
+				if m.sidebarOffset == 0 && oldOffset == 0 {
+					// Already at top, move selection to first item
+					m.selectedIdx = 0
+				} else {
+					// Keep selection at same visual row
+					m.selectedIdx = m.sidebarOffset + visualRow
+					if m.selectedIdx < 0 {
+						m.selectedIdx = 0
+					}
+				}
 				if agent := m.SelectedAgent(); agent != nil {
 					cmds = append(cmds, loadTranscriptCmd(*agent))
 				}
@@ -201,7 +211,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "d":
 			if m.focusedPanel == panelLeft {
-				// Page down in agent list - selection jumps to bottom of visible area
+				// Page down - vim-style until hitting bottom, then jump to last
+				visualRow := m.selectedIdx - m.sidebarOffset
+				oldOffset := m.sidebarOffset
 				_, _, _, contentHeight := m.layout()
 				pageSize := contentHeight / 2
 				if pageSize < 1 {
@@ -215,11 +227,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if m.sidebarOffset > maxOffset {
 					m.sidebarOffset = maxOffset
 				}
-				// Selection jumps to bottom of visible area
-				visibleLines := m.sidebarVisibleLines()
-				m.selectedIdx = m.sidebarOffset + visibleLines - 1
-				if m.selectedIdx >= len(m.agents) {
+				if m.sidebarOffset == maxOffset && oldOffset == maxOffset {
+					// Already at bottom, move selection to last item
 					m.selectedIdx = len(m.agents) - 1
+				} else {
+					// Keep selection at same visual row
+					m.selectedIdx = m.sidebarOffset + visualRow
+					if m.selectedIdx >= len(m.agents) {
+						m.selectedIdx = len(m.agents) - 1
+					}
 				}
 				if agent := m.SelectedAgent(); agent != nil {
 					cmds = append(cmds, loadTranscriptCmd(*agent))

@@ -89,14 +89,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.viewport.Width = msg.Width - sidebarWidth - 4
-		m.viewport.Height = msg.Height - 4
+		// Viewport takes remaining width minus sidebar, separator, and padding
+		m.viewport.Width = msg.Width - sidebarWidth - 3
+		m.viewport.Height = msg.Height - 3 // Account for header and separator
+		m.updateViewport()
 
 	case tickMsg:
 		cmds = append(cmds, tickCmd(), scanAgentsCmd(m.projectDir))
 
 	case agentsMsg:
+		prevLen := len(m.agents)
 		m.agents = msg
+		// On first load, ensure selectedIdx is 0 and load transcript
+		if prevLen == 0 && len(m.agents) > 0 {
+			m.selectedIdx = 0
+		}
 		// Load transcript for selected agent
 		if agent := m.SelectedAgent(); agent != nil {
 			cmds = append(cmds, loadTranscriptCmd(*agent))
@@ -136,28 +143,46 @@ func (m Model) View() string {
 		return fmt.Sprintf("Error: %v\n\nPress q to quit.", m.err)
 	}
 
-	// Calculate panel dimensions
-	sidebarHeight := m.height
-	contentWidth := m.width - sidebarWidth - 1
-
-	// Left panel: agent list with border
-	sidebarContent := m.renderSidebarContent()
-	sidebar := renderPanelWithTitle("Subagents", sidebarContent, sidebarWidth, sidebarHeight, false)
-
-	// Right panel: transcript with border
-	var contentTitle string
-	if agent := m.SelectedAgent(); agent != nil {
-		contentTitle = agent.ID
+	// Handle zero dimensions (before first WindowSizeMsg)
+	if m.width < 40 || m.height < 10 {
+		return "Loading..."
 	}
-	content := renderPanelWithTitle(contentTitle, m.viewport.View(), contentWidth, sidebarHeight, true)
+
+	// Calculate panel dimensions
+	contentWidth := m.width - sidebarWidth - 1
+	if contentWidth < 10 {
+		contentWidth = 10
+	}
+
+	// Left panel: agent list
+	sidebar := m.renderSidebar()
+
+	// Separator
+	sepStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+	separator := strings.Repeat(sepStyle.Render("│")+"\n", m.height)
+
+	// Right panel: transcript
+	var title string
+	if agent := m.SelectedAgent(); agent != nil {
+		title = agent.ID
+	}
+
+	// Build content panel
+	content := m.renderContentPanel(title, contentWidth)
 
 	// Combine horizontally
-	return lipgloss.JoinHorizontal(lipgloss.Top, sidebar, content)
+	return lipgloss.JoinHorizontal(lipgloss.Top, sidebar, separator, content)
 }
 
-func (m Model) renderSidebarContent() string {
+func (m Model) renderSidebar() string {
 	var lines []string
 
+	// Header
+	headerStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("6"))
+	lines = append(lines, headerStyle.Render("Subagents"))
+	lines = append(lines, strings.Repeat("─", sidebarWidth-2))
+
+	// Agent list
 	for i, agent := range m.agents {
 		var indicator string
 		if agent.IsActive() {
@@ -167,8 +192,8 @@ func (m Model) renderSidebarContent() string {
 		}
 
 		name := agent.ID
-		if len(name) > sidebarWidth-6 {
-			name = name[:sidebarWidth-6]
+		if len(name) > sidebarWidth-4 {
+			name = name[:sidebarWidth-4]
 		}
 
 		line := fmt.Sprintf("%s %s", indicator, name)
@@ -178,72 +203,36 @@ func (m Model) renderSidebarContent() string {
 		lines = append(lines, line)
 	}
 
+	// Pad to height
+	for len(lines) < m.height {
+		lines = append(lines, "")
+	}
+
 	return strings.Join(lines, "\n")
 }
 
-// renderPanelWithTitle renders a panel with the title embedded in the top border
-// like: ╭─ Title ────────╮
-func renderPanelWithTitle(title, content string, width, height int, focused bool) string {
-	borderColor := lipgloss.Color("8") // dim
-	if focused {
-		borderColor = lipgloss.Color("6") // cyan
-	}
+func (m Model) renderContentPanel(title string, width int) string {
+	var lines []string
 
-	borderStyle := lipgloss.NewStyle().Foreground(borderColor)
-	titleStyle := lipgloss.NewStyle().Foreground(borderColor).Bold(true)
-
-	// Border characters (rounded)
-	topLeft := "╭"
-	topRight := "╮"
-	bottomLeft := "╰"
-	bottomRight := "╯"
-	horizontal := "─"
-	vertical := "│"
-
-	contentWidth := width - 2
-
-	// Build top border with embedded title
-	var topBorder string
-	if title == "" {
-		topBorder = borderStyle.Render(topLeft + strings.Repeat(horizontal, contentWidth) + topRight)
+	// Header with title
+	headerStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("6"))
+	if title != "" {
+		lines = append(lines, headerStyle.Render(title))
 	} else {
-		titleText := " " + title + " "
-		remainingWidth := contentWidth - len(titleText) - 1
-		if remainingWidth < 0 {
-			remainingWidth = 0
-		}
-		topBorder = borderStyle.Render(topLeft+horizontal) + titleStyle.Render(titleText) + borderStyle.Render(strings.Repeat(horizontal, remainingWidth)+topRight)
+		lines = append(lines, headerStyle.Render("Transcript"))
+	}
+	lines = append(lines, strings.Repeat("─", width-2))
+
+	// Viewport content
+	viewportLines := strings.Split(m.viewport.View(), "\n")
+	lines = append(lines, viewportLines...)
+
+	// Pad to height
+	for len(lines) < m.height {
+		lines = append(lines, "")
 	}
 
-	// Split content into lines and pad/truncate to fit
-	contentLines := strings.Split(content, "\n")
-	var paddedLines []string
-	for i := 0; i < height-2; i++ {
-		var line string
-		if i < len(contentLines) {
-			line = contentLines[i]
-		}
-		// Truncate if too long
-		if len(line) > contentWidth {
-			line = line[:contentWidth-1] + "…"
-		}
-		// Pad to width
-		padding := contentWidth - len(line)
-		if padding < 0 {
-			padding = 0
-		}
-		paddedLines = append(paddedLines, borderStyle.Render(vertical)+line+strings.Repeat(" ", padding)+borderStyle.Render(vertical))
-	}
-
-	// Build bottom border
-	bottomBorder := borderStyle.Render(bottomLeft + strings.Repeat(horizontal, contentWidth) + bottomRight)
-
-	// Combine all parts
-	result := topBorder + "\n"
-	result += strings.Join(paddedLines, "\n") + "\n"
-	result += bottomBorder
-
-	return result
+	return strings.Join(lines, "\n")
 }
 
 func formatTranscript(entries []claude.Entry) string {

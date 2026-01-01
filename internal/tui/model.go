@@ -4,6 +4,7 @@ package tui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"june/internal/claude"
 
@@ -256,7 +257,7 @@ func (m Model) View() string {
 	// Right panel: transcript
 	var rightTitle string
 	if agent := m.SelectedAgent(); agent != nil {
-		rightTitle = agent.ID
+		rightTitle = fmt.Sprintf("%s | %s", agent.ID, formatTimestamp(agent.LastMod))
 	}
 	rightPanel := renderPanelWithTitle(rightTitle, m.viewport.View(), rightWidth, panelHeight, rightBorderColor)
 
@@ -429,4 +430,34 @@ func formatTranscript(entries []claude.Entry) string {
 		}
 	}
 	return strings.Join(lines, "\n")
+}
+
+// formatTimestamp formats a timestamp intelligently based on how recent it is:
+// - Today: "5:15:24 PM"
+// - Yesterday: "Yesterday @ 11:45:23 PM"
+// - This week: "Tue @ 5:30:21 PM"
+// - Older: "5 Oct @ 11:30:25 AM"
+func formatTimestamp(t time.Time) string {
+	now := time.Now()
+	timeStr := t.Format("3:04:05 PM")
+
+	// Check if same day
+	if t.Year() == now.Year() && t.YearDay() == now.YearDay() {
+		return timeStr
+	}
+
+	// Check if yesterday
+	yesterday := now.AddDate(0, 0, -1)
+	if t.Year() == yesterday.Year() && t.YearDay() == yesterday.YearDay() {
+		return "Yesterday @ " + timeStr
+	}
+
+	// Check if within the last 7 days
+	weekAgo := now.AddDate(0, 0, -7)
+	if t.After(weekAgo) {
+		return t.Format("Mon") + " @ " + timeStr
+	}
+
+	// Older - show date without year
+	return t.Format("2 Jan") + " @ " + timeStr
 }

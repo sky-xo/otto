@@ -617,6 +617,7 @@ func renderPanelWithTitle(title, content string, width, height int, borderColor 
 
 func formatTranscript(entries []claude.Entry, width int) string {
 	var lines []string
+	lines = append(lines, "") // top padding
 
 	for _, e := range entries {
 		switch e.Type {

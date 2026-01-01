@@ -921,9 +921,10 @@ func formatDiff(oldStr, newStr string, maxLen int, filePath string) []string {
 				// Apply background to prefix, then append highlighted content
 				// Note: diffDelStyle applies both fg and bg; we use bg-only for prefix when highlighting
 				if filePath != "" && highlightedContent != content {
-					// Highlighting was applied - use background-only style for structure
+					// Highlighting was applied - wrap entire line (prefix + highlighted content) in background
+					// The chroma ANSI codes set foreground colors; lipgloss background works with them
 					bgStyle := lipgloss.NewStyle().Background(lipgloss.AdaptiveColor{Light: "#FFEBEE", Dark: "#3D1B1B"})
-					styled = bgStyle.Render("    "+prefix) + highlightedContent
+					styled = bgStyle.Render("    " + prefix + highlightedContent)
 				} else {
 					display = prefix + content
 					if maxLen > 0 && len(display) > maxLen {
@@ -940,9 +941,10 @@ func formatDiff(oldStr, newStr string, maxLen int, filePath string) []string {
 				}
 				// Apply background to prefix, then append highlighted content
 				if filePath != "" && highlightedContent != content {
-					// Highlighting was applied - use background-only style for structure
+					// Highlighting was applied - wrap entire line (prefix + highlighted content) in background
+					// The chroma ANSI codes set foreground colors; lipgloss background works with them
 					bgStyle := lipgloss.NewStyle().Background(lipgloss.AdaptiveColor{Light: "#E8F5E9", Dark: "#1B3D1B"})
-					styled = bgStyle.Render("    "+prefix) + highlightedContent
+					styled = bgStyle.Render("    " + prefix + highlightedContent)
 				} else {
 					display = prefix + content
 					if maxLen > 0 && len(display) > maxLen {

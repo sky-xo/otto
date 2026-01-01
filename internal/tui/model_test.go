@@ -520,7 +520,7 @@ func TestFormatDiffSummary_IgnoresEmptyLines(t *testing.T) {
 
 func TestFormatDiff_HasLineNumbers(t *testing.T) {
 	// Test that diff lines have line numbers
-	result := formatDiff("old line", "new line", 80)
+	result := formatDiff("old line", "new line", 80, "")
 	output := strings.Join(result, "\n")
 	stripped := stripANSI(output)
 
@@ -535,7 +535,7 @@ func TestFormatDiff_HasLineNumbers(t *testing.T) {
 
 func TestFormatDiff_MultipleLineNumbers(t *testing.T) {
 	// Test line numbers increment correctly
-	result := formatDiff("line1\nline2", "newA\nnewB\nnewC", 80)
+	result := formatDiff("line1\nline2", "newA\nnewB\nnewC", 80, "")
 	output := strings.Join(result, "\n")
 	stripped := stripANSI(output)
 
@@ -561,7 +561,7 @@ func TestFormatDiff_MultipleLineNumbers(t *testing.T) {
 
 func TestFormatDiff_SkipsEmptyLinesButCountsThem(t *testing.T) {
 	// Empty lines should be skipped in output but counted for line numbers
-	result := formatDiff("line1\n\nline3", "", 80)
+	result := formatDiff("line1\n\nline3", "", 80, "")
 	output := strings.Join(result, "\n")
 	stripped := stripANSI(output)
 

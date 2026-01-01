@@ -205,7 +205,7 @@ func TestFormatDiff_UnifiedOutput(t *testing.T) {
 	// Test that the unified diff shows context and changes together
 	oldStr := "line1\nline2\nold\nline4\nline5"
 	newStr := "line1\nline2\nnew\nline4\nline5"
-	result := formatDiff(oldStr, newStr, 80)
+	result := formatDiff(oldStr, newStr, 80, "")
 	output := strings.Join(result, "\n")
 	stripped := stripANSI(output)
 
@@ -230,7 +230,7 @@ func TestFormatDiff_ContextLinesAreDim(t *testing.T) {
 	// Context lines should not have +/- markers
 	oldStr := "context1\nold\ncontext2"
 	newStr := "context1\nnew\ncontext2"
-	result := formatDiff(oldStr, newStr, 80)
+	result := formatDiff(oldStr, newStr, 80, "")
 	output := strings.Join(result, "\n")
 	stripped := stripANSI(output)
 
@@ -258,7 +258,7 @@ func TestFormatDiff_HunkSeparator(t *testing.T) {
 		}
 	}
 
-	result := formatDiff(strings.Join(oldLines, "\n"), strings.Join(newLines, "\n"), 80)
+	result := formatDiff(strings.Join(oldLines, "\n"), strings.Join(newLines, "\n"), 80, "")
 	output := strings.Join(result, "\n")
 	stripped := stripANSI(output)
 
@@ -276,7 +276,7 @@ func TestFormatDiff_TruncatesLongOutput(t *testing.T) {
 		newLines = append(newLines, "new"+string(rune('A'+i%26)))
 	}
 
-	result := formatDiff(strings.Join(oldLines, "\n"), strings.Join(newLines, "\n"), 80)
+	result := formatDiff(strings.Join(oldLines, "\n"), strings.Join(newLines, "\n"), 80, "")
 
 	// Should have reasonable number of lines (maxDiffLines + truncation message)
 	if len(result) > 20 {
@@ -291,7 +291,7 @@ func TestFormatDiff_TruncatesLongOutput(t *testing.T) {
 }
 
 func TestFormatDiff_EmptyOld(t *testing.T) {
-	result := formatDiff("", "new line", 80)
+	result := formatDiff("", "new line", 80, "")
 
 	if len(result) == 0 {
 		t.Error("Expected output for pure insertion")
@@ -305,7 +305,7 @@ func TestFormatDiff_EmptyOld(t *testing.T) {
 }
 
 func TestFormatDiff_EmptyNew(t *testing.T) {
-	result := formatDiff("old line", "", 80)
+	result := formatDiff("old line", "", 80, "")
 
 	if len(result) == 0 {
 		t.Error("Expected output for pure deletion")
@@ -319,10 +319,47 @@ func TestFormatDiff_EmptyNew(t *testing.T) {
 }
 
 func TestFormatDiff_BothEmpty(t *testing.T) {
-	result := formatDiff("", "", 80)
+	result := formatDiff("", "", 80, "")
 
 	// Empty to empty should produce no diff
 	if len(result) != 0 {
 		t.Errorf("Expected empty result for empty-to-empty diff, got %d lines", len(result))
+	}
+}
+
+func TestFormatDiff_WithSyntaxHighlighting(t *testing.T) {
+	// Test that syntax highlighting is applied for known file types
+	oldStr := "func main() {"
+	newStr := "func main() {\n\tfmt.Println(\"hello\")"
+	result := formatDiff(oldStr, newStr, 80, "test.go")
+
+	if len(result) == 0 {
+		t.Error("Expected output for Go code diff")
+	}
+
+	// The output should contain the code content (exact ANSI codes will vary)
+	output := strings.Join(result, "\n")
+	if !strings.Contains(output, "func") {
+		t.Errorf("Expected 'func' in output, got: %s", output)
+	}
+	if !strings.Contains(output, "Println") {
+		t.Errorf("Expected 'Println' in output, got: %s", output)
+	}
+}
+
+func TestFormatDiff_NoHighlightingForUnknownType(t *testing.T) {
+	// Test that unknown file types don't cause errors
+	oldStr := "some text"
+	newStr := "different text"
+	result := formatDiff(oldStr, newStr, 80, "file.unknownext")
+
+	if len(result) == 0 {
+		t.Error("Expected output for unknown file type diff")
+	}
+
+	output := strings.Join(result, "\n")
+	stripped := stripANSI(output)
+	if !strings.Contains(stripped, "some text") || !strings.Contains(stripped, "different text") {
+		t.Errorf("Expected content in output, got: %s", stripped)
 	}
 }

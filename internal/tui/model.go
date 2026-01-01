@@ -769,8 +769,8 @@ func formatToolUse(e claude.Entry, toolName string, width int) []string {
 		summaryLine := formatDiffSummary(oldStr, newStr)
 		result = append(result, toolDimStyle.Render("    "+summaryLine))
 
-		// Show diff
-		diffLines := formatDiff(oldStr, newStr, maxLen)
+		// Show diff with syntax highlighting based on file type
+		diffLines := formatDiff(oldStr, newStr, maxLen, filePath)
 		result = append(result, diffLines...)
 		return result
 	}
@@ -848,7 +848,8 @@ func formatDiffSummary(oldStr, newStr string) string {
 
 // formatDiff renders old/new strings as a unified diff with context lines and hunks.
 // Shows unchanged context lines around changes, with "..." separators between distant hunks.
-func formatDiff(oldStr, newStr string, maxLen int) []string {
+// If filePath is provided, syntax highlighting is applied to added/deleted lines.
+func formatDiff(oldStr, newStr string, maxLen int, filePath string) []string {
 	var result []string
 
 	// Configuration
@@ -904,26 +905,51 @@ func formatDiff(oldStr, newStr string, maxLen int) []string {
 
 			switch d.Op {
 			case DiffEqual:
-				// Context line: show line number, dim style
+				// Context line: show line number, dim style (no syntax highlighting)
 				display = fmt.Sprintf("%d   %s", lineNum, content)
 				if maxLen > 0 && len(display) > maxLen {
 					display = display[:maxLen-3] + "..."
 				}
 				styled = toolDimStyle.Render("    " + display)
 			case DiffDelete:
-				// Deletion: show with "-" marker
-				display = fmt.Sprintf("%d - %s", lineNum, content)
-				if maxLen > 0 && len(display) > maxLen {
-					display = display[:maxLen-3] + "..."
+				// Deletion: show with "-" marker, apply syntax highlighting
+				prefix := fmt.Sprintf("%d - ", lineNum)
+				highlightedContent := content
+				if filePath != "" {
+					highlightedContent = highlightLine(content, filePath)
 				}
-				styled = diffDelStyle.Render("    " + display)
+				// Apply background to prefix, then append highlighted content
+				// Note: diffDelStyle applies both fg and bg; we use bg-only for prefix when highlighting
+				if filePath != "" && highlightedContent != content {
+					// Highlighting was applied - use background-only style for structure
+					bgStyle := lipgloss.NewStyle().Background(lipgloss.AdaptiveColor{Light: "#FFEBEE", Dark: "#3D1B1B"})
+					styled = bgStyle.Render("    "+prefix) + highlightedContent
+				} else {
+					display = prefix + content
+					if maxLen > 0 && len(display) > maxLen {
+						display = display[:maxLen-3] + "..."
+					}
+					styled = diffDelStyle.Render("    " + display)
+				}
 			case DiffInsert:
-				// Addition: show with "+" marker
-				display = fmt.Sprintf("%d + %s", lineNum, content)
-				if maxLen > 0 && len(display) > maxLen {
-					display = display[:maxLen-3] + "..."
+				// Addition: show with "+" marker, apply syntax highlighting
+				prefix := fmt.Sprintf("%d + ", lineNum)
+				highlightedContent := content
+				if filePath != "" {
+					highlightedContent = highlightLine(content, filePath)
 				}
-				styled = diffAddStyle.Render("    " + display)
+				// Apply background to prefix, then append highlighted content
+				if filePath != "" && highlightedContent != content {
+					// Highlighting was applied - use background-only style for structure
+					bgStyle := lipgloss.NewStyle().Background(lipgloss.AdaptiveColor{Light: "#E8F5E9", Dark: "#1B3D1B"})
+					styled = bgStyle.Render("    "+prefix) + highlightedContent
+				} else {
+					display = prefix + content
+					if maxLen > 0 && len(display) > maxLen {
+						display = display[:maxLen-3] + "..."
+					}
+					styled = diffAddStyle.Render("    " + display)
+				}
 			}
 
 			result = append(result, styled)

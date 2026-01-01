@@ -70,6 +70,7 @@ func (a Agent) IsActive() bool {
 
 // ScanAgents finds all agent-*.jsonl files in a directory.
 // Returns agents sorted by: 1) active first, 2) active by ID (stable), inactive by LastMod (recent first).
+// It uses a description cache to look up short descriptions from parent sessions.
 func ScanAgents(dir string) ([]Agent, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -78,6 +79,11 @@ func ScanAgents(dir string) ([]Agent, error) {
 		}
 		return nil, err
 	}
+
+	// Load description cache and scan session files for any new descriptions
+	cache := LoadDescriptionCache()
+	originalSize := len(cache)
+	cache = ScanSessionFilesForDescriptions(dir, cache)
 
 	var agents []Agent
 	for _, e := range entries {
@@ -98,12 +104,23 @@ func ScanAgents(dir string) ([]Agent, error) {
 			continue
 		}
 
+		// Look up description from cache, fall back to extractDescription if not found
+		desc := cache[id]
+		if desc == "" {
+			desc = extractDescription(filepath.Join(dir, name))
+		}
+
 		agents = append(agents, Agent{
 			ID:          id,
 			FilePath:    filepath.Join(dir, name),
 			LastMod:     info.ModTime(),
-			Description: extractDescription(filepath.Join(dir, name)),
+			Description: desc,
 		})
+	}
+
+	// Save cache if we found new descriptions
+	if len(cache) > originalSize {
+		cache.Save()
 	}
 
 	// Sort by: 1) active status (active first), 2) secondary sort depends on status

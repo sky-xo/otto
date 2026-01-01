@@ -448,8 +448,14 @@ func TestFormatTranscript_AssistantMarkdownRendered(t *testing.T) {
 		t.Errorf("Expected markdown to be rendered, but found literal asterisks: %s", result)
 	}
 
-	// Should contain the word bold
-	if !strings.Contains(result, "bold") {
-		t.Errorf("Expected 'bold' to be present: %s", result)
+	// Should contain ANSI codes (proof that styling was applied)
+	if !strings.Contains(result, "\x1b[") {
+		t.Errorf("Expected ANSI codes in rendered output: %s", result)
+	}
+
+	// Strip ANSI and verify the word "bold" is present
+	stripped := stripANSI(result)
+	if !strings.Contains(stripped, "bold") {
+		t.Errorf("Expected 'bold' to be present: %s", stripped)
 	}
 }

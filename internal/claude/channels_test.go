@@ -122,6 +122,34 @@ func TestScanChannels(t *testing.T) {
 	}
 }
 
+func TestChannel_HasRecentActivity(t *testing.T) {
+	now := time.Now()
+
+	recentAgent := Agent{ID: "recent", LastMod: now.Add(-1 * time.Hour)}
+	oldAgent := Agent{ID: "old", LastMod: now.Add(-24 * time.Hour)}
+	activeAgent := Agent{ID: "active", LastMod: now.Add(-5 * time.Second)}
+
+	tests := []struct {
+		name     string
+		agents   []Agent
+		expected bool
+	}{
+		{"has active agent", []Agent{activeAgent, oldAgent}, true},
+		{"has recent agent", []Agent{recentAgent, oldAgent}, true},
+		{"only old agents", []Agent{oldAgent}, false},
+		{"empty", []Agent{}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ch := Channel{Agents: tt.agents}
+			if got := ch.HasRecentActivity(); got != tt.expected {
+				t.Errorf("HasRecentActivity() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
 func TestScanChannels_Integration(t *testing.T) {
 	// Create a structure mimicking real June worktrees
 	tmpDir := t.TempDir()

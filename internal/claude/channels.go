@@ -16,6 +16,16 @@ type Channel struct {
 	Agents []Agent // Agents in this channel
 }
 
+// HasRecentActivity returns true if any agent is active or was modified recently.
+func (c Channel) HasRecentActivity() bool {
+	for _, a := range c.Agents {
+		if a.IsActive() || a.IsRecent() {
+			return true
+		}
+	}
+	return false
+}
+
 // FindRelatedProjectDirs finds all Claude project directories that share
 // the same base project path (main repo + worktrees).
 func FindRelatedProjectDirs(claudeProjectsDir, basePath string) []string {

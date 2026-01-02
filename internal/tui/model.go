@@ -930,7 +930,10 @@ func truncateToWidth(s string, maxWidth int) string {
 	// Use ANSI-aware truncation that won't cut through escape sequences
 	result := ansi.Truncate(s, maxWidth, "")
 
-	// Pad if needed
+	// Ensure styles are reset after truncation to prevent bleeding
+	result = result + "\x1b[0m"
+
+	// Pad if needed (reset has 0 visual width so this is still correct)
 	resultWidth := lipgloss.Width(result)
 	if resultWidth < maxWidth {
 		result = result + strings.Repeat(" ", maxWidth-resultWidth)
@@ -1007,10 +1010,14 @@ func renderPanelWithTitle(title, content string, width, height int, borderColor 
 		// Use lipgloss.Width for visual width (handles ANSI codes)
 		visualWidth := lipgloss.Width(line)
 		if visualWidth < contentWidth {
-			line = line + strings.Repeat(" ", contentWidth-visualWidth)
+			// Reset any active styles before padding to prevent background color bleeding
+			line = line + "\x1b[0m" + strings.Repeat(" ", contentWidth-visualWidth)
 		} else if visualWidth > contentWidth {
-			// Truncate line using binary search for efficiency
+			// Truncate line (includes reset after truncation)
 			line = truncateToWidth(line, contentWidth)
+		} else {
+			// Exact width - still reset styles to prevent bleeding into borders
+			line = line + "\x1b[0m"
 		}
 		middleLines = append(middleLines, leftBorder+line+rightBorder)
 	}

@@ -46,6 +46,11 @@ The TUI shows:
 - `Tab` - Switch panel focus
 - `q` - Quit
 
+### Selection Mode (mouse-initiated)
+- Click+drag in transcript - Start text selection
+- `C` - Copy selection to clipboard and exit
+- `Esc` - Exit selection mode without copying
+
 ## Coding Conventions
 
 - Follow TDD: write failing test, implement, verify

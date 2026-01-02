@@ -620,3 +620,29 @@ func TestUpdate_DragNearTopEdgeScrollsUp(t *testing.T) {
 		t.Errorf("Expected viewport to scroll up from offset 5, got %d", updated.viewport.YOffset)
 	}
 }
+
+func TestUpdate_ClickOutsideContentExitsSelection(t *testing.T) {
+	m := NewModel("/test")
+	m.width = 80
+	m.height = 24
+	m.selection = SelectionState{
+		Active:  true,
+		Anchor:  Position{Row: 1, Col: 5},
+		Current: Position{Row: 2, Col: 10},
+	}
+
+	// Click in left panel (sidebar)
+	msg := tea.MouseMsg{
+		X:      5, // In sidebar
+		Y:      5,
+		Button: tea.MouseButtonLeft,
+		Action: tea.MouseActionRelease,
+	}
+
+	newModel, _ := m.Update(msg)
+	updated := newModel.(Model)
+
+	if updated.selection.Active {
+		t.Error("Expected selection to be cancelled when clicking outside content area")
+	}
+}

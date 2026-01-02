@@ -9,6 +9,7 @@ A TUI for watching Claude Code subagent sessions.
 ## Next Up
 
 - [ ] See projects/branches as "channels" on left-hand panel with subagents for each project grouped underneath
+- [ ] Star channel to sticky at top, rest sort by most recent activity, but any that have been active within the last 10 min or so don't change order so that they aren't constantly jumping around. Something like that... brainstorm this UX
 - [ ] Selection mode - Click and drag in content area to select text for copy/paste
 - [ ] Character-level diff highlighting within changed lines (show specific changes, not just whole line)
 - [ ] Full-width background - extend red/green background to right edge of panel

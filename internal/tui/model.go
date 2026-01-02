@@ -493,6 +493,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		leftWidth, _, _, _ := m.layout()
 		inLeftPanel := msg.X < leftWidth
 
+		// If selection is active and user clicks in left panel, cancel selection
+		if m.selection.Active && inLeftPanel && msg.Button == tea.MouseButtonLeft && msg.Action == tea.MouseActionRelease {
+			m.selection = SelectionState{}
+			// Don't return here - let the click also select an agent if applicable
+		}
+
 		// Handle scroll wheel (check button type directly, wheel events always work)
 		switch msg.Button {
 		case tea.MouseButtonWheelUp:

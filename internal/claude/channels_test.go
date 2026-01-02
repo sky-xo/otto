@@ -114,3 +114,54 @@ func TestScanChannels(t *testing.T) {
 		t.Errorf("unexpected agents in main channel: %v", channels[1].Agents)
 	}
 }
+
+func TestScanChannels_Integration(t *testing.T) {
+	// Create a structure mimicking real June worktrees
+	tmpDir := t.TempDir()
+	claudeProjects := filepath.Join(tmpDir, ".claude", "projects")
+
+	// Mimic: june main + 2 worktrees
+	// Note: worktree names with hyphens (like "select-mode") only preserve the last segment
+	// due to how ExtractChannelName parses dash-separated paths
+	dirs := []struct {
+		name   string
+		agents []string
+	}{
+		{"-Users-test-code-june", []string{"agent-main1.jsonl", "agent-main2.jsonl"}},
+		{"-Users-test-code-june--worktrees-channels", []string{"agent-ch1.jsonl"}},
+		{"-Users-test-code-june--worktrees-feature", []string{"agent-feat1.jsonl", "agent-feat2.jsonl"}},
+	}
+
+	for _, d := range dirs {
+		dir := filepath.Join(claudeProjects, d.name)
+		os.MkdirAll(dir, 0755)
+		for _, a := range d.agents {
+			os.WriteFile(filepath.Join(dir, a), []byte(`{"type":"user","message":{"role":"user","content":"Test task"}}`+"\n"), 0644)
+		}
+	}
+
+	channels, err := ScanChannels(claudeProjects, "/Users/test/code/june", "june")
+	if err != nil {
+		t.Fatalf("ScanChannels failed: %v", err)
+	}
+
+	// Verify all channels found
+	if len(channels) != 3 {
+		t.Fatalf("expected 3 channels, got %d", len(channels))
+	}
+
+	// Verify channel names contain expected patterns
+	names := make(map[string]bool)
+	for _, ch := range channels {
+		names[ch.Name] = true
+	}
+	if !names["june:main"] {
+		t.Error("missing june:main channel")
+	}
+	if !names["june:channels"] {
+		t.Error("missing june:channels channel")
+	}
+	if !names["june:feature"] {
+		t.Error("missing june:feature channel")
+	}
+}

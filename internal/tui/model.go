@@ -348,24 +348,19 @@ func (m Model) countSeparatorsInRange(start, end int) int {
 	return count
 }
 
-// totalSidebarItems returns the total count of items (headers + agents).
+// totalSidebarItems returns the total count of visible items.
 func (m Model) totalSidebarItems() int {
-	count := 0
-	for _, ch := range m.channels {
-		count++ // header
-		count += len(ch.Agents)
-	}
-	return count
+	return len(m.sidebarItems())
 }
 
-// SelectedAgent returns the currently selected agent, or nil if a header is selected.
+// SelectedAgent returns the currently selected agent, or nil if a header or expander is selected.
 func (m Model) SelectedAgent() *claude.Agent {
 	items := m.sidebarItems()
 	if m.selectedIdx < 0 || m.selectedIdx >= len(items) {
 		return nil
 	}
 	item := items[m.selectedIdx]
-	if item.isHeader {
+	if item.isHeader || item.isExpander {
 		return nil
 	}
 	return item.agent

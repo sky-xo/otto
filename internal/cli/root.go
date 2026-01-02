@@ -40,20 +40,24 @@ func runWatch() error {
 		return fmt.Errorf("not in a git repository")
 	}
 
-	// Find Claude project directory
-	absPath, err := filepath.Abs(repoRoot)
+	// Get absolute path and repo name
+	basePath, err := filepath.Abs(repoRoot)
 	if err != nil {
 		return err
 	}
-	projectDir := claude.ProjectDir(absPath)
+	repoName := filepath.Base(basePath)
 
-	// Check if directory exists
+	// Get Claude projects directory
+	claudeProjectsDir := claude.ClaudeProjectsDir()
+
+	// Check if any project directory exists for this repo
+	projectDir := claude.ProjectDir(basePath)
 	if _, err := os.Stat(projectDir); os.IsNotExist(err) {
 		return fmt.Errorf("no Claude Code sessions found for this project\n\nExpected: %s", projectDir)
 	}
 
 	// Run TUI
-	model := tui.NewModel(projectDir)
+	model := tui.NewModel(claudeProjectsDir, basePath, repoName)
 	p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
 	_, err = p.Run()
 	return err

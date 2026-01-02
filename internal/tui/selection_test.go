@@ -85,15 +85,17 @@ func TestSelectionState_Normalize(t *testing.T) {
 }
 
 func TestModel_ContentLines(t *testing.T) {
-	m := NewModel("/test")
+	m := NewModel("/claude", "/test", "test-repo")
 	m.width = 80
 	m.height = 24
 
-	// Set up agents and transcripts like the real application
-	m.agents = []claude.Agent{
-		{ID: "test-agent", FilePath: "/test/agent.jsonl"},
+	// Set up channels and transcripts like the real application
+	testAgent := claude.Agent{ID: "test-agent", FilePath: "/test/agent.jsonl"}
+	m.channels = []claude.Channel{
+		{Name: "test-channel", Agents: []claude.Agent{testAgent}},
 	}
-	m.selectedIdx = 0
+	m.selectedIdx = 1 // First agent (index 0 is header)
+	m.lastViewedAgent = &m.channels[0].Agents[0]
 
 	// Add transcript entries for the selected agent
 	m.transcripts["test-agent"] = []claude.Entry{
@@ -124,7 +126,7 @@ func TestModel_ContentLines(t *testing.T) {
 }
 
 func TestModel_ScreenToContentPosition(t *testing.T) {
-	m := NewModel("/test")
+	m := NewModel("/claude", "/test", "test-repo")
 	m.width = 80
 	m.height = 24
 	m.focusedPanel = panelRight
@@ -177,7 +179,7 @@ func TestModel_ScreenToContentPosition(t *testing.T) {
 }
 
 func TestUpdate_MouseDragStartsSelection(t *testing.T) {
-	m := NewModel("/test")
+	m := NewModel("/claude", "/test", "test-repo")
 	m.width = 80
 	m.height = 24
 	m.focusedPanel = panelRight
@@ -222,7 +224,7 @@ func TestUpdate_MouseDragStartsSelection(t *testing.T) {
 }
 
 func TestUpdate_MouseReleaseStopsDragging(t *testing.T) {
-	m := NewModel("/test")
+	m := NewModel("/claude", "/test", "test-repo")
 	m.width = 80
 	m.height = 24
 	m.focusedPanel = panelRight
@@ -277,7 +279,7 @@ func TestUpdate_MouseReleaseStopsDragging(t *testing.T) {
 }
 
 func TestUpdate_MouseMotionUpdatesSelection(t *testing.T) {
-	m := NewModel("/test")
+	m := NewModel("/claude", "/test", "test-repo")
 	m.width = 80
 	m.height = 24
 	m.focusedPanel = panelRight
@@ -334,7 +336,7 @@ func TestUpdate_MouseMotionUpdatesSelection(t *testing.T) {
 }
 
 func TestUpdate_EscapeCancelsSelection(t *testing.T) {
-	m := NewModel("/test")
+	m := NewModel("/claude", "/test", "test-repo")
 	m.selection = SelectionState{
 		Active:  true,
 		Anchor:  Position{Row: 1, Col: 5},
@@ -351,7 +353,7 @@ func TestUpdate_EscapeCancelsSelection(t *testing.T) {
 }
 
 func TestUpdate_CKeyInSelectionModeCopies(t *testing.T) {
-	m := NewModel("/test")
+	m := NewModel("/claude", "/test", "test-repo")
 	m.width = 80
 	m.height = 24
 	m.selection = SelectionState{
@@ -376,10 +378,10 @@ func TestUpdate_CKeyInSelectionModeCopies(t *testing.T) {
 }
 
 func TestUpdate_NavigationKeysBlockedInSelectionMode(t *testing.T) {
-	m := NewModel("/test")
+	m := NewModel("/claude", "/test", "test-repo")
 	m.selection = SelectionState{Active: true, Anchor: Position{Row: 1, Col: 5}, Current: Position{Row: 2, Col: 10}}
 	m.selectedIdx = 1
-	m.agents = []claude.Agent{{ID: "a1", FilePath: "/tmp/a1.jsonl"}, {ID: "a2", FilePath: "/tmp/a2.jsonl"}}
+	m.channels = []claude.Channel{{Name: "ch", Agents: []claude.Agent{{ID: "a1", FilePath: "/tmp/a1.jsonl"}, {ID: "a2", FilePath: "/tmp/a2.jsonl"}}}}
 
 	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}}
 	newModel, _ := m.Update(msg)
@@ -396,7 +398,7 @@ func TestUpdate_NavigationKeysBlockedInSelectionMode(t *testing.T) {
 }
 
 func TestModel_GetSelectedText(t *testing.T) {
-	m := NewModel("/test")
+	m := NewModel("/claude", "/test", "test-repo")
 	lines := []string{
 		"First line of text",
 		"Second line here",
@@ -449,7 +451,7 @@ func TestModel_GetSelectedText(t *testing.T) {
 }
 
 func TestModel_GetSelectedText_StripsANSI(t *testing.T) {
-	m := NewModel("/test")
+	m := NewModel("/claude", "/test", "test-repo")
 	// Content with ANSI escape codes - ParseStyledLine will parse this
 	m.contentLines = []StyledLine{
 		ParseStyledLine("\x1b[32mGreen text\x1b[0m normal"),
@@ -473,7 +475,7 @@ func TestModel_GetSelectedText_StripsANSI(t *testing.T) {
 }
 
 func TestModel_ApplySelectionHighlight(t *testing.T) {
-	m := NewModel("/test")
+	m := NewModel("/claude", "/test", "test-repo")
 	m.contentLines = []StyledLine{ParseStyledLine("Hello World")}
 	m.selection = SelectionState{
 		Active:  true,
@@ -501,7 +503,7 @@ func TestModel_ApplySelectionHighlight(t *testing.T) {
 }
 
 func TestModel_ApplySelectionHighlight_MultipleLines(t *testing.T) {
-	m := NewModel("/test")
+	m := NewModel("/claude", "/test", "test-repo")
 	lines := []string{"Line one", "Line two", "Line three"}
 	m.contentLines = make([]StyledLine, len(lines))
 	for i, line := range lines {
@@ -531,7 +533,7 @@ func TestModel_ApplySelectionHighlight_MultipleLines(t *testing.T) {
 }
 
 func TestModel_ApplySelectionHighlight_EmptySelection(t *testing.T) {
-	m := NewModel("/test")
+	m := NewModel("/claude", "/test", "test-repo")
 	m.contentLines = []StyledLine{ParseStyledLine("Hello World")}
 	m.selection = SelectionState{
 		Active:  true,
@@ -551,7 +553,7 @@ func TestModel_ApplySelectionHighlight_EmptySelection(t *testing.T) {
 }
 
 func TestModel_ApplySelectionHighlight_InactiveSelection(t *testing.T) {
-	m := NewModel("/test")
+	m := NewModel("/claude", "/test", "test-repo")
 	m.contentLines = []StyledLine{ParseStyledLine("Hello World")}
 	m.selection = SelectionState{
 		Active:  false,
@@ -568,11 +570,13 @@ func TestModel_ApplySelectionHighlight_InactiveSelection(t *testing.T) {
 }
 
 func TestView_ShowsSelectionIndicator(t *testing.T) {
-	m := NewModel("/test")
+	m := NewModel("/claude", "/test", "test-repo")
 	m.width = 80
 	m.height = 24
-	m.agents = []claude.Agent{{ID: "test123", FilePath: "/tmp/test.jsonl"}}
-	m.selectedIdx = 0
+	testAgent := claude.Agent{ID: "test123", FilePath: "/tmp/test.jsonl"}
+	m.channels = []claude.Channel{{Name: "ch", Agents: []claude.Agent{testAgent}}}
+	m.selectedIdx = 1
+	m.lastViewedAgent = &m.channels[0].Agents[0]
 	m.selection = SelectionState{
 		Active:  true,
 		Anchor:  Position{Row: 0, Col: 0},
@@ -592,11 +596,13 @@ func TestView_ShowsSelectionIndicator(t *testing.T) {
 }
 
 func TestView_NoSelectionIndicatorWhenInactive(t *testing.T) {
-	m := NewModel("/test")
+	m := NewModel("/claude", "/test", "test-repo")
 	m.width = 80
 	m.height = 24
-	m.agents = []claude.Agent{{ID: "test123", FilePath: "/tmp/test.jsonl"}}
-	m.selectedIdx = 0
+	testAgent := claude.Agent{ID: "test123", FilePath: "/tmp/test.jsonl"}
+	m.channels = []claude.Channel{{Name: "ch", Agents: []claude.Agent{testAgent}}}
+	m.selectedIdx = 1
+	m.lastViewedAgent = &m.channels[0].Agents[0]
 	m.selection = SelectionState{Active: false}
 	m.contentLines = []StyledLine{ParseStyledLine("Hello World")}
 
@@ -608,7 +614,7 @@ func TestView_NoSelectionIndicatorWhenInactive(t *testing.T) {
 }
 
 func TestUpdate_DragNearTopEdgeScrollsUp(t *testing.T) {
-	m := NewModel("/test")
+	m := NewModel("/claude", "/test", "test-repo")
 	m.width = 80
 	m.height = 24
 	m.focusedPanel = panelRight
@@ -652,7 +658,7 @@ func TestUpdate_DragNearTopEdgeScrollsUp(t *testing.T) {
 }
 
 func TestUpdate_ClickOutsideContentExitsSelection(t *testing.T) {
-	m := NewModel("/test")
+	m := NewModel("/claude", "/test", "test-repo")
 	m.width = 80
 	m.height = 24
 	m.selection = SelectionState{
@@ -678,7 +684,7 @@ func TestUpdate_ClickOutsideContentExitsSelection(t *testing.T) {
 }
 
 func TestUpdate_ScrollPreservesSelection(t *testing.T) {
-	m := NewModel("/test")
+	m := NewModel("/claude", "/test", "test-repo")
 	m.width = 80
 	m.height = 24
 	m.focusedPanel = panelRight

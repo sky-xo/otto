@@ -160,8 +160,15 @@ func createTestAgents(n int) []claude.Agent {
 
 // createModelWithAgents creates a model with the given agents and dimensions
 func createModelWithAgents(agents []claude.Agent, width, height int) Model {
-	m := NewModel("/test")
-	m.agents = agents
+	m := NewModel("/test/claude/projects", "/test/repo", "repo")
+	// Create a single channel with the test agents
+	m.channels = []claude.Channel{
+		{Name: "repo:main", Dir: "/test/claude/projects/repo", Agents: agents},
+	}
+	// Set lastViewedAgent to first agent if available (for right panel display)
+	if len(agents) > 0 {
+		m.lastViewedAgent = &m.channels[0].Agents[0]
+	}
 	m.width = width
 	m.height = height
 	return m
@@ -332,7 +339,11 @@ func TestSidebarVisibleLines_WithTopIndicator(t *testing.T) {
 }
 
 func TestRenderSidebarContent_EmptyAgents(t *testing.T) {
-	m := createModelWithAgents(nil, 25, 10)
+	// With no channels at all, should show "No agents found"
+	m := NewModel("/test/claude/projects", "/test/repo", "repo")
+	m.channels = []claude.Channel{} // No channels
+	m.width = 25
+	m.height = 10
 
 	content := m.renderSidebarContent(20, 5)
 
@@ -708,7 +719,10 @@ func TestUpdate_JKeyAtBottomBoundary_DoesNotScrollContent(t *testing.T) {
 	agents := createTestAgents(5)
 	m := createModelWithAgents(agents, 80, 40)
 	m.focusedPanel = panelLeft
-	m.selectedIdx = len(agents) - 1 // Already at bottom
+	// With channel headers, total items = 1 header + 5 agents = 6 items
+	// Bottom is index 5 (last agent)
+	bottomIdx := m.totalSidebarItems() - 1
+	m.selectedIdx = bottomIdx
 
 	// Set up viewport with some content that can be scrolled
 	m.viewport.SetContent("Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6\nLine 7\nLine 8\nLine 9\nLine 10")
@@ -728,7 +742,7 @@ func TestUpdate_JKeyAtBottomBoundary_DoesNotScrollContent(t *testing.T) {
 	}
 
 	// Selection should still be at bottom
-	if updatedModel.selectedIdx != len(agents)-1 {
+	if updatedModel.selectedIdx != bottomIdx {
 		t.Errorf("Selection should remain at bottom when J pressed at bottom, got %d", updatedModel.selectedIdx)
 	}
 }
@@ -764,14 +778,11 @@ func TestUpdate_KKeyInMiddleOfSidebar_DoesNotScrollContent(t *testing.T) {
 }
 
 func TestRenderSidebarShowsDescription(t *testing.T) {
-	m := Model{
-		agents: []claude.Agent{
-			{ID: "abc123", Description: "Fix login bug"},
-			{ID: "def456", Description: ""},
-		},
-		width:  80,
-		height: 24,
+	agents := []claude.Agent{
+		{ID: "abc123", Description: "Fix login bug"},
+		{ID: "def456", Description: ""},
 	}
+	m := createModelWithAgents(agents, 80, 24)
 
 	content := m.renderSidebarContent(20, 10)
 
@@ -787,14 +798,12 @@ func TestRenderSidebarShowsDescription(t *testing.T) {
 }
 
 func TestViewShowsDescriptionAndIDInRightPanel(t *testing.T) {
-	m := Model{
-		agents: []claude.Agent{
-			{ID: "abc12345", Description: "Fix login bug", FilePath: "/tmp/test.jsonl"},
-		},
-		selectedIdx: 0,
-		width:       80,
-		height:      24,
+	agents := []claude.Agent{
+		{ID: "abc12345", Description: "Fix login bug", FilePath: "/tmp/test.jsonl"},
 	}
+	m := createModelWithAgents(agents, 80, 24)
+	// With channel headers, index 0 is the header, index 1 is the first agent
+	m.selectedIdx = 1
 
 	view := m.View()
 
@@ -808,14 +817,12 @@ func TestViewShowsDescriptionAndIDInRightPanel(t *testing.T) {
 }
 
 func TestViewShowsOnlyIDWhenNoDescription(t *testing.T) {
-	m := Model{
-		agents: []claude.Agent{
-			{ID: "abc12345", Description: "", FilePath: "/tmp/test.jsonl"},
-		},
-		selectedIdx: 0,
-		width:       80,
-		height:      24,
+	agents := []claude.Agent{
+		{ID: "abc12345", Description: "", FilePath: "/tmp/test.jsonl"},
 	}
+	m := createModelWithAgents(agents, 80, 24)
+	// With channel headers, index 0 is the header, index 1 is the first agent
+	m.selectedIdx = 1
 
 	view := m.View()
 

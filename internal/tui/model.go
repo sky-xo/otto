@@ -232,14 +232,26 @@ func (m *Model) applySelectionHighlight() []StyledLine {
 	return result
 }
 
+// sidebarItem represents either a channel header or an agent in the sidebar.
+type sidebarItem struct {
+	isHeader    bool
+	channelName string        // Only set for headers
+	channelIdx  int           // Index into m.channels
+	agent       *claude.Agent // Only set for agents
+	agentIdx    int           // Index within channel's agents slice
+}
+
 // Model is the TUI state.
 type Model struct {
-	projectDir  string                    // Claude project directory we're watching
-	agents      []claude.Agent            // List of agents
-	transcripts map[string][]claude.Entry // Agent ID -> transcript entries
+	claudeProjectsDir string                    // Base Claude projects directory (~/.claude/projects)
+	basePath          string                    // Git repo base path
+	repoName          string                    // Repository name (e.g., "june")
+	channels          []claude.Channel          // Channels with their agents
+	transcripts       map[string][]claude.Entry // Agent ID -> transcript entries
 
-	selectedIdx        int            // Currently selected agent index
-	sidebarOffset      int            // Scroll offset for the sidebar (index of first visible agent)
+	selectedIdx        int            // Currently selected item index (across all channels + headers)
+	lastViewedAgent    *claude.Agent  // Last agent shown in right panel (persists when header selected)
+	sidebarOffset      int            // Scroll offset for the sidebar
 	lastNavWasKeyboard bool           // Track if last sidebar interaction was keyboard (for auto-scroll behavior)
 	focusedPanel       int            // Which panel has focus (panelLeft or panelRight)
 	selection          SelectionState // Text selection state
@@ -251,25 +263,92 @@ type Model struct {
 }
 
 // NewModel creates a new TUI model.
-func NewModel(projectDir string) Model {
+func NewModel(claudeProjectsDir, basePath, repoName string) Model {
 	return Model{
-		projectDir:  projectDir,
-		agents:      []claude.Agent{},
-		transcripts: make(map[string][]claude.Entry),
-		viewport:    viewport.New(0, 0),
+		claudeProjectsDir: claudeProjectsDir,
+		basePath:          basePath,
+		repoName:          repoName,
+		channels:          []claude.Channel{},
+		transcripts:       make(map[string][]claude.Entry),
+		viewport:          viewport.New(0, 0),
 	}
 }
 
-// SelectedAgent returns the currently selected agent, or nil if none.
+// sidebarItems returns a flat list of all items to display in the sidebar.
+func (m Model) sidebarItems() []sidebarItem {
+	var items []sidebarItem
+	for ci, ch := range m.channels {
+		// Add channel header
+		items = append(items, sidebarItem{
+			isHeader:    true,
+			channelName: ch.Name,
+			channelIdx:  ci,
+		})
+		// Add agents
+		for ai := range ch.Agents {
+			items = append(items, sidebarItem{
+				isHeader:   false,
+				channelIdx: ci,
+				agent:      &m.channels[ci].Agents[ai],
+				agentIdx:   ai,
+			})
+		}
+	}
+	return items
+}
+
+// countSeparatorsBefore returns the number of blank separator lines that would appear
+// before the given item index. Separators appear before each channel header except the first.
+func (m Model) countSeparatorsBefore(itemIdx int) int {
+	items := m.sidebarItems()
+	count := 0
+	for i := 0; i < itemIdx && i < len(items); i++ {
+		if items[i].isHeader && i > 0 {
+			count++
+		}
+	}
+	return count
+}
+
+// countSeparatorsInRange returns the number of blank separator lines in the given item range [start, end).
+func (m Model) countSeparatorsInRange(start, end int) int {
+	items := m.sidebarItems()
+	count := 0
+	for i := start; i < end && i < len(items); i++ {
+		if items[i].isHeader && i > 0 {
+			count++
+		}
+	}
+	return count
+}
+
+// totalSidebarItems returns the total count of items (headers + agents).
+func (m Model) totalSidebarItems() int {
+	count := 0
+	for _, ch := range m.channels {
+		count++ // header
+		count += len(ch.Agents)
+	}
+	return count
+}
+
+// SelectedAgent returns the currently selected agent, or nil if a header is selected.
 func (m Model) SelectedAgent() *claude.Agent {
-	if m.selectedIdx < 0 || m.selectedIdx >= len(m.agents) {
+	items := m.sidebarItems()
+	if m.selectedIdx < 0 || m.selectedIdx >= len(items) {
 		return nil
 	}
-	return &m.agents[m.selectedIdx]
+	item := items[m.selectedIdx]
+	if item.isHeader {
+		return nil
+	}
+	return item.agent
 }
 
-// sidebarVisibleLines returns how many agent lines can be displayed in the sidebar,
-// accounting for scroll indicators if they would be shown.
+// sidebarVisibleLines returns how many sidebar items can be displayed in the sidebar,
+// accounting for scroll indicators and separator lines between channels.
+// Note: This returns item count, not screen lines. Actual screen lines used may be higher
+// due to separator lines between channels.
 func (m Model) sidebarVisibleLines() int {
 	_, _, _, contentHeight := m.layout()
 	if contentHeight <= 0 {
@@ -281,20 +360,51 @@ func (m Model) sidebarVisibleLines() int {
 	if m.sidebarOffset > 0 {
 		lines--
 	}
-	// Reserve space for bottom indicator if there are more agents below
-	endIdx := m.sidebarOffset + lines
-	if endIdx < len(m.agents) {
-		lines--
+
+	// We need to figure out how many items fit given that separators take space too.
+	// Use iterative approach: start with assuming all lines are items, then adjust.
+	items := m.sidebarItems()
+	totalItems := len(items)
+
+	// Start with naive estimate
+	visibleItems := lines
+	for {
+		endIdx := m.sidebarOffset + visibleItems
+		if endIdx > totalItems {
+			endIdx = totalItems
+		}
+
+		// Count separators in visible range
+		sepsInRange := m.countSeparatorsInRange(m.sidebarOffset, endIdx)
+
+		// Total screen lines needed = items + separators
+		screenLinesNeeded := visibleItems + sepsInRange
+
+		// Reserve space for bottom indicator if there are more items below
+		hasMoreBelow := endIdx < totalItems
+		if hasMoreBelow {
+			screenLinesNeeded++ // need room for bottom indicator
+		}
+
+		if screenLinesNeeded <= lines {
+			// We fit, done
+			break
+		}
+
+		// We don't fit, reduce visible items
+		visibleItems--
+		if visibleItems <= 0 {
+			visibleItems = 0
+			break
+		}
 	}
-	if lines < 0 {
-		lines = 0
-	}
-	return lines
+
+	return visibleItems
 }
 
 // ensureSelectedVisible adjusts sidebarOffset to keep selectedIdx visible.
 func (m *Model) ensureSelectedVisible() {
-	if len(m.agents) == 0 {
+	if m.totalSidebarItems() == 0 {
 		return
 	}
 
@@ -332,7 +442,7 @@ func (m *Model) ensureSelectedVisible() {
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		tickCmd(),
-		scanAgentsCmd(m.projectDir),
+		scanChannelsCmd(m.claudeProjectsDir, m.basePath, m.repoName),
 	)
 }
 
@@ -379,6 +489,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.lastNavWasKeyboard = true
 					m.ensureSelectedVisible()
 					if agent := m.SelectedAgent(); agent != nil {
+						m.lastViewedAgent = agent
 						cmds = append(cmds, loadTranscriptCmd(*agent))
 					}
 				}
@@ -390,12 +501,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "down", "j":
 			if m.focusedPanel == panelLeft {
-				// Navigate agent list
-				if m.selectedIdx < len(m.agents)-1 {
+				// Navigate sidebar list
+				if m.selectedIdx < m.totalSidebarItems()-1 {
 					m.selectedIdx++
 					m.lastNavWasKeyboard = true
 					m.ensureSelectedVisible()
 					if agent := m.SelectedAgent(); agent != nil {
+						m.lastViewedAgent = agent
 						cmds = append(cmds, loadTranscriptCmd(*agent))
 					}
 				}
@@ -431,6 +543,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				m.lastNavWasKeyboard = true
 				if agent := m.SelectedAgent(); agent != nil {
+					m.lastViewedAgent = agent
 					cmds = append(cmds, loadTranscriptCmd(*agent))
 				}
 				return m, tea.Batch(cmds...)
@@ -447,7 +560,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if pageSize < 1 {
 					pageSize = 1
 				}
-				maxOffset := len(m.agents) - m.sidebarVisibleLines()
+				maxOffset := m.totalSidebarItems() - m.sidebarVisibleLines()
 				if maxOffset < 0 {
 					maxOffset = 0
 				}
@@ -457,16 +570,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				if m.sidebarOffset == maxOffset && oldOffset == maxOffset {
 					// Already at bottom, move selection to last item
-					m.selectedIdx = len(m.agents) - 1
+					m.selectedIdx = m.totalSidebarItems() - 1
 				} else {
 					// Keep selection at same visual row
 					m.selectedIdx = m.sidebarOffset + visualRow
-					if m.selectedIdx >= len(m.agents) {
-						m.selectedIdx = len(m.agents) - 1
+					if m.selectedIdx >= m.totalSidebarItems() {
+						m.selectedIdx = m.totalSidebarItems() - 1
 					}
 				}
 				m.lastNavWasKeyboard = true
 				if agent := m.SelectedAgent(); agent != nil {
+					m.lastViewedAgent = agent
 					cmds = append(cmds, loadTranscriptCmd(*agent))
 				}
 				return m, tea.Batch(cmds...)
@@ -506,7 +620,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.MouseButtonWheelDown:
 			if inLeftPanel {
 				// Scroll sidebar down by 1 line
-				maxOffset := len(m.agents) - m.sidebarVisibleLines()
+				maxOffset := m.totalSidebarItems() - m.sidebarVisibleLines()
 				if maxOffset < 0 {
 					maxOffset = 0
 				}
@@ -520,9 +634,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
-		// Handle clicks in left panel to select agents
+		// Handle clicks in left panel to select items
 		if inLeftPanel && msg.Button == tea.MouseButtonLeft && msg.Action == tea.MouseActionRelease {
-			// Calculate which agent was clicked
+			// Calculate which item was clicked
 			// Subtract 1 for top border
 			clickY := msg.Y - 1
 
@@ -531,13 +645,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				clickY-- // First line is the "N more" indicator
 			}
 
-			// Convert to agent index, but only within visible range
+			// Convert to item index, but only within visible range
 			visibleLines := m.sidebarVisibleLines()
 			if clickY >= 0 && clickY < visibleLines {
-				agentIdx := m.sidebarOffset + clickY
-				if agentIdx >= 0 && agentIdx < len(m.agents) {
-					m.selectedIdx = agentIdx
+				itemIdx := m.sidebarOffset + clickY
+				if itemIdx >= 0 && itemIdx < m.totalSidebarItems() {
+					m.selectedIdx = itemIdx
 					if agent := m.SelectedAgent(); agent != nil {
+						m.lastViewedAgent = agent
 						cmds = append(cmds, loadTranscriptCmd(*agent))
 					}
 				}
@@ -626,48 +741,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.updateViewport()
 
 	case tickMsg:
-		cmds = append(cmds, tickCmd(), scanAgentsCmd(m.projectDir))
+		cmds = append(cmds, tickCmd(), scanChannelsCmd(m.claudeProjectsDir, m.basePath, m.repoName))
 
-	case agentsMsg:
-		// Preserve selection by agent ID, not index position
-		var selectedID string
-		if m.selectedIdx >= 0 && m.selectedIdx < len(m.agents) {
-			selectedID = m.agents[m.selectedIdx].ID
-		}
-
-		prevLen := len(m.agents)
-		m.agents = msg
-
-		if prevLen == 0 && len(m.agents) > 0 {
-			// First agents appeared, select the first one
-			m.selectedIdx = 0
-		} else if selectedID != "" {
-			// Find the previously selected agent in the new list
-			found := false
-			for i, agent := range m.agents {
-				if agent.ID == selectedID {
-					m.selectedIdx = i
-					found = true
-					break
-				}
-			}
-			if !found {
-				// Agent no longer exists, keep selection at valid index
-				if m.selectedIdx >= len(m.agents) {
-					m.selectedIdx = len(m.agents) - 1
-				}
-				if m.selectedIdx < 0 {
-					m.selectedIdx = 0
-				}
-			}
-		}
-
-		// Only auto-scroll to keep selection visible after keyboard navigation,
-		// not after mouse scroll (let user scroll freely with mouse)
-		if m.lastNavWasKeyboard {
-			m.ensureSelectedVisible()
-		}
+	case channelsMsg:
+		m.channels = msg
 		if agent := m.SelectedAgent(); agent != nil {
+			m.lastViewedAgent = agent
 			cmds = append(cmds, loadTranscriptCmd(*agent))
 		}
 
@@ -703,7 +782,8 @@ func (m *Model) updateViewportDimensions() {
 }
 
 func (m *Model) updateViewport() {
-	agent := m.SelectedAgent()
+	// Use lastViewedAgent to persist content when a header is selected
+	agent := m.lastViewedAgent
 	if agent == nil {
 		m.viewport.SetContent("")
 		m.contentLines = nil
@@ -786,9 +866,9 @@ func (m Model) View() string {
 	leftContent := m.renderSidebarContent(leftWidth-2, contentHeight)
 	leftPanel := renderPanelWithTitle("Subagents", leftContent, leftWidth, panelHeight, leftBorderColor)
 
-	// Right panel: transcript
+	// Right panel: transcript (uses lastViewedAgent to persist when header is selected)
 	var rightTitle string
-	if agent := m.SelectedAgent(); agent != nil {
+	if agent := m.lastViewedAgent; agent != nil {
 		if agent.Description != "" {
 			rightTitle = fmt.Sprintf("%s (%s) | %s", agent.Description, agent.ID, formatTimestamp(agent.LastMod))
 		} else {
@@ -819,37 +899,30 @@ func (m Model) View() string {
 }
 
 func (m Model) renderSidebarContent(width, height int) string {
-	if len(m.agents) == 0 || height <= 0 {
+	items := m.sidebarItems()
+	if len(items) == 0 || height <= 0 {
 		return "No agents found"
 	}
 
-	// Calculate how many agents are hidden above and below
+	// Calculate scroll indicators
 	hiddenAbove := m.sidebarOffset
-	totalAgents := len(m.agents)
+	totalItems := len(items)
 
-	// Calculate available lines for agents (reserve lines for indicators if needed)
 	availableLines := height
 	showTopIndicator := hiddenAbove > 0
 	if showTopIndicator {
 		availableLines--
 	}
 
-	// Calculate how many agents we can show
-	visibleEnd := m.sidebarOffset + availableLines
-	if visibleEnd > totalAgents {
-		visibleEnd = totalAgents
+	// Calculate how many items we can show, accounting for separator lines
+	visibleItems := m.sidebarVisibleLines()
+	visibleEnd := m.sidebarOffset + visibleItems
+	if visibleEnd > totalItems {
+		visibleEnd = totalItems
 	}
 
-	hiddenBelow := totalAgents - visibleEnd
+	hiddenBelow := totalItems - visibleEnd
 	showBottomIndicator := hiddenBelow > 0
-	if showBottomIndicator && availableLines > 0 {
-		availableLines--
-		visibleEnd = m.sidebarOffset + availableLines
-		if visibleEnd > totalAgents {
-			visibleEnd = totalAgents
-		}
-		hiddenBelow = totalAgents - visibleEnd
-	}
 
 	var lines []string
 
@@ -862,50 +935,71 @@ func (m Model) renderSidebarContent(width, height int) string {
 		lines = append(lines, doneStyle.Render(indicator))
 	}
 
-	// Render visible agents
+	// Header style
+	headerStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.AdaptiveColor{Light: "4", Dark: "6"}) // cyan
+
+	// Render visible items
 	for i := m.sidebarOffset; i < visibleEnd; i++ {
-		agent := m.agents[i]
+		item := items[i]
 
-		// Determine indicator (without styling for selected row)
-		var indicator string
-		indicatorChar := "\u2713"
-		if agent.IsActive() {
-			indicatorChar = "\u25cf"
-		}
+		if item.isHeader {
+			// Add blank separator line before channel headers (except the first visible item)
+			if i > 0 && i > m.sidebarOffset {
+				lines = append(lines, "")
+			}
 
-		// Use description if available, otherwise fall back to ID
-		name := agent.Description
-		if name == "" {
-			name = agent.ID
-		}
-		maxNameLen := width - 3 // indicator + space + name
-		if len(name) > maxNameLen {
-			name = name[:maxNameLen]
-		}
-
-		if i == m.selectedIdx {
-			// For selected row: apply background to entire row but keep indicator color
-			selectedBg := lipgloss.AdaptiveColor{Light: "254", Dark: "8"}
-			var styledIndicator string
-			if agent.IsActive() {
-				styledIndicator = activeStyle.Background(selectedBg).Render(indicatorChar)
+			// Render channel header
+			header := item.channelName
+			if len(header) > width {
+				header = header[:width]
+			}
+			if i == m.selectedIdx {
+				// Selected header
+				selectedBg := lipgloss.AdaptiveColor{Light: "254", Dark: "8"}
+				rest := header
+				if len(rest) < width {
+					rest = rest + strings.Repeat(" ", width-len(rest))
+				}
+				lines = append(lines, headerStyle.Background(selectedBg).Render(rest))
 			} else {
-				styledIndicator = doneStyle.Background(selectedBg).Render(indicatorChar)
+				lines = append(lines, headerStyle.Render(header))
 			}
-			// Build the rest with background
-			rest := fmt.Sprintf(" %s", name)
-			if len(indicatorChar)+len(rest) < width {
-				rest = rest + strings.Repeat(" ", width-len(indicatorChar)-len(rest))
-			}
-			lines = append(lines, styledIndicator+selectedBgStyle.Render(rest))
 		} else {
-			// For non-selected: apply color to indicator only
-			if agent.IsActive() {
-				indicator = activeStyle.Render(indicatorChar)
-			} else {
-				indicator = doneStyle.Render(indicatorChar)
+			// Render agent
+			// Layout: "● Name" for active (dot + space + name)
+			//         "  Name" for inactive (2 spaces + name)
+			// Text position stays the same whether active or not
+			agent := item.agent
+
+			name := agent.Description
+			if name == "" {
+				name = agent.ID
 			}
-			lines = append(lines, fmt.Sprintf("%s %s", indicator, name))
+			maxNameLen := width - 2 // 2 chars for prefix (dot+space or 2 spaces)
+			if len(name) > maxNameLen {
+				name = name[:maxNameLen]
+			}
+
+			if i == m.selectedIdx {
+				selectedBg := lipgloss.AdaptiveColor{Light: "254", Dark: "8"}
+				var prefix string
+				if agent.IsActive() {
+					prefix = activeStyle.Background(selectedBg).Render("\u25cf") + selectedBgStyle.Render(" ")
+				} else {
+					prefix = selectedBgStyle.Render("  ")
+				}
+				rest := name
+				if 2+len(rest) < width {
+					rest = rest + strings.Repeat(" ", width-2-len(rest))
+				}
+				lines = append(lines, prefix+selectedBgStyle.Render(rest))
+			} else {
+				if agent.IsActive() {
+					lines = append(lines, activeStyle.Render("\u25cf")+" "+name)
+				} else {
+					lines = append(lines, "  "+name)
+				}
+			}
 		}
 	}
 

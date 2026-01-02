@@ -12,7 +12,7 @@ import (
 // Messages for the TUI
 type (
 	tickMsg       time.Time
-	agentsMsg     []claude.Agent
+	channelsMsg   []claude.Channel // Changed from agentsMsg
 	transcriptMsg struct {
 		agentID string
 		entries []claude.Entry
@@ -27,14 +27,14 @@ func tickCmd() tea.Cmd {
 	})
 }
 
-// scanAgentsCmd scans for agent files.
-func scanAgentsCmd(dir string) tea.Cmd {
+// scanChannelsCmd scans for channels and their agents.
+func scanChannelsCmd(claudeProjectsDir, basePath, repoName string) tea.Cmd {
 	return func() tea.Msg {
-		agents, err := claude.ScanAgents(dir)
+		channels, err := claude.ScanChannels(claudeProjectsDir, basePath, repoName)
 		if err != nil {
 			return errMsg(err)
 		}
-		return agentsMsg(agents)
+		return channelsMsg(channels)
 	}
 }
 

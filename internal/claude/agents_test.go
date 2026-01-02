@@ -169,6 +169,30 @@ func TestScanAgentsExtractsDescription(t *testing.T) {
 	}
 }
 
+func TestAgent_IsRecent(t *testing.T) {
+	now := time.Now()
+
+	tests := []struct {
+		name     string
+		lastMod  time.Time
+		expected bool
+	}{
+		{"1 hour ago", now.Add(-1 * time.Hour), true},
+		{"just under 2 hours ago", now.Add(-2*time.Hour + time.Minute), true},
+		{"3 hours ago", now.Add(-3 * time.Hour), false},
+		{"1 day ago", now.Add(-24 * time.Hour), false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			agent := Agent{LastMod: tt.lastMod}
+			if got := agent.IsRecent(); got != tt.expected {
+				t.Errorf("IsRecent() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
 func TestScanAgentsDescriptionEdgeCases(t *testing.T) {
 	dir := t.TempDir()
 

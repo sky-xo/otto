@@ -12,6 +12,7 @@ import (
 )
 
 const activeThreshold = 10 * time.Second
+const recentThreshold = 2 * time.Hour
 
 // Agent represents a Claude Code subagent session.
 type Agent struct {
@@ -66,6 +67,11 @@ func extractDescription(path string) string {
 // IsActive returns true if the agent was modified within the active threshold.
 func (a Agent) IsActive() bool {
 	return time.Since(a.LastMod) < activeThreshold
+}
+
+// IsRecent returns true if the agent was modified within the recent threshold (2 hours).
+func (a Agent) IsRecent() bool {
+	return time.Since(a.LastMod) < recentThreshold
 }
 
 // ScanAgents finds all agent-*.jsonl files in a directory.

@@ -41,8 +41,8 @@ var (
 	unfocusedBorderColor = lipgloss.AdaptiveColor{Light: "243", Dark: "8"}           // gray
 
 	selectionIndicatorStyle = lipgloss.NewStyle().
-		Background(lipgloss.Color("#32CD32")). // Limegreen
-		Foreground(lipgloss.Color("#000000")). // Black text
+		Background(lipgloss.AdaptiveColor{Light: "#2E7D32", Dark: "#C8FB9E"}). // lime green (matches focused border)
+		Foreground(lipgloss.AdaptiveColor{Light: "#FFFFFF", Dark: "#000000"}). // contrasting text
 		Bold(true).
 		Padding(0, 1)
 )
@@ -776,21 +776,23 @@ func (m Model) View() string {
 
 	// Use highlighted content when selection is active
 	var rightContent string
-	if m.selection.Active && !m.selection.IsEmpty() {
-		// Apply selection highlighting
-		highlightedLines := m.applySelectionHighlight()
-		// Only show visible portion based on viewport offset
-		visibleStart := m.viewport.YOffset
-		visibleEnd := visibleStart + m.viewport.Height
-		if visibleEnd > len(highlightedLines) {
-			visibleEnd = len(highlightedLines)
-		}
-		if visibleStart < len(highlightedLines) {
-			rightContent = strings.Join(highlightedLines[visibleStart:visibleEnd], "\n")
-		}
-	} else {
-		rightContent = m.viewport.View()
-	}
+	// DEBUG: Disabled highlight rendering to isolate bug
+	// if m.selection.Active && !m.selection.IsEmpty() {
+	// 	// Apply selection highlighting
+	// 	highlightedLines := m.applySelectionHighlight()
+	// 	// Only show visible portion based on viewport offset
+	// 	visibleStart := m.viewport.YOffset
+	// 	visibleEnd := visibleStart + m.viewport.Height
+	// 	if visibleEnd > len(highlightedLines) {
+	// 		visibleEnd = len(highlightedLines)
+	// 	}
+	// 	if visibleStart < len(highlightedLines) {
+	// 		rightContent = strings.Join(highlightedLines[visibleStart:visibleEnd], "\n")
+	// 	}
+	// } else {
+	// 	rightContent = m.viewport.View()
+	// }
+	rightContent = m.viewport.View()
 	rightPanel := renderPanelWithTitle(rightTitle, rightContent, rightWidth, panelHeight, rightBorderColor)
 
 	panels := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel)
@@ -931,7 +933,7 @@ func renderPanelWithTitle(title, content string, width, height int, borderColor 
 		topBorder = borderStyle.Render(topLeft + strings.Repeat(horizontal, contentWidth) + topRight)
 	} else {
 		titleText := " " + title + " "
-		titleLen := len([]rune(titleText))
+		titleLen := lipgloss.Width(titleText) // Use visual width for ANSI-aware measurement
 
 		remainingWidth := contentWidth - titleLen
 		leftDashes := 1

@@ -646,3 +646,49 @@ func TestUpdate_ClickOutsideContentExitsSelection(t *testing.T) {
 		t.Error("Expected selection to be cancelled when clicking outside content area")
 	}
 }
+
+func TestUpdate_ScrollPreservesSelection(t *testing.T) {
+	m := NewModel("/test")
+	m.width = 80
+	m.height = 24
+	m.focusedPanel = panelRight
+	m.viewport.Width = 50
+	m.viewport.Height = 10
+
+	// Create content with enough lines to scroll
+	lines := make([]string, 30)
+	for i := range lines {
+		lines[i] = fmt.Sprintf("Line %d content here", i)
+	}
+	m.contentLines = lines
+	m.viewport.SetContent(strings.Join(lines, "\n"))
+
+	// Set up a selection
+	originalSelection := SelectionState{
+		Active:  true,
+		Anchor:  Position{Row: 5, Col: 3},
+		Current: Position{Row: 7, Col: 10},
+	}
+	m.selection = originalSelection
+
+	// Scroll down with wheel
+	msg := tea.MouseMsg{
+		X:      sidebarWidth + 10,
+		Y:      5,
+		Button: tea.MouseButtonWheelDown,
+	}
+
+	newModel, _ := m.Update(msg)
+	updated := newModel.(Model)
+
+	// Selection should be preserved
+	if !updated.selection.Active {
+		t.Error("Selection should remain active after scrolling")
+	}
+	if updated.selection.Anchor != originalSelection.Anchor {
+		t.Errorf("Selection anchor changed: got %v, want %v", updated.selection.Anchor, originalSelection.Anchor)
+	}
+	if updated.selection.Current != originalSelection.Current {
+		t.Errorf("Selection current changed: got %v, want %v", updated.selection.Current, originalSelection.Current)
+	}
+}

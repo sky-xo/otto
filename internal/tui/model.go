@@ -185,6 +185,13 @@ func (m *Model) copySelection() {
 	clipboard.Write(clipboard.FmtText, []byte(text))
 }
 
+// restoreViewportContent restores the viewport to original (non-highlighted) content
+func (m *Model) restoreViewportContent() {
+	if len(m.contentLines) > 0 {
+		m.viewport.SetContent(strings.Join(m.contentLines, "\n"))
+	}
+}
+
 // applySelectionHighlight returns content lines with selection highlighted using inverted colors
 func (m *Model) applySelectionHighlight() []string {
 	if !m.selection.Active || m.selection.IsEmpty() || len(m.contentLines) == 0 {
@@ -204,7 +211,8 @@ func (m *Model) applySelectionHighlight() []string {
 		end.Col = lipgloss.Width(m.contentLines[end.Row])
 	}
 
-	invertStyle := lipgloss.NewStyle().Reverse(true)
+	// Use background color instead of Reverse - should preserve existing foreground colors
+	highlightStyle := lipgloss.NewStyle().Background(lipgloss.Color("238")) // dark gray background
 
 	for row := start.Row; row <= end.Row; row++ {
 		line := m.contentLines[row]
@@ -238,7 +246,7 @@ func (m *Model) applySelectionHighlight() []string {
 		selected := strippedLine[startCol:endCol]
 		after := strippedLine[endCol:]
 
-		result[row] = before + invertStyle.Render(selected) + after
+		result[row] = before + highlightStyle.Render(selected) + after
 	}
 
 	return result
@@ -359,10 +367,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch msg.String() {
 			case "esc":
 				m.selection = SelectionState{}
+				m.restoreViewportContent()
 				return m, nil
 			case "c":
 				m.copySelection()
 				m.selection = SelectionState{}
+				m.restoreViewportContent()
 				return m, nil
 			}
 			// In selection mode, block other keys except quit
@@ -496,6 +506,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// If selection is active and user clicks in left panel, cancel selection
 		if m.selection.Active && inLeftPanel && msg.Button == tea.MouseButtonLeft && msg.Action == tea.MouseActionRelease {
 			m.selection = SelectionState{}
+			m.restoreViewportContent()
 			// Don't return here - let the click also select an agent if applicable
 		}
 
@@ -603,6 +614,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					// If empty selection (click without drag), exit selection mode
 					if m.selection.IsEmpty() {
 						m.selection.Active = false
+						m.restoreViewportContent()
 					}
 					return m, nil
 				}
@@ -776,22 +788,12 @@ func (m Model) View() string {
 
 	// Use highlighted content when selection is active
 	var rightContent string
-	// DEBUG: Disabled highlight rendering to isolate bug
-	// if m.selection.Active && !m.selection.IsEmpty() {
-	// 	// Apply selection highlighting
-	// 	highlightedLines := m.applySelectionHighlight()
-	// 	// Only show visible portion based on viewport offset
-	// 	visibleStart := m.viewport.YOffset
-	// 	visibleEnd := visibleStart + m.viewport.Height
-	// 	if visibleEnd > len(highlightedLines) {
-	// 		visibleEnd = len(highlightedLines)
-	// 	}
-	// 	if visibleStart < len(highlightedLines) {
-	// 		rightContent = strings.Join(highlightedLines[visibleStart:visibleEnd], "\n")
-	// 	}
-	// } else {
-	// 	rightContent = m.viewport.View()
-	// }
+	if m.selection.Active && !m.selection.IsEmpty() {
+		// Apply selection highlighting and let viewport render it
+		highlightedLines := m.applySelectionHighlight()
+		highlightedContent := strings.Join(highlightedLines, "\n")
+		m.viewport.SetContent(highlightedContent)
+	}
 	rightContent = m.viewport.View()
 	rightPanel := renderPanelWithTitle(rightTitle, rightContent, rightWidth, panelHeight, rightBorderColor)
 

@@ -262,6 +262,7 @@ type Model struct {
 	height             int
 	viewport           viewport.Model
 	contentLines       []StyledLine // Lines of content for selection mapping
+	lineToItemIdx      []int        // Maps rendered sidebar line number to sidebarItems index (-1 for separators)
 	err                error
 }
 
@@ -672,25 +673,27 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Handle clicks in left panel to select items
 		if inLeftPanel && msg.Button == tea.MouseButtonLeft && msg.Action == tea.MouseActionRelease {
-			// Calculate which item was clicked
-			// Subtract 1 for top border
+			// Populate the line-to-item mapping by rendering sidebar
+			_, _, _, contentHeight := m.layout()
+			m.renderSidebarContent(leftWidth-2, contentHeight)
+
+			// Calculate which line was clicked (subtract 1 for top border)
 			clickY := msg.Y - 1
 
-			// Account for top scroll indicator if present
-			if m.sidebarOffset > 0 {
-				clickY-- // First line is the "N more" indicator
+			// Use mapping to find the item index
+			if clickY < 0 || clickY >= len(m.lineToItemIdx) {
+				return m, nil
+			}
+			itemIdx := m.lineToItemIdx[clickY]
+			if itemIdx == -1 {
+				return m, nil // Clicked on separator or indicator
 			}
 
-			// Convert to item index, but only within visible range
-			visibleLines := m.sidebarVisibleLines()
-			if clickY >= 0 && clickY < visibleLines {
-				itemIdx := m.sidebarOffset + clickY
-				if itemIdx >= 0 && itemIdx < m.totalSidebarItems() {
-					m.selectedIdx = itemIdx
-					if agent := m.SelectedAgent(); agent != nil {
-						m.lastViewedAgent = agent
-						cmds = append(cmds, loadTranscriptCmd(*agent))
-					}
+			if itemIdx >= 0 && itemIdx < m.totalSidebarItems() {
+				m.selectedIdx = itemIdx
+				if agent := m.SelectedAgent(); agent != nil {
+					m.lastViewedAgent = agent
+					cmds = append(cmds, loadTranscriptCmd(*agent))
 				}
 			}
 		}
@@ -934,7 +937,9 @@ func (m Model) View() string {
 	return lipgloss.JoinVertical(lipgloss.Left, panels, status)
 }
 
-func (m Model) renderSidebarContent(width, height int) string {
+func (m *Model) renderSidebarContent(width, height int) string {
+	m.lineToItemIdx = nil // Reset mapping
+
 	items := m.sidebarItems()
 	if len(items) == 0 || height <= 0 {
 		return "No agents found"
@@ -969,6 +974,7 @@ func (m Model) renderSidebarContent(width, height int) string {
 			indicator = indicator[:width]
 		}
 		lines = append(lines, doneStyle.Render(indicator))
+		m.lineToItemIdx = append(m.lineToItemIdx, -1) // Top indicator is not clickable
 	}
 
 	// Header style
@@ -979,9 +985,10 @@ func (m Model) renderSidebarContent(width, height int) string {
 		item := items[i]
 
 		if item.isHeader {
-			// Add blank separator line before channel headers (except the first visible item)
-			if i > 0 && i > m.sidebarOffset {
+			// Add blank separator line before channel headers (except the first visible one)
+			if i > m.sidebarOffset && i > 0 {
 				lines = append(lines, "")
+				m.lineToItemIdx = append(m.lineToItemIdx, -1) // Separator line
 			}
 
 			// Render channel header
@@ -1000,6 +1007,7 @@ func (m Model) renderSidebarContent(width, height int) string {
 			} else {
 				lines = append(lines, headerStyle.Render(header))
 			}
+			m.lineToItemIdx = append(m.lineToItemIdx, i) // Header maps to item index
 		} else if item.isExpander {
 			// Render expander: "↓ N older"
 			expanderText := fmt.Sprintf("  \u2193 %d older", item.hiddenCount)
@@ -1016,6 +1024,7 @@ func (m Model) renderSidebarContent(width, height int) string {
 			} else {
 				lines = append(lines, doneStyle.Render(expanderText))
 			}
+			m.lineToItemIdx = append(m.lineToItemIdx, i) // Expander maps to item index
 		} else {
 			// Render agent
 			// Layout: "● Name" for active (dot + space + name)
@@ -1052,6 +1061,7 @@ func (m Model) renderSidebarContent(width, height int) string {
 					lines = append(lines, "  "+name)
 				}
 			}
+			m.lineToItemIdx = append(m.lineToItemIdx, i) // Agent maps to item index
 		}
 	}
 
@@ -1062,6 +1072,7 @@ func (m Model) renderSidebarContent(width, height int) string {
 			indicator = indicator[:width]
 		}
 		lines = append(lines, doneStyle.Render(indicator))
+		m.lineToItemIdx = append(m.lineToItemIdx, -1) // Bottom indicator is not clickable
 	}
 
 	return strings.Join(lines, "\n")

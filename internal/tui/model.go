@@ -184,63 +184,10 @@ func (m *Model) copySelection() {
 	clipboard.Write(clipboard.FmtText, []byte(text))
 }
 
-// restoreViewportContent restores the viewport to original (non-highlighted) content
-func (m *Model) restoreViewportContent() {
-	m.renderViewportContent()
-}
-
 // updateSelectionHighlight applies or clears selection highlighting in the viewport.
 // Call this when selection state changes (not on every scroll).
 func (m *Model) updateSelectionHighlight() {
 	m.renderViewportContent()
-}
-
-// sliceByVisualWidth extracts a substring from a string with ANSI codes based on visual column positions.
-// It preserves ANSI codes that apply to the sliced region.
-func sliceByVisualWidth(s string, startCol, endCol int) string {
-	if startCol >= endCol {
-		return ""
-	}
-
-	var result strings.Builder
-	visualPos := 0
-	inEscape := false
-	escapeSeq := strings.Builder{}
-
-	for _, r := range s {
-		if inEscape {
-			escapeSeq.WriteRune(r)
-			if (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') {
-				// End of escape sequence
-				inEscape = false
-				// Include escape sequences that occur before or within our range
-				if visualPos <= endCol {
-					result.WriteString(escapeSeq.String())
-				}
-				escapeSeq.Reset()
-			}
-			continue
-		}
-
-		if r == '\x1b' {
-			inEscape = true
-			escapeSeq.WriteRune(r)
-			continue
-		}
-
-		// Regular character - check if it's in our visual range
-		if visualPos >= startCol && visualPos < endCol {
-			result.WriteRune(r)
-		}
-		visualPos++
-
-		// Stop if we've passed the end
-		if visualPos >= endCol {
-			break
-		}
-	}
-
-	return result.String()
 }
 
 // applySelectionHighlight returns content lines with selection highlighting applied

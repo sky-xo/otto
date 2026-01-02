@@ -108,6 +108,31 @@ func (m Model) sidebarItems() []sidebarItem {
 	return items
 }
 
+// countSeparatorsBefore returns the number of blank separator lines that would appear
+// before the given item index. Separators appear before each channel header except the first.
+func (m Model) countSeparatorsBefore(itemIdx int) int {
+	items := m.sidebarItems()
+	count := 0
+	for i := 0; i < itemIdx && i < len(items); i++ {
+		if items[i].isHeader && i > 0 {
+			count++
+		}
+	}
+	return count
+}
+
+// countSeparatorsInRange returns the number of blank separator lines in the given item range [start, end).
+func (m Model) countSeparatorsInRange(start, end int) int {
+	items := m.sidebarItems()
+	count := 0
+	for i := start; i < end && i < len(items); i++ {
+		if items[i].isHeader && i > 0 {
+			count++
+		}
+	}
+	return count
+}
+
 // totalSidebarItems returns the total count of items (headers + agents).
 func (m Model) totalSidebarItems() int {
 	count := 0
@@ -131,8 +156,10 @@ func (m Model) SelectedAgent() *claude.Agent {
 	return item.agent
 }
 
-// sidebarVisibleLines returns how many agent lines can be displayed in the sidebar,
-// accounting for scroll indicators if they would be shown.
+// sidebarVisibleLines returns how many sidebar items can be displayed in the sidebar,
+// accounting for scroll indicators and separator lines between channels.
+// Note: This returns item count, not screen lines. Actual screen lines used may be higher
+// due to separator lines between channels.
 func (m Model) sidebarVisibleLines() int {
 	_, _, _, contentHeight := m.layout()
 	if contentHeight <= 0 {
@@ -144,15 +171,46 @@ func (m Model) sidebarVisibleLines() int {
 	if m.sidebarOffset > 0 {
 		lines--
 	}
-	// Reserve space for bottom indicator if there are more items below
-	endIdx := m.sidebarOffset + lines
-	if endIdx < m.totalSidebarItems() {
-		lines--
+
+	// We need to figure out how many items fit given that separators take space too.
+	// Use iterative approach: start with assuming all lines are items, then adjust.
+	items := m.sidebarItems()
+	totalItems := len(items)
+
+	// Start with naive estimate
+	visibleItems := lines
+	for {
+		endIdx := m.sidebarOffset + visibleItems
+		if endIdx > totalItems {
+			endIdx = totalItems
+		}
+
+		// Count separators in visible range
+		sepsInRange := m.countSeparatorsInRange(m.sidebarOffset, endIdx)
+
+		// Total screen lines needed = items + separators
+		screenLinesNeeded := visibleItems + sepsInRange
+
+		// Reserve space for bottom indicator if there are more items below
+		hasMoreBelow := endIdx < totalItems
+		if hasMoreBelow {
+			screenLinesNeeded++ // need room for bottom indicator
+		}
+
+		if screenLinesNeeded <= lines {
+			// We fit, done
+			break
+		}
+
+		// We don't fit, reduce visible items
+		visibleItems--
+		if visibleItems <= 0 {
+			visibleItems = 0
+			break
+		}
 	}
-	if lines < 0 {
-		lines = 0
-	}
-	return lines
+
+	return visibleItems
 }
 
 // ensureSelectedVisible adjusts sidebarOffset to keep selectedIdx visible.
@@ -528,21 +586,15 @@ func (m Model) renderSidebarContent(width, height int) string {
 		availableLines--
 	}
 
-	visibleEnd := m.sidebarOffset + availableLines
+	// Calculate how many items we can show, accounting for separator lines
+	visibleItems := m.sidebarVisibleLines()
+	visibleEnd := m.sidebarOffset + visibleItems
 	if visibleEnd > totalItems {
 		visibleEnd = totalItems
 	}
 
 	hiddenBelow := totalItems - visibleEnd
 	showBottomIndicator := hiddenBelow > 0
-	if showBottomIndicator && availableLines > 0 {
-		availableLines--
-		visibleEnd = m.sidebarOffset + availableLines
-		if visibleEnd > totalItems {
-			visibleEnd = totalItems
-		}
-		hiddenBelow = totalItems - visibleEnd
-	}
 
 	var lines []string
 
@@ -563,6 +615,11 @@ func (m Model) renderSidebarContent(width, height int) string {
 		item := items[i]
 
 		if item.isHeader {
+			// Add blank separator line before channel headers (except the first visible item)
+			if i > 0 && i > m.sidebarOffset {
+				lines = append(lines, "")
+			}
+
 			// Render channel header
 			header := item.channelName
 			if len(header) > width {

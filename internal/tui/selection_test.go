@@ -372,3 +372,76 @@ func TestUpdate_NavigationKeysBlockedInSelectionMode(t *testing.T) {
 		t.Error("Navigation should be blocked in selection mode")
 	}
 }
+
+func TestModel_GetSelectedText(t *testing.T) {
+	m := NewModel("/test")
+	m.contentLines = []string{
+		"First line of text",
+		"Second line here",
+		"Third line content",
+	}
+
+	tests := []struct {
+		name     string
+		anchor   Position
+		current  Position
+		expected string
+	}{
+		{
+			name:     "single line partial",
+			anchor:   Position{Row: 0, Col: 6},
+			current:  Position{Row: 0, Col: 10},
+			expected: "line",
+		},
+		{
+			name:     "multiple lines",
+			anchor:   Position{Row: 0, Col: 6},
+			current:  Position{Row: 1, Col: 6},
+			expected: "line of text\nSecond",
+		},
+		{
+			name:     "reversed selection",
+			anchor:   Position{Row: 1, Col: 6},
+			current:  Position{Row: 0, Col: 6},
+			expected: "line of text\nSecond",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m.selection = SelectionState{
+				Active:  true,
+				Anchor:  tt.anchor,
+				Current: tt.current,
+			}
+			got := m.getSelectedText()
+			if got != tt.expected {
+				t.Errorf("getSelectedText() = %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestModel_GetSelectedText_StripsANSI(t *testing.T) {
+	m := NewModel("/test")
+	// Content with ANSI escape codes
+	m.contentLines = []string{
+		"\x1b[32mGreen text\x1b[0m normal",
+	}
+	m.selection = SelectionState{
+		Active:  true,
+		Anchor:  Position{Row: 0, Col: 0},
+		Current: Position{Row: 0, Col: 16}, // "Green text normal" without codes
+	}
+
+	got := m.getSelectedText()
+
+	// Should not contain ANSI codes
+	if strings.Contains(got, "\x1b[") {
+		t.Errorf("getSelectedText() should strip ANSI codes, got: %q", got)
+	}
+	// Should contain the text
+	if !strings.Contains(got, "Green text") {
+		t.Errorf("getSelectedText() should contain text, got: %q", got)
+	}
+}

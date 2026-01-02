@@ -9,10 +9,12 @@ import (
 
 	"june/internal/claude"
 
+	"github.com/acarl005/stripansi"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
+	"golang.design/x/clipboard"
 )
 
 const sidebarWidth = 23
@@ -109,9 +111,72 @@ func (m *Model) screenToContentPosition(screenX, screenY int) Position {
 	return Position{Row: row, Col: col}
 }
 
+// getSelectedText extracts the selected text from content, stripping ANSI codes
+func (m *Model) getSelectedText() string {
+	if !m.selection.Active || m.selection.IsEmpty() {
+		return ""
+	}
+
+	start, end := m.selection.Normalize()
+
+	// Clamp to valid range
+	if len(m.contentLines) == 0 {
+		return ""
+	}
+	if start.Row >= len(m.contentLines) {
+		return ""
+	}
+	if end.Row >= len(m.contentLines) {
+		end.Row = len(m.contentLines) - 1
+		end.Col = len(stripansi.Strip(m.contentLines[end.Row]))
+	}
+
+	var result strings.Builder
+
+	for row := start.Row; row <= end.Row; row++ {
+		line := stripansi.Strip(m.contentLines[row])
+
+		startCol := 0
+		endCol := len(line)
+
+		if row == start.Row {
+			startCol = start.Col
+			if startCol > len(line) {
+				startCol = len(line)
+			}
+		}
+		if row == end.Row {
+			endCol = end.Col
+			if endCol > len(line) {
+				endCol = len(line)
+			}
+		}
+
+		if startCol < endCol {
+			result.WriteString(line[startCol:endCol])
+		}
+
+		if row < end.Row {
+			result.WriteString("\n")
+		}
+	}
+
+	return result.String()
+}
+
 // copySelection copies the selected text to the system clipboard
 func (m *Model) copySelection() {
-	// TODO: Implement in next task
+	text := m.getSelectedText()
+	if text == "" {
+		return
+	}
+
+	// Initialize clipboard (safe to call multiple times)
+	if err := clipboard.Init(); err != nil {
+		return // Silently fail if clipboard unavailable
+	}
+
+	clipboard.Write(clipboard.FmtText, []byte(text))
 }
 
 // Model is the TUI state.

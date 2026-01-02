@@ -59,6 +59,13 @@ func TestExtractChannelName(t *testing.T) {
 			repoName:   "june",
 			want:       "june:channels",
 		},
+		{
+			// Hyphenated branch names should be preserved
+			baseDir:    "-Users-test-code-june",
+			projectDir: "-Users-test-code-june--worktrees-select-mode",
+			repoName:   "june",
+			want:       "june:select-mode",
+		},
 	}
 
 	for _, tt := range tests {
@@ -120,16 +127,14 @@ func TestScanChannels_Integration(t *testing.T) {
 	tmpDir := t.TempDir()
 	claudeProjects := filepath.Join(tmpDir, ".claude", "projects")
 
-	// Mimic: june main + 2 worktrees
-	// Note: worktree names with hyphens (like "select-mode") only preserve the last segment
-	// due to how ExtractChannelName parses dash-separated paths
+	// Mimic: june main + 2 worktrees (including hyphenated name)
 	dirs := []struct {
 		name   string
 		agents []string
 	}{
 		{"-Users-test-code-june", []string{"agent-main1.jsonl", "agent-main2.jsonl"}},
 		{"-Users-test-code-june--worktrees-channels", []string{"agent-ch1.jsonl"}},
-		{"-Users-test-code-june--worktrees-feature", []string{"agent-feat1.jsonl", "agent-feat2.jsonl"}},
+		{"-Users-test-code-june--worktrees-select-mode", []string{"agent-sel1.jsonl", "agent-sel2.jsonl"}},
 	}
 
 	for _, d := range dirs {
@@ -161,7 +166,7 @@ func TestScanChannels_Integration(t *testing.T) {
 	if !names["june:channels"] {
 		t.Error("missing june:channels channel")
 	}
-	if !names["june:feature"] {
-		t.Error("missing june:feature channel")
+	if !names["june:select-mode"] {
+		t.Error("missing june:select-mode channel")
 	}
 }

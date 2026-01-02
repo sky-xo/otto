@@ -52,25 +52,28 @@ func ExtractChannelName(baseDir, projectDir, repoName string) string {
 
 	// Extract worktree name from suffix
 	suffix := strings.TrimPrefix(projectDir, baseDir)
-	// Remove leading dashes and "worktrees" segments
-	suffix = strings.TrimLeft(suffix, "-")
 
-	// Handle nested worktrees like "--worktrees--worktrees-channels"
-	// Split by "-" and find the last meaningful segment
-	parts := strings.Split(suffix, "-")
-
-	// Filter out "worktrees" and empty parts, keep last segment
-	var lastPart string
-	for _, p := range parts {
-		if p != "" && p != "worktrees" {
-			lastPart = p
+	// Find the last "-worktrees-" marker and take everything after it.
+	// This preserves hyphenated branch names like "select-mode".
+	const worktreeMarker = "-worktrees-"
+	lastIdx := strings.LastIndex(suffix, worktreeMarker)
+	if lastIdx != -1 {
+		branchName := suffix[lastIdx+len(worktreeMarker):]
+		if branchName != "" {
+			return repoName + ":" + branchName
 		}
 	}
 
-	if lastPart == "" {
+	// Fallback: try removing leading dashes and "worktrees" prefix
+	suffix = strings.TrimLeft(suffix, "-")
+	suffix = strings.TrimPrefix(suffix, "worktrees-")
+	suffix = strings.TrimPrefix(suffix, "worktrees")
+	suffix = strings.TrimLeft(suffix, "-")
+
+	if suffix == "" {
 		return repoName + ":unknown"
 	}
-	return repoName + ":" + lastPart
+	return repoName + ":" + suffix
 }
 
 // ScanChannels scans all related project directories and returns channels

@@ -7,7 +7,6 @@ import (
 
 	"june/internal/claude"
 
-	"github.com/acarl005/stripansi"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -113,7 +112,12 @@ func TestModel_ContentLines(t *testing.T) {
 	}
 
 	// Verify the content contains the user message
-	content := strings.Join(m.contentLines, "\n")
+	// Convert StyledLines back to strings for checking
+	var lines []string
+	for _, line := range m.contentLines {
+		lines = append(lines, line.String())
+	}
+	content := strings.Join(lines, "\n")
 	if !strings.Contains(content, "Hello world") {
 		t.Errorf("Expected contentLines to contain 'Hello world', got: %s", content)
 	}
@@ -130,10 +134,13 @@ func TestModel_ScreenToContentPosition(t *testing.T) {
 	m.viewport.Height = 10
 	m.viewport.YOffset = 0
 
-	// Set content
-	content := "Short\nA longer line here\nThird"
-	m.viewport.SetContent(content)
-	m.contentLines = strings.Split(content, "\n")
+	// Set content using StyledLines (plain text, no ANSI)
+	lines := []string{"Short", "A longer line here", "Third"}
+	m.contentLines = make([]StyledLine, len(lines))
+	for i, line := range lines {
+		m.contentLines[i] = ParseStyledLine(line)
+	}
+	m.viewport.SetContent(strings.Join(lines, "\n"))
 
 	tests := []struct {
 		name        string
@@ -177,9 +184,12 @@ func TestUpdate_MouseDragStartsSelection(t *testing.T) {
 	m.viewport.Width = 50
 	m.viewport.Height = 10
 
-	content := "Line one\nLine two\nLine three"
-	m.viewport.SetContent(content)
-	m.contentLines = strings.Split(content, "\n")
+	lines := []string{"Line one", "Line two", "Line three"}
+	m.contentLines = make([]StyledLine, len(lines))
+	for i, line := range lines {
+		m.contentLines[i] = ParseStyledLine(line)
+	}
+	m.viewport.SetContent(strings.Join(lines, "\n"))
 
 	// Simulate mouse press in content area
 	pressMsg := tea.MouseMsg{
@@ -225,9 +235,12 @@ func TestUpdate_MouseReleaseStopsDragging(t *testing.T) {
 		Current:  Position{Row: 1, Col: 10},
 	}
 
-	content := "Line one\nLine two\nLine three"
-	m.viewport.SetContent(content)
-	m.contentLines = strings.Split(content, "\n")
+	lines := []string{"Line one", "Line two", "Line three"}
+	m.contentLines = make([]StyledLine, len(lines))
+	for i, line := range lines {
+		m.contentLines[i] = ParseStyledLine(line)
+	}
+	m.viewport.SetContent(strings.Join(lines, "\n"))
 
 	// Simulate mouse release at a new position
 	releaseMsg := tea.MouseMsg{
@@ -271,9 +284,12 @@ func TestUpdate_MouseMotionUpdatesSelection(t *testing.T) {
 	m.viewport.Width = 50
 	m.viewport.Height = 10
 
-	content := "Line one\nLine two\nLine three"
-	m.viewport.SetContent(content)
-	m.contentLines = strings.Split(content, "\n")
+	lines := []string{"Line one", "Line two", "Line three"}
+	m.contentLines = make([]StyledLine, len(lines))
+	for i, line := range lines {
+		m.contentLines[i] = ParseStyledLine(line)
+	}
+	m.viewport.SetContent(strings.Join(lines, "\n"))
 
 	// Set up an active dragging selection
 	m.selection = SelectionState{
@@ -343,7 +359,11 @@ func TestUpdate_CKeyInSelectionModeCopies(t *testing.T) {
 		Anchor:  Position{Row: 0, Col: 0},
 		Current: Position{Row: 0, Col: 5},
 	}
-	m.contentLines = []string{"Hello World", "Line two"}
+	lines := []string{"Hello World", "Line two"}
+	m.contentLines = make([]StyledLine, len(lines))
+	for i, line := range lines {
+		m.contentLines[i] = ParseStyledLine(line)
+	}
 
 	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}}
 	newModel, _ := m.Update(msg)
@@ -377,10 +397,14 @@ func TestUpdate_NavigationKeysBlockedInSelectionMode(t *testing.T) {
 
 func TestModel_GetSelectedText(t *testing.T) {
 	m := NewModel("/test")
-	m.contentLines = []string{
+	lines := []string{
 		"First line of text",
 		"Second line here",
 		"Third line content",
+	}
+	m.contentLines = make([]StyledLine, len(lines))
+	for i, line := range lines {
+		m.contentLines[i] = ParseStyledLine(line)
 	}
 
 	tests := []struct {
@@ -426,19 +450,19 @@ func TestModel_GetSelectedText(t *testing.T) {
 
 func TestModel_GetSelectedText_StripsANSI(t *testing.T) {
 	m := NewModel("/test")
-	// Content with ANSI escape codes
-	m.contentLines = []string{
-		"\x1b[32mGreen text\x1b[0m normal",
+	// Content with ANSI escape codes - ParseStyledLine will parse this
+	m.contentLines = []StyledLine{
+		ParseStyledLine("\x1b[32mGreen text\x1b[0m normal"),
 	}
 	m.selection = SelectionState{
 		Active:  true,
 		Anchor:  Position{Row: 0, Col: 0},
-		Current: Position{Row: 0, Col: 16}, // "Green text normal" without codes
+		Current: Position{Row: 0, Col: 17}, // "Green text normal" = 17 chars
 	}
 
 	got := m.getSelectedText()
 
-	// Should not contain ANSI codes
+	// Should not contain ANSI codes (StyledLine extracts plain text)
 	if strings.Contains(got, "\x1b[") {
 		t.Errorf("getSelectedText() should strip ANSI codes, got: %q", got)
 	}
@@ -450,7 +474,7 @@ func TestModel_GetSelectedText_StripsANSI(t *testing.T) {
 
 func TestModel_ApplySelectionHighlight(t *testing.T) {
 	m := NewModel("/test")
-	m.contentLines = []string{"Hello World"}
+	m.contentLines = []StyledLine{ParseStyledLine("Hello World")}
 	m.selection = SelectionState{
 		Active:  true,
 		Anchor:  Position{Row: 0, Col: 0},
@@ -464,22 +488,25 @@ func TestModel_ApplySelectionHighlight(t *testing.T) {
 		t.Fatalf("Expected 1 line, got %d", len(highlighted))
 	}
 
-	// The highlighted version should be different from original OR contain the text
-	// (lipgloss may not produce ANSI codes in non-terminal environments)
-	stripped := stripansi.Strip(highlighted[0])
-	if !strings.Contains(stripped, "Hello") {
-		t.Errorf("Expected 'Hello' in output, got: %s", stripped)
+	// The highlighted version should contain the text
+	plainText := highlighted[0].String()
+	if !strings.Contains(plainText, "Hello") {
+		t.Errorf("Expected 'Hello' in output, got: %s", plainText)
 	}
 
-	// The stripped content should still have the full text
-	if stripped != "Hello World" {
-		t.Errorf("Expected stripped content to be 'Hello World', got: %s", stripped)
+	// The plain text content should still have the full text
+	if plainText != "Hello World" {
+		t.Errorf("Expected plain text to be 'Hello World', got: %s", plainText)
 	}
 }
 
 func TestModel_ApplySelectionHighlight_MultipleLines(t *testing.T) {
 	m := NewModel("/test")
-	m.contentLines = []string{"Line one", "Line two", "Line three"}
+	lines := []string{"Line one", "Line two", "Line three"}
+	m.contentLines = make([]StyledLine, len(lines))
+	for i, line := range lines {
+		m.contentLines[i] = ParseStyledLine(line)
+	}
 	m.selection = SelectionState{
 		Active:  true,
 		Anchor:  Position{Row: 0, Col: 5},
@@ -493,19 +520,19 @@ func TestModel_ApplySelectionHighlight_MultipleLines(t *testing.T) {
 		t.Fatalf("Expected 3 lines, got %d", len(highlighted))
 	}
 
-	// All lines should still contain their original text when stripped
+	// All lines should still contain their original text
 	for i, line := range highlighted {
-		stripped := stripansi.Strip(line)
-		original := stripansi.Strip(m.contentLines[i])
-		if stripped != original {
-			t.Errorf("Line %d: expected %q, got %q", i, original, stripped)
+		plainText := line.String()
+		original := m.contentLines[i].String()
+		if plainText != original {
+			t.Errorf("Line %d: expected %q, got %q", i, original, plainText)
 		}
 	}
 }
 
 func TestModel_ApplySelectionHighlight_EmptySelection(t *testing.T) {
 	m := NewModel("/test")
-	m.contentLines = []string{"Hello World"}
+	m.contentLines = []StyledLine{ParseStyledLine("Hello World")}
 	m.selection = SelectionState{
 		Active:  true,
 		Anchor:  Position{Row: 0, Col: 5},
@@ -518,14 +545,14 @@ func TestModel_ApplySelectionHighlight_EmptySelection(t *testing.T) {
 	if len(highlighted) != len(m.contentLines) {
 		t.Fatalf("Expected %d lines, got %d", len(m.contentLines), len(highlighted))
 	}
-	if highlighted[0] != m.contentLines[0] {
+	if highlighted[0].String() != m.contentLines[0].String() {
 		t.Error("Empty selection should return original content unchanged")
 	}
 }
 
 func TestModel_ApplySelectionHighlight_InactiveSelection(t *testing.T) {
 	m := NewModel("/test")
-	m.contentLines = []string{"Hello World"}
+	m.contentLines = []StyledLine{ParseStyledLine("Hello World")}
 	m.selection = SelectionState{
 		Active:  false,
 		Anchor:  Position{Row: 0, Col: 0},
@@ -535,7 +562,7 @@ func TestModel_ApplySelectionHighlight_InactiveSelection(t *testing.T) {
 	highlighted := m.applySelectionHighlight()
 
 	// Should return original content unchanged when selection is inactive
-	if highlighted[0] != m.contentLines[0] {
+	if highlighted[0].String() != m.contentLines[0].String() {
 		t.Error("Inactive selection should return original content unchanged")
 	}
 }
@@ -551,7 +578,7 @@ func TestView_ShowsSelectionIndicator(t *testing.T) {
 		Anchor:  Position{Row: 0, Col: 0},
 		Current: Position{Row: 0, Col: 5},
 	}
-	m.contentLines = []string{"Hello World"}
+	m.contentLines = []StyledLine{ParseStyledLine("Hello World")}
 
 	view := m.View()
 
@@ -571,7 +598,7 @@ func TestView_NoSelectionIndicatorWhenInactive(t *testing.T) {
 	m.agents = []claude.Agent{{ID: "test123", FilePath: "/tmp/test.jsonl"}}
 	m.selectedIdx = 0
 	m.selection = SelectionState{Active: false}
-	m.contentLines = []string{"Hello World"}
+	m.contentLines = []StyledLine{ParseStyledLine("Hello World")}
 
 	view := m.View()
 
@@ -590,12 +617,15 @@ func TestUpdate_DragNearTopEdgeScrollsUp(t *testing.T) {
 	m.viewport.YOffset = 5 // Scrolled down
 
 	// Create content with enough lines
-	lines := make([]string, 20)
-	for i := range lines {
-		lines[i] = fmt.Sprintf("Line %d content", i)
+	rawLines := make([]string, 20)
+	for i := range rawLines {
+		rawLines[i] = fmt.Sprintf("Line %d content", i)
 	}
-	m.contentLines = lines
-	m.viewport.SetContent(strings.Join(lines, "\n"))
+	m.contentLines = make([]StyledLine, len(rawLines))
+	for i, line := range rawLines {
+		m.contentLines[i] = ParseStyledLine(line)
+	}
+	m.viewport.SetContent(strings.Join(rawLines, "\n"))
 
 	m.selection = SelectionState{
 		Active:   true,
@@ -656,12 +686,15 @@ func TestUpdate_ScrollPreservesSelection(t *testing.T) {
 	m.viewport.Height = 10
 
 	// Create content with enough lines to scroll
-	lines := make([]string, 30)
-	for i := range lines {
-		lines[i] = fmt.Sprintf("Line %d content here", i)
+	rawLines := make([]string, 30)
+	for i := range rawLines {
+		rawLines[i] = fmt.Sprintf("Line %d content here", i)
 	}
-	m.contentLines = lines
-	m.viewport.SetContent(strings.Join(lines, "\n"))
+	m.contentLines = make([]StyledLine, len(rawLines))
+	for i, line := range rawLines {
+		m.contentLines[i] = ParseStyledLine(line)
+	}
+	m.viewport.SetContent(strings.Join(rawLines, "\n"))
 
 	// Set up a selection
 	originalSelection := SelectionState{

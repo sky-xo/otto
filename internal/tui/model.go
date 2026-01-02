@@ -9,7 +9,6 @@ import (
 
 	"june/internal/claude"
 
-	"github.com/acarl005/stripansi"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
@@ -107,8 +106,8 @@ func (m *Model) screenToContentPosition(screenX, screenY int) Position {
 		if row >= len(m.contentLines) {
 			row = len(m.contentLines) - 1
 		}
-		// Clamp column to line length (use visual width for ANSI content)
-		lineLen := lipgloss.Width(m.contentLines[row])
+		// Clamp column to line length
+		lineLen := len(m.contentLines[row])
 		if col > lineLen {
 			col = lineLen
 		}
@@ -117,7 +116,7 @@ func (m *Model) screenToContentPosition(screenX, screenY int) Position {
 	return Position{Row: row, Col: col}
 }
 
-// getSelectedText extracts the selected text from content, stripping ANSI codes
+// getSelectedText extracts the selected text from content
 func (m *Model) getSelectedText() string {
 	if !m.selection.Active || m.selection.IsEmpty() {
 		return ""
@@ -125,41 +124,41 @@ func (m *Model) getSelectedText() string {
 
 	start, end := m.selection.Normalize()
 
-	// Clamp to valid range
-	if len(m.contentLines) == 0 {
-		return ""
-	}
-	if start.Row >= len(m.contentLines) {
+	if len(m.contentLines) == 0 || start.Row >= len(m.contentLines) {
 		return ""
 	}
 	if end.Row >= len(m.contentLines) {
 		end.Row = len(m.contentLines) - 1
-		end.Col = len(stripansi.Strip(m.contentLines[end.Row]))
+		end.Col = len(m.contentLines[end.Row])
 	}
 
 	var result strings.Builder
 
 	for row := start.Row; row <= end.Row; row++ {
-		line := stripansi.Strip(m.contentLines[row])
+		line := m.contentLines[row]
+		lineLen := len(line)
 
 		startCol := 0
-		endCol := len(line)
+		endCol := lineLen
 
 		if row == start.Row {
 			startCol = start.Col
-			if startCol > len(line) {
-				startCol = len(line)
+			if startCol > lineLen {
+				startCol = lineLen
 			}
 		}
 		if row == end.Row {
 			endCol = end.Col
-			if endCol > len(line) {
-				endCol = len(line)
+			if endCol > lineLen {
+				endCol = lineLen
 			}
 		}
 
 		if startCol < endCol {
-			result.WriteString(line[startCol:endCol])
+			// Extract plain text from cells
+			for i := startCol; i < endCol; i++ {
+				result.WriteRune(line[i].Char)
+			}
 		}
 
 		if row < end.Row {
@@ -187,19 +186,71 @@ func (m *Model) copySelection() {
 
 // restoreViewportContent restores the viewport to original (non-highlighted) content
 func (m *Model) restoreViewportContent() {
-	if len(m.contentLines) > 0 {
-		m.viewport.SetContent(strings.Join(m.contentLines, "\n"))
-	}
+	m.renderViewportContent()
 }
 
-// applySelectionHighlight returns content lines with selection highlighted using inverted colors
-func (m *Model) applySelectionHighlight() []string {
+// updateSelectionHighlight applies or clears selection highlighting in the viewport.
+// Call this when selection state changes (not on every scroll).
+func (m *Model) updateSelectionHighlight() {
+	m.renderViewportContent()
+}
+
+// sliceByVisualWidth extracts a substring from a string with ANSI codes based on visual column positions.
+// It preserves ANSI codes that apply to the sliced region.
+func sliceByVisualWidth(s string, startCol, endCol int) string {
+	if startCol >= endCol {
+		return ""
+	}
+
+	var result strings.Builder
+	visualPos := 0
+	inEscape := false
+	escapeSeq := strings.Builder{}
+
+	for _, r := range s {
+		if inEscape {
+			escapeSeq.WriteRune(r)
+			if (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') {
+				// End of escape sequence
+				inEscape = false
+				// Include escape sequences that occur before or within our range
+				if visualPos <= endCol {
+					result.WriteString(escapeSeq.String())
+				}
+				escapeSeq.Reset()
+			}
+			continue
+		}
+
+		if r == '\x1b' {
+			inEscape = true
+			escapeSeq.WriteRune(r)
+			continue
+		}
+
+		// Regular character - check if it's in our visual range
+		if visualPos >= startCol && visualPos < endCol {
+			result.WriteRune(r)
+		}
+		visualPos++
+
+		// Stop if we've passed the end
+		if visualPos >= endCol {
+			break
+		}
+	}
+
+	return result.String()
+}
+
+// applySelectionHighlight returns content lines with selection highlighting applied
+func (m *Model) applySelectionHighlight() []StyledLine {
 	if !m.selection.Active || m.selection.IsEmpty() || len(m.contentLines) == 0 {
 		return m.contentLines
 	}
 
 	start, end := m.selection.Normalize()
-	result := make([]string, len(m.contentLines))
+	result := make([]StyledLine, len(m.contentLines))
 	copy(result, m.contentLines)
 
 	// Clamp to valid range
@@ -208,45 +259,25 @@ func (m *Model) applySelectionHighlight() []string {
 	}
 	if end.Row >= len(m.contentLines) {
 		end.Row = len(m.contentLines) - 1
-		end.Col = lipgloss.Width(m.contentLines[end.Row])
+		end.Col = len(m.contentLines[end.Row])
 	}
 
-	// Use background color instead of Reverse - should preserve existing foreground colors
-	highlightStyle := lipgloss.NewStyle().Background(lipgloss.Color("238")) // dark gray background
+	highlightBG := Color{Type: Color256, Value: 238}
 
 	for row := start.Row; row <= end.Row; row++ {
-		line := m.contentLines[row]
-		strippedLine := stripansi.Strip(line)
-		lineLen := len(strippedLine)
-
 		startCol := 0
-		endCol := lineLen
+		endCol := len(m.contentLines[row])
 
 		if row == start.Row {
 			startCol = start.Col
-			if startCol > lineLen {
-				startCol = lineLen
-			}
 		}
 		if row == end.Row {
 			endCol = end.Col
-			if endCol > lineLen {
-				endCol = lineLen
-			}
 		}
 
-		if startCol >= endCol {
-			continue
+		if startCol < endCol {
+			result[row] = m.contentLines[row].WithSelection(startCol, endCol, highlightBG)
 		}
-
-		// Build the line with inverted selection
-		// Note: This is simplified - for lines with ANSI codes, we use stripped text
-		// A more sophisticated approach would parse and preserve ANSI codes
-		before := strippedLine[:startCol]
-		selected := strippedLine[startCol:endCol]
-		after := strippedLine[endCol:]
-
-		result[row] = before + highlightStyle.Render(selected) + after
 	}
 
 	return result
@@ -266,7 +297,7 @@ type Model struct {
 	width              int
 	height             int
 	viewport           viewport.Model
-	contentLines       []string // Lines of content for selection mapping
+	contentLines       []StyledLine // Lines of content for selection mapping
 	err                error
 }
 
@@ -367,12 +398,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch msg.String() {
 			case "esc":
 				m.selection = SelectionState{}
-				m.restoreViewportContent()
+				m.updateSelectionHighlight()
 				return m, nil
 			case "c":
 				m.copySelection()
 				m.selection = SelectionState{}
-				m.restoreViewportContent()
+				m.updateSelectionHighlight()
 				return m, nil
 			}
 			// In selection mode, block other keys except quit
@@ -506,7 +537,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// If selection is active and user clicks in left panel, cancel selection
 		if m.selection.Active && inLeftPanel && msg.Button == tea.MouseButtonLeft && msg.Action == tea.MouseActionRelease {
 			m.selection = SelectionState{}
-			m.restoreViewportContent()
+			m.updateSelectionHighlight()
 			// Don't return here - let the click also select an agent if applicable
 		}
 
@@ -577,12 +608,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						Anchor:   pos,
 						Current:  pos,
 					}
+					// Don't update highlighting yet - wait for drag or release
 					return m, nil
 				}
 			case tea.MouseActionMotion:
 				if m.selection.Dragging {
 					// Update selection end point
-					m.selection.Current = m.screenToContentPosition(msg.X, msg.Y)
+					newPos := m.screenToContentPosition(msg.X, msg.Y)
+					selectionChanged := newPos != m.selection.Current
+					if selectionChanged {
+						m.selection.Current = newPos
+					}
 
 					// Auto-scroll if near edges
 					_, _, _, contentHeight := m.layout()
@@ -595,12 +631,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						// Near top edge - scroll up
 						m.viewport.LineUp(1)
 						// Update selection to follow scroll
-						m.selection.Current = m.screenToContentPosition(msg.X, msg.Y)
+						newPos = m.screenToContentPosition(msg.X, msg.Y)
+						if newPos != m.selection.Current {
+							m.selection.Current = newPos
+							selectionChanged = true
+						}
 					} else if relativeY >= contentHeight-edgeThreshold {
 						// Near bottom edge - scroll down
 						m.viewport.LineDown(1)
 						// Update selection to follow scroll
-						m.selection.Current = m.screenToContentPosition(msg.X, msg.Y)
+						newPos = m.screenToContentPosition(msg.X, msg.Y)
+						if newPos != m.selection.Current {
+							m.selection.Current = newPos
+							selectionChanged = true
+						}
+					}
+
+					// Only update highlighting when selection actually changed
+					if selectionChanged {
+						m.updateSelectionHighlight()
 					}
 
 					return m, nil
@@ -614,8 +663,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					// If empty selection (click without drag), exit selection mode
 					if m.selection.IsEmpty() {
 						m.selection.Active = false
-						m.restoreViewportContent()
 					}
+					m.updateSelectionHighlight()
 					return m, nil
 				}
 			}
@@ -713,8 +762,30 @@ func (m *Model) updateViewport() {
 	}
 	entries := m.transcripts[agent.ID]
 	content := formatTranscript(entries, m.viewport.Width)
-	m.viewport.SetContent(content)
-	m.contentLines = strings.Split(content, "\n")
+
+	// Parse ANSI content into StyledLines
+	lines := strings.Split(content, "\n")
+	m.contentLines = make([]StyledLine, len(lines))
+	for i, line := range lines {
+		m.contentLines[i] = ParseStyledLine(line)
+	}
+
+	// Render for viewport (apply selection if active)
+	m.renderViewportContent()
+}
+
+// renderViewportContent renders contentLines to viewport, applying selection if active
+func (m *Model) renderViewportContent() {
+	lines := m.contentLines
+	if m.selection.Active && !m.selection.IsEmpty() {
+		lines = m.applySelectionHighlight()
+	}
+
+	rendered := make([]string, len(lines))
+	for i, line := range lines {
+		rendered[i] = line.Render()
+	}
+	m.viewport.SetContent(strings.Join(rendered, "\n"))
 }
 
 // layout calculates panel dimensions
@@ -786,15 +857,8 @@ func (m Model) View() string {
 		}
 	}
 
-	// Use highlighted content when selection is active
-	var rightContent string
-	if m.selection.Active && !m.selection.IsEmpty() {
-		// Apply selection highlighting and let viewport render it
-		highlightedLines := m.applySelectionHighlight()
-		highlightedContent := strings.Join(highlightedLines, "\n")
-		m.viewport.SetContent(highlightedContent)
-	}
-	rightContent = m.viewport.View()
+	// Viewport content is already set in Update() with selection highlighting if active
+	rightContent := m.viewport.View()
 	rightPanel := renderPanelWithTitle(rightTitle, rightContent, rightWidth, panelHeight, rightBorderColor)
 
 	panels := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel)
@@ -908,17 +972,47 @@ func (m Model) renderSidebarContent(width, height int) string {
 	return strings.Join(lines, "\n")
 }
 
+// truncateToWidth truncates a string (possibly with ANSI codes) to fit within maxWidth.
+// Uses binary search for efficiency instead of linear trimming.
+func truncateToWidth(s string, maxWidth int) string {
+	if lipgloss.Width(s) <= maxWidth {
+		return s
+	}
+
+	runes := []rune(s)
+	// Binary search for the right length
+	low, high := 0, len(runes)
+	for low < high {
+		mid := (low + high + 1) / 2
+		if lipgloss.Width(string(runes[:mid])) <= maxWidth {
+			low = mid
+		} else {
+			high = mid - 1
+		}
+	}
+
+	result := string(runes[:low])
+	// Pad if needed
+	resultWidth := lipgloss.Width(result)
+	if resultWidth < maxWidth {
+		result = result + strings.Repeat(" ", maxWidth-resultWidth)
+	}
+	return result
+}
+
 // renderPanelWithTitle renders a panel with the title embedded in the top border
 // like: ╭─ Title ────────╮
 // This is copied from the old working TUI code.
 func renderPanelWithTitle(title, content string, width, height int, borderColor lipgloss.TerminalColor) string {
 	// Border characters (rounded)
-	topLeft := "╭"
-	topRight := "╮"
-	bottomLeft := "╰"
-	bottomRight := "╯"
-	horizontal := "─"
-	vertical := "│"
+	const (
+		topLeft     = "╭"
+		topRight    = "╮"
+		bottomLeft  = "╰"
+		bottomRight = "╯"
+		horizontal  = "─"
+		vertical    = "│"
+	)
 
 	borderStyle := lipgloss.NewStyle().Foreground(borderColor)
 	titleStyle := lipgloss.NewStyle().Foreground(borderColor).Bold(true)
@@ -928,6 +1022,10 @@ func renderPanelWithTitle(title, content string, width, height int, borderColor 
 	if contentWidth < 0 {
 		contentWidth = 0
 	}
+
+	// Pre-render border characters once
+	leftBorder := borderStyle.Render(vertical)
+	rightBorder := borderStyle.Render(vertical)
 
 	// Build top border with embedded title
 	var topBorder string
@@ -959,8 +1057,10 @@ func renderPanelWithTitle(title, content string, width, height int, borderColor 
 		contentLines = 0
 	}
 
+	// Pre-allocate with exact capacity
+	middleLines := make([]string, 0, contentLines)
+
 	// Render middle lines with side borders
-	var middleLines []string
 	for i := 0; i < contentLines; i++ {
 		var line string
 		if i < len(lines) {
@@ -971,18 +1071,10 @@ func renderPanelWithTitle(title, content string, width, height int, borderColor 
 		if visualWidth < contentWidth {
 			line = line + strings.Repeat(" ", contentWidth-visualWidth)
 		} else if visualWidth > contentWidth {
-			// Truncate line to fit
-			runes := []rune(line)
-			for len(runes) > 0 && lipgloss.Width(string(runes)) > contentWidth {
-				runes = runes[:len(runes)-1]
-			}
-			line = string(runes)
-			// Pad if truncation left us short
-			if lipgloss.Width(line) < contentWidth {
-				line = line + strings.Repeat(" ", contentWidth-lipgloss.Width(line))
-			}
+			// Truncate line using binary search for efficiency
+			line = truncateToWidth(line, contentWidth)
 		}
-		middleLines = append(middleLines, borderStyle.Render(vertical)+line+borderStyle.Render(vertical))
+		middleLines = append(middleLines, leftBorder+line+rightBorder)
 	}
 
 	// Join all parts

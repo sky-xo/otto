@@ -608,7 +608,7 @@ func (m Model) renderSidebarContent(width, height int) string {
 	}
 
 	// Header style
-	headerStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.AdaptiveColor{Light: "4", Dark: "6"})
+	headerStyle := lipgloss.NewStyle().Bold(true).Foreground(focusedBorderColor) // lime green, matches focused borders
 
 	// Render visible items
 	for i := m.sidebarOffset; i < visibleEnd; i++ {

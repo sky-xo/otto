@@ -314,3 +314,61 @@ func TestUpdate_MouseMotionUpdatesSelection(t *testing.T) {
 		t.Errorf("Expected Current %+v, got %+v", expectedCurrent, updated.selection.Current)
 	}
 }
+
+func TestUpdate_EscapeCancelsSelection(t *testing.T) {
+	m := NewModel("/test")
+	m.selection = SelectionState{
+		Active:  true,
+		Anchor:  Position{Row: 1, Col: 5},
+		Current: Position{Row: 2, Col: 10},
+	}
+
+	msg := tea.KeyMsg{Type: tea.KeyEscape}
+	newModel, _ := m.Update(msg)
+	updated := newModel.(Model)
+
+	if updated.selection.Active {
+		t.Error("Expected selection to be inactive after Escape")
+	}
+}
+
+func TestUpdate_CKeyInSelectionModeCopies(t *testing.T) {
+	m := NewModel("/test")
+	m.width = 80
+	m.height = 24
+	m.selection = SelectionState{
+		Active:  true,
+		Anchor:  Position{Row: 0, Col: 0},
+		Current: Position{Row: 0, Col: 5},
+	}
+	m.contentLines = []string{"Hello World", "Line two"}
+
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}}
+	newModel, _ := m.Update(msg)
+	updated := newModel.(Model)
+
+	// Selection should be cleared after copy
+	if updated.selection.Active {
+		t.Error("Expected selection to be inactive after copy")
+	}
+}
+
+func TestUpdate_NavigationKeysBlockedInSelectionMode(t *testing.T) {
+	m := NewModel("/test")
+	m.selection = SelectionState{Active: true, Anchor: Position{Row: 1, Col: 5}, Current: Position{Row: 2, Col: 10}}
+	m.selectedIdx = 1
+	m.agents = []claude.Agent{{ID: "a1", FilePath: "/tmp/a1.jsonl"}, {ID: "a2", FilePath: "/tmp/a2.jsonl"}}
+
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}}
+	newModel, _ := m.Update(msg)
+	updated := newModel.(Model)
+
+	// Selection should still be active (key was blocked)
+	if !updated.selection.Active {
+		t.Error("Selection should remain active when navigation keys are pressed")
+	}
+	// selectedIdx should not change
+	if updated.selectedIdx != 1 {
+		t.Error("Navigation should be blocked in selection mode")
+	}
+}

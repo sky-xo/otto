@@ -109,6 +109,11 @@ func (m *Model) screenToContentPosition(screenX, screenY int) Position {
 	return Position{Row: row, Col: col}
 }
 
+// copySelection copies the selected text to the system clipboard
+func (m *Model) copySelection() {
+	// TODO: Implement in next task
+}
+
 // Model is the TUI state.
 type Model struct {
 	projectDir  string                    // Claude project directory we're watching
@@ -219,6 +224,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		// Handle selection mode keys first
+		if m.selection.Active {
+			switch msg.String() {
+			case "esc":
+				m.selection = SelectionState{}
+				return m, nil
+			case "c":
+				m.copySelection()
+				m.selection = SelectionState{}
+				return m, nil
+			}
+			// In selection mode, block other keys except quit
+			if msg.String() != "q" && msg.String() != "ctrl+c" {
+				return m, nil
+			}
+		}
+
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return m, tea.Quit

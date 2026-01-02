@@ -165,6 +165,10 @@ func createModelWithAgents(agents []claude.Agent, width, height int) Model {
 	m.channels = []claude.Channel{
 		{Name: "repo:main", Dir: "/test/claude/projects/repo", Agents: agents},
 	}
+	// Set lastViewedAgent to first agent if available (for right panel display)
+	if len(agents) > 0 {
+		m.lastViewedAgent = &m.channels[0].Agents[0]
+	}
 	m.width = width
 	m.height = height
 	return m

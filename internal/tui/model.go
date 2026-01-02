@@ -62,10 +62,11 @@ type Model struct {
 	channels          []claude.Channel          // Channels with their agents
 	transcripts       map[string][]claude.Entry // Agent ID -> transcript entries
 
-	selectedIdx        int  // Currently selected item index (across all channels + headers)
-	sidebarOffset      int  // Scroll offset for the sidebar
-	lastNavWasKeyboard bool // Track if last sidebar interaction was keyboard (for auto-scroll behavior)
-	focusedPanel       int  // Which panel has focus (panelLeft or panelRight)
+	selectedIdx        int           // Currently selected item index (across all channels + headers)
+	lastViewedAgent    *claude.Agent // Last agent shown in right panel (persists when header selected)
+	sidebarOffset      int           // Scroll offset for the sidebar
+	lastNavWasKeyboard bool          // Track if last sidebar interaction was keyboard (for auto-scroll behavior)
+	focusedPanel       int           // Which panel has focus (panelLeft or panelRight)
 	width              int
 	height             int
 	viewport           viewport.Model
@@ -222,6 +223,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.lastNavWasKeyboard = true
 					m.ensureSelectedVisible()
 					if agent := m.SelectedAgent(); agent != nil {
+						m.lastViewedAgent = agent
 						cmds = append(cmds, loadTranscriptCmd(*agent))
 					}
 				}
@@ -239,6 +241,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.lastNavWasKeyboard = true
 					m.ensureSelectedVisible()
 					if agent := m.SelectedAgent(); agent != nil {
+						m.lastViewedAgent = agent
 						cmds = append(cmds, loadTranscriptCmd(*agent))
 					}
 				}
@@ -274,6 +277,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				m.lastNavWasKeyboard = true
 				if agent := m.SelectedAgent(); agent != nil {
+					m.lastViewedAgent = agent
 					cmds = append(cmds, loadTranscriptCmd(*agent))
 				}
 				return m, tea.Batch(cmds...)
@@ -310,6 +314,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				m.lastNavWasKeyboard = true
 				if agent := m.SelectedAgent(); agent != nil {
+					m.lastViewedAgent = agent
 					cmds = append(cmds, loadTranscriptCmd(*agent))
 				}
 				return m, tea.Batch(cmds...)
@@ -374,6 +379,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if itemIdx >= 0 && itemIdx < m.totalSidebarItems() {
 					m.selectedIdx = itemIdx
 					if agent := m.SelectedAgent(); agent != nil {
+						m.lastViewedAgent = agent
 						cmds = append(cmds, loadTranscriptCmd(*agent))
 					}
 				}
@@ -391,11 +397,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case channelsMsg:
 		m.channels = msg
-		// TODO: Update selection logic in Task 4
-		if len(m.channels) > 0 && len(m.channels[0].Agents) > 0 {
-			if agent := m.SelectedAgent(); agent != nil {
-				cmds = append(cmds, loadTranscriptCmd(*agent))
-			}
+		if agent := m.SelectedAgent(); agent != nil {
+			m.lastViewedAgent = agent
+			cmds = append(cmds, loadTranscriptCmd(*agent))
 		}
 
 	case transcriptMsg:
@@ -430,7 +434,8 @@ func (m *Model) updateViewportDimensions() {
 }
 
 func (m *Model) updateViewport() {
-	agent := m.SelectedAgent()
+	// Use lastViewedAgent to persist content when a header is selected
+	agent := m.lastViewedAgent
 	if agent == nil {
 		m.viewport.SetContent("")
 		return
@@ -488,9 +493,9 @@ func (m Model) View() string {
 	leftContent := m.renderSidebarContent(leftWidth-2, contentHeight)
 	leftPanel := renderPanelWithTitle("Subagents", leftContent, leftWidth, panelHeight, leftBorderColor)
 
-	// Right panel: transcript
+	// Right panel: transcript (uses lastViewedAgent to persist when header is selected)
 	var rightTitle string
-	if agent := m.SelectedAgent(); agent != nil {
+	if agent := m.lastViewedAgent; agent != nil {
 		if agent.Description != "" {
 			rightTitle = fmt.Sprintf("%s (%s) | %s", agent.Description, agent.ID, formatTimestamp(agent.LastMod))
 		} else {
@@ -575,43 +580,40 @@ func (m Model) renderSidebarContent(width, height int) string {
 				lines = append(lines, headerStyle.Render(header))
 			}
 		} else {
-			// Render agent (indented under header)
+			// Render agent
+			// Layout: "● Name" for active (dot + space + name)
+			//         "  Name" for inactive (2 spaces + name)
+			// Text position stays the same whether active or not
 			agent := item.agent
-			var indicator string
-			indicatorChar := "\u2713"
-			if agent.IsActive() {
-				indicatorChar = "\u25cf"
-			}
 
 			name := agent.Description
 			if name == "" {
 				name = agent.ID
 			}
-			maxNameLen := width - 5 // "  " indent + indicator + space + name
+			maxNameLen := width - 2 // 2 chars for prefix (dot+space or 2 spaces)
 			if len(name) > maxNameLen {
 				name = name[:maxNameLen]
 			}
 
 			if i == m.selectedIdx {
 				selectedBg := lipgloss.AdaptiveColor{Light: "254", Dark: "8"}
-				var styledIndicator string
+				var prefix string
 				if agent.IsActive() {
-					styledIndicator = activeStyle.Background(selectedBg).Render(indicatorChar)
+					prefix = activeStyle.Background(selectedBg).Render("\u25cf") + selectedBgStyle.Render(" ")
 				} else {
-					styledIndicator = doneStyle.Background(selectedBg).Render(indicatorChar)
+					prefix = selectedBgStyle.Render("  ")
 				}
-				rest := fmt.Sprintf(" %s", name)
-				if len("  ")+len(indicatorChar)+len(rest) < width {
-					rest = rest + strings.Repeat(" ", width-len("  ")-len(indicatorChar)-len(rest))
+				rest := name
+				if 2+len(rest) < width {
+					rest = rest + strings.Repeat(" ", width-2-len(rest))
 				}
-				lines = append(lines, "  "+styledIndicator+selectedBgStyle.Render(rest))
+				lines = append(lines, prefix+selectedBgStyle.Render(rest))
 			} else {
 				if agent.IsActive() {
-					indicator = activeStyle.Render(indicatorChar)
+					lines = append(lines, activeStyle.Render("\u25cf")+" "+name)
 				} else {
-					indicator = doneStyle.Render(indicatorChar)
+					lines = append(lines, "  "+name)
 				}
-				lines = append(lines, fmt.Sprintf("  %s %s", indicator, name))
 			}
 		}
 	}

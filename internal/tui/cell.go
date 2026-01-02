@@ -43,6 +43,37 @@ func (sl StyledLine) String() string {
 	return string(runes)
 }
 
+// WithSelection returns a copy of the line with selection highlighting applied
+// from startCol to endCol (exclusive). The highlight background is applied
+// while preserving existing foreground colors and attributes.
+func (sl StyledLine) WithSelection(startCol, endCol int, bg Color) StyledLine {
+	if len(sl) == 0 {
+		return sl
+	}
+
+	// Clamp to valid range
+	if startCol < 0 {
+		startCol = 0
+	}
+	if endCol > len(sl) {
+		endCol = len(sl)
+	}
+	if startCol >= endCol {
+		return sl
+	}
+
+	// Make a copy
+	result := make(StyledLine, len(sl))
+	copy(result, sl)
+
+	// Apply highlight background to selected range
+	for i := startCol; i < endCol; i++ {
+		result[i].Style.BG = bg
+	}
+
+	return result
+}
+
 // ParseStyledLine parses a string with ANSI escape codes into a StyledLine
 func ParseStyledLine(s string) StyledLine {
 	var result StyledLine

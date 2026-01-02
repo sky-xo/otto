@@ -86,13 +86,19 @@ func ParseStyledLine(s string) StyledLine {
 		r := runes[i]
 
 		if r == '\x1b' && i+1 < len(runes) && runes[i+1] == '[' {
-			// Start of CSI sequence - skip for now, implement in next task
+			// Start of CSI sequence
 			// Find the end of the sequence (letter a-zA-Z)
 			j := i + 2
 			for j < len(runes) && !isCSITerminator(runes[j]) {
 				j++
 			}
 			if j < len(runes) {
+				terminator := runes[j]
+				if terminator == 'm' {
+					// SGR sequence - parse and apply style
+					paramStr := string(runes[i+2 : j])
+					currentStyle = applySGR(currentStyle, paramStr)
+				}
 				j++ // include terminator
 			}
 			i = j
@@ -101,6 +107,130 @@ func ParseStyledLine(s string) StyledLine {
 
 		result = append(result, Cell{Char: r, Style: currentStyle})
 		i++
+	}
+
+	return result
+}
+
+// applySGR applies SGR (Select Graphic Rendition) parameters to a style
+func applySGR(style CellStyle, paramStr string) CellStyle {
+	params := splitSGRParams(paramStr)
+
+	// Empty params or just "0" means reset
+	if len(params) == 0 {
+		return CellStyle{}
+	}
+
+	i := 0
+	for i < len(params) {
+		code := params[i]
+
+		switch {
+		case code == 0:
+			// Reset all
+			style = CellStyle{}
+		case code == 1:
+			// Bold
+			style.Bold = true
+		case code == 3:
+			// Italic
+			style.Italic = true
+		case code == 22:
+			// Bold off
+			style.Bold = false
+		case code == 23:
+			// Italic off
+			style.Italic = false
+		case code >= 30 && code <= 37:
+			// Basic foreground colors (30-37 -> 0-7)
+			style.FG = Color{Type: ColorBasic, Value: uint32(code - 30)}
+		case code >= 40 && code <= 47:
+			// Basic background colors (40-47 -> 0-7)
+			style.BG = Color{Type: ColorBasic, Value: uint32(code - 40)}
+		case code >= 90 && code <= 97:
+			// Bright foreground colors (90-97 -> 8-15)
+			style.FG = Color{Type: ColorBasic, Value: uint32(code - 90 + 8)}
+		case code >= 100 && code <= 107:
+			// Bright background colors (100-107 -> 8-15)
+			style.BG = Color{Type: ColorBasic, Value: uint32(code - 100 + 8)}
+		case code == 38:
+			// Extended foreground color
+			if i+1 < len(params) {
+				if params[i+1] == 5 && i+2 < len(params) {
+					// 256-color: 38;5;n
+					style.FG = Color{Type: Color256, Value: uint32(params[i+2])}
+					i += 2
+				} else if params[i+1] == 2 && i+4 < len(params) {
+					// Truecolor: 38;2;r;g;b
+					r := uint32(params[i+2])
+					g := uint32(params[i+3])
+					b := uint32(params[i+4])
+					style.FG = Color{Type: ColorTrueColor, Value: (r << 16) | (g << 8) | b}
+					i += 4
+				}
+			}
+		case code == 48:
+			// Extended background color
+			if i+1 < len(params) {
+				if params[i+1] == 5 && i+2 < len(params) {
+					// 256-color: 48;5;n
+					style.BG = Color{Type: Color256, Value: uint32(params[i+2])}
+					i += 2
+				} else if params[i+1] == 2 && i+4 < len(params) {
+					// Truecolor: 48;2;r;g;b
+					r := uint32(params[i+2])
+					g := uint32(params[i+3])
+					b := uint32(params[i+4])
+					style.BG = Color{Type: ColorTrueColor, Value: (r << 16) | (g << 8) | b}
+					i += 4
+				}
+			}
+		case code == 39:
+			// Default foreground
+			style.FG = Color{}
+		case code == 49:
+			// Default background
+			style.BG = Color{}
+		}
+		i++
+	}
+
+	return style
+}
+
+// splitSGRParams splits an SGR parameter string into integers
+// e.g., "1;31;48;5;238" -> []int{1, 31, 48, 5, 238}
+func splitSGRParams(s string) []int {
+	if s == "" {
+		return nil
+	}
+
+	var result []int
+	var current int
+	hasDigit := false
+
+	for _, r := range s {
+		if r >= '0' && r <= '9' {
+			current = current*10 + int(r-'0')
+			hasDigit = true
+		} else if r == ';' {
+			if hasDigit {
+				result = append(result, current)
+			} else {
+				result = append(result, 0) // Empty param defaults to 0
+			}
+			current = 0
+			hasDigit = false
+		}
+		// Ignore other characters
+	}
+
+	// Don't forget the last number
+	if hasDigit {
+		result = append(result, current)
+	} else if len(result) > 0 {
+		// Trailing semicolon
+		result = append(result, 0)
 	}
 
 	return result

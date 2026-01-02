@@ -89,6 +89,7 @@ type Model struct {
 	width              int
 	height             int
 	viewport           viewport.Model
+	contentLines       []string // Lines of content for selection mapping
 	err                error
 }
 
@@ -447,10 +448,13 @@ func (m *Model) updateViewport() {
 	agent := m.SelectedAgent()
 	if agent == nil {
 		m.viewport.SetContent("")
+		m.contentLines = nil
 		return
 	}
 	entries := m.transcripts[agent.ID]
-	m.viewport.SetContent(formatTranscript(entries, m.viewport.Width))
+	content := formatTranscript(entries, m.viewport.Width)
+	m.viewport.SetContent(content)
+	m.contentLines = strings.Split(content, "\n")
 }
 
 // layout calculates panel dimensions

@@ -1,6 +1,11 @@
 package tui
 
-import "testing"
+import (
+	"strings"
+	"testing"
+
+	"june/internal/claude"
+)
 
 func TestSelectionState_IsEmpty(t *testing.T) {
 	tests := []struct {
@@ -73,5 +78,39 @@ func TestSelectionState_Normalize(t *testing.T) {
 				t.Errorf("Normalize() = (%v, %v), want (%v, %v)", start, end, tt.expectedStart, tt.expectedEnd)
 			}
 		})
+	}
+}
+
+func TestModel_ContentLines(t *testing.T) {
+	m := NewModel("/test")
+	m.width = 80
+	m.height = 24
+
+	// Set up agents and transcripts like the real application
+	m.agents = []claude.Agent{
+		{ID: "test-agent", FilePath: "/test/agent.jsonl"},
+	}
+	m.selectedIdx = 0
+
+	// Add transcript entries for the selected agent
+	m.transcripts["test-agent"] = []claude.Entry{
+		{
+			Type:    "user",
+			Message: claude.Message{Content: "Hello world"},
+		},
+	}
+
+	// Call updateViewport to populate contentLines
+	m.updateViewport()
+
+	// Verify contentLines was populated
+	if len(m.contentLines) == 0 {
+		t.Errorf("Expected contentLines to be populated, got empty slice")
+	}
+
+	// Verify the content contains the user message
+	content := strings.Join(m.contentLines, "\n")
+	if !strings.Contains(content, "Hello world") {
+		t.Errorf("Expected contentLines to contain 'Hello world', got: %s", content)
 	}
 }

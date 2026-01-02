@@ -1,6 +1,11 @@
 // internal/tui/cell.go
 package tui
 
+import (
+	"strconv"
+	"strings"
+)
+
 // ColorType indicates how to interpret a Color value
 type ColorType uint8
 
@@ -239,4 +244,101 @@ func splitSGRParams(s string) []int {
 // isCSITerminator returns true if r terminates a CSI sequence
 func isCSITerminator(r rune) bool {
 	return (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z')
+}
+
+// Render converts a StyledLine back to an ANSI-escaped string
+func (sl StyledLine) Render() string {
+	if len(sl) == 0 {
+		return ""
+	}
+
+	var buf strings.Builder
+	var lastStyle CellStyle
+
+	for _, cell := range sl {
+		if cell.Style != lastStyle {
+			// Emit style change
+			buf.WriteString(styleToANSI(lastStyle, cell.Style))
+			lastStyle = cell.Style
+		}
+		buf.WriteRune(cell.Char)
+	}
+
+	// Reset at end if we had any styling
+	if lastStyle != (CellStyle{}) {
+		buf.WriteString("\x1b[0m")
+	}
+
+	return buf.String()
+}
+
+// styleToANSI generates ANSI codes to transition from old style to new style
+func styleToANSI(from, to CellStyle) string {
+	// If target is default, just reset
+	if to == (CellStyle{}) {
+		if from != (CellStyle{}) {
+			return "\x1b[0m"
+		}
+		return ""
+	}
+
+	var parts []string
+
+	// If coming from styled, reset first for simplicity
+	if from != (CellStyle{}) && from != to {
+		parts = append(parts, "0")
+	}
+
+	if to.Bold {
+		parts = append(parts, "1")
+	}
+	if to.Italic {
+		parts = append(parts, "3")
+	}
+
+	if to.FG.Type != ColorNone {
+		parts = append(parts, colorToSGR(to.FG, false)...)
+	}
+	if to.BG.Type != ColorNone {
+		parts = append(parts, colorToSGR(to.BG, true)...)
+	}
+
+	if len(parts) == 0 {
+		return ""
+	}
+
+	return "\x1b[" + strings.Join(parts, ";") + "m"
+}
+
+// colorToSGR converts a Color to SGR parameter strings
+func colorToSGR(c Color, isBG bool) []string {
+	switch c.Type {
+	case ColorBasic:
+		base := 30
+		if isBG {
+			base = 40
+		}
+		if c.Value >= 8 {
+			base += 60 // bright colors
+			return []string{strconv.Itoa(base + int(c.Value) - 8)}
+		}
+		return []string{strconv.Itoa(base + int(c.Value))}
+
+	case Color256:
+		if isBG {
+			return []string{"48", "5", strconv.Itoa(int(c.Value))}
+		}
+		return []string{"38", "5", strconv.Itoa(int(c.Value))}
+
+	case ColorTrueColor:
+		r := (c.Value >> 16) & 0xFF
+		g := (c.Value >> 8) & 0xFF
+		b := c.Value & 0xFF
+		if isBG {
+			return []string{"48", "2", strconv.Itoa(int(r)), strconv.Itoa(int(g)), strconv.Itoa(int(b))}
+		}
+		return []string{"38", "2", strconv.Itoa(int(r)), strconv.Itoa(int(g)), strconv.Itoa(int(b))}
+	}
+
+	return nil
 }

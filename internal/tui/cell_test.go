@@ -233,3 +233,44 @@ func TestParseStyledLineBoldOff(t *testing.T) {
 		t.Errorf("should still be red, got %+v", line[notBoldIdx].Style.FG)
 	}
 }
+
+func TestStyledLineRender(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{"plain", "hello"},
+		{"basic color", "\x1b[31mred\x1b[0m"},
+		{"256 color", "\x1b[38;5;196mtext\x1b[0m"},
+		{"bold", "\x1b[1mbold\x1b[0m normal"},
+		{"background", "\x1b[48;5;238mhighlighted\x1b[0m"},
+		{"truecolor", "\x1b[38;2;255;128;0mtext\x1b[0m"},
+		{"italic", "\x1b[3mitalic\x1b[0m"},
+		{"combined", "\x1b[1;3;38;5;196mstyle\x1b[0m"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			line := ParseStyledLine(tt.input)
+			rendered := line.Render()
+			// Parse the rendered output and compare strings
+			reparsed := ParseStyledLine(rendered)
+			if line.String() != reparsed.String() {
+				t.Errorf("text mismatch: %q vs %q", line.String(), reparsed.String())
+			}
+			// Verify styles match
+			for i := range line {
+				if i < len(reparsed) && line[i].Style != reparsed[i].Style {
+					t.Errorf("style mismatch at %d: %+v vs %+v", i, line[i].Style, reparsed[i].Style)
+				}
+			}
+		})
+	}
+}
+
+func TestStyledLineRenderEmpty(t *testing.T) {
+	line := StyledLine{}
+	if got := line.Render(); got != "" {
+		t.Errorf("Render() = %q, want empty", got)
+	}
+}

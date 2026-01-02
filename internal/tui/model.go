@@ -39,6 +39,12 @@ var (
 
 	focusedBorderColor   = lipgloss.AdaptiveColor{Light: "#2E7D32", Dark: "#C8FB9E"} // green (darker on light, pale on dark)
 	unfocusedBorderColor = lipgloss.AdaptiveColor{Light: "243", Dark: "8"}           // gray
+
+	selectionIndicatorStyle = lipgloss.NewStyle().
+		Background(lipgloss.Color("#32CD32")). // Limegreen
+		Foreground(lipgloss.Color("#000000")). // Black text
+		Bold(true).
+		Padding(0, 1)
 )
 
 // Panel focus
@@ -729,6 +735,16 @@ func (m Model) View() string {
 			rightTitle = fmt.Sprintf("%s (%s) | %s", agent.Description, agent.ID, formatTimestamp(agent.LastMod))
 		} else {
 			rightTitle = fmt.Sprintf("%s | %s", agent.ID, formatTimestamp(agent.LastMod))
+		}
+	}
+
+	// Add selection indicator to title
+	if m.selection.Active && !m.selection.IsEmpty() {
+		indicator := selectionIndicatorStyle.Render("SELECTING · C: copy · Esc: cancel")
+		if rightTitle != "" {
+			rightTitle = rightTitle + " " + indicator
+		} else {
+			rightTitle = indicator
 		}
 	}
 

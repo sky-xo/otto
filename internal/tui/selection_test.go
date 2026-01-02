@@ -538,3 +538,43 @@ func TestModel_ApplySelectionHighlight_InactiveSelection(t *testing.T) {
 		t.Error("Inactive selection should return original content unchanged")
 	}
 }
+
+func TestView_ShowsSelectionIndicator(t *testing.T) {
+	m := NewModel("/test")
+	m.width = 80
+	m.height = 24
+	m.agents = []claude.Agent{{ID: "test123", FilePath: "/tmp/test.jsonl"}}
+	m.selectedIdx = 0
+	m.selection = SelectionState{
+		Active:  true,
+		Anchor:  Position{Row: 0, Col: 0},
+		Current: Position{Row: 0, Col: 5},
+	}
+	m.contentLines = []string{"Hello World"}
+
+	view := m.View()
+
+	// Should contain the selection indicator
+	if !strings.Contains(view, "SELECTING") {
+		t.Errorf("Expected 'SELECTING' in view when selection active, got: %s", view)
+	}
+	if !strings.Contains(view, "C: copy") {
+		t.Errorf("Expected 'C: copy' hint in view, got: %s", view)
+	}
+}
+
+func TestView_NoSelectionIndicatorWhenInactive(t *testing.T) {
+	m := NewModel("/test")
+	m.width = 80
+	m.height = 24
+	m.agents = []claude.Agent{{ID: "test123", FilePath: "/tmp/test.jsonl"}}
+	m.selectedIdx = 0
+	m.selection = SelectionState{Active: false}
+	m.contentLines = []string{"Hello World"}
+
+	view := m.View()
+
+	if strings.Contains(view, "SELECTING") {
+		t.Errorf("Should not show 'SELECTING' when selection inactive")
+	}
+}

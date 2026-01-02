@@ -255,6 +255,7 @@ type Model struct {
 	lastNavWasKeyboard bool           // Track if last sidebar interaction was keyboard (for auto-scroll behavior)
 	focusedPanel       int            // Which panel has focus (panelLeft or panelRight)
 	selection          SelectionState // Text selection state
+	expandedChannels   map[int]bool   // Channel index -> whether it's expanded to show all agents
 	width              int
 	height             int
 	viewport           viewport.Model
@@ -270,6 +271,7 @@ func NewModel(claudeProjectsDir, basePath, repoName string) Model {
 		repoName:          repoName,
 		channels:          []claude.Channel{},
 		transcripts:       make(map[string][]claude.Entry),
+		expandedChannels:  make(map[int]bool),
 		viewport:          viewport.New(0, 0),
 	}
 }

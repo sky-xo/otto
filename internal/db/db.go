@@ -122,5 +122,8 @@ func (db *DB) ListAgents() ([]Agent, error) {
 		a.SpawnedAt, _ = time.Parse(time.RFC3339, spawnedAt)
 		agents = append(agents, a)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return agents, nil
 }

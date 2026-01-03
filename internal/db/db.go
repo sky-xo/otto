@@ -2,11 +2,26 @@ package db
 
 import (
 	"database/sql"
+	"errors"
 	"os"
 	"path/filepath"
+	"time"
 
 	_ "modernc.org/sqlite"
 )
+
+// ErrAgentNotFound is returned when an agent is not found
+var ErrAgentNotFound = errors.New("agent not found")
+
+// Agent represents a spawned Codex agent
+type Agent struct {
+	Name        string
+	ULID        string
+	SessionFile string
+	Cursor      int
+	PID         int
+	SpawnedAt   time.Time
+}
 
 const schema = `
 CREATE TABLE IF NOT EXISTS agents (
@@ -43,4 +58,69 @@ func Open(path string) (*DB, error) {
 	}
 
 	return &DB{db}, nil
+}
+
+// CreateAgent inserts a new agent record
+func (db *DB) CreateAgent(a Agent) error {
+	_, err := db.Exec(
+		`INSERT INTO agents (name, ulid, session_file, cursor, pid, spawned_at)
+		 VALUES (?, ?, ?, 0, ?, ?)`,
+		a.Name, a.ULID, a.SessionFile, a.PID, time.Now().UTC().Format(time.RFC3339),
+	)
+	return err
+}
+
+// GetAgent retrieves an agent by name
+func (db *DB) GetAgent(name string) (*Agent, error) {
+	var a Agent
+	var spawnedAt string
+	err := db.QueryRow(
+		`SELECT name, ulid, session_file, cursor, pid, spawned_at
+		 FROM agents WHERE name = ?`, name,
+	).Scan(&a.Name, &a.ULID, &a.SessionFile, &a.Cursor, &a.PID, &spawnedAt)
+	if err == sql.ErrNoRows {
+		return nil, ErrAgentNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	a.SpawnedAt, _ = time.Parse(time.RFC3339, spawnedAt)
+	return &a, nil
+}
+
+// UpdateCursor updates the cursor position for an agent
+func (db *DB) UpdateCursor(name string, cursor int) error {
+	result, err := db.Exec(`UPDATE agents SET cursor = ? WHERE name = ?`, cursor, name)
+	if err != nil {
+		return err
+	}
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		return ErrAgentNotFound
+	}
+	return nil
+}
+
+// ListAgents returns all agents
+func (db *DB) ListAgents() ([]Agent, error) {
+	rows, err := db.Query(
+		`SELECT name, ulid, session_file, cursor, pid, spawned_at
+		 FROM agents ORDER BY spawned_at DESC`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var agents []Agent
+	for rows.Next() {
+		var a Agent
+		var spawnedAt string
+		if err := rows.Scan(&a.Name, &a.ULID, &a.SessionFile, &a.Cursor, &a.PID, &spawnedAt); err != nil {
+			return nil, err
+		}
+		a.SpawnedAt, _ = time.Parse(time.RFC3339, spawnedAt)
+		agents = append(agents, a)
+	}
+	return agents, nil
 }

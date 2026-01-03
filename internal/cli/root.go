@@ -14,10 +14,14 @@ import (
 	"golang.org/x/term"
 )
 
+// Version is set via ldflags at build time
+var Version = "dev"
+
 func Execute() {
 	rootCmd := &cobra.Command{
-		Use:   "june",
-		Short: "Subagent viewer for Claude Code",
+		Use:     "june",
+		Short:   "Subagent viewer for Claude Code",
+		Version: Version,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runWatch()
 		},

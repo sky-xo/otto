@@ -1,12 +1,14 @@
 .PHONY: build install test clean
 
+VERSION ?= v0.1.0
+
 # Build the june binary
 build:
-	go build -o june ./cmd/june
+	go build -ldflags "-X github.com/sky-xo/june/internal/cli.Version=$(VERSION)" -o june ./cmd/june
 
 # Install to $GOPATH/bin
 install:
-	go install ./cmd/june
+	go install -ldflags "-X github.com/sky-xo/june/internal/cli.Version=$(VERSION)" ./cmd/june
 
 # Run all tests
 test:

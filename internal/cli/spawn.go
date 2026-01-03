@@ -45,7 +45,11 @@ func newSpawnCmd() *cobra.Command {
 
 func runSpawnCodex(name, task string) error {
 	// Open database
-	dbPath := filepath.Join(juneHome(), "june.db")
+	home, err := juneHome()
+	if err != nil {
+		return fmt.Errorf("failed to get june home: %w", err)
+	}
+	dbPath := filepath.Join(home, "june.db")
 	database, err := db.Open(dbPath)
 	if err != nil {
 		return fmt.Errorf("failed to open database: %w", err)
@@ -93,7 +97,11 @@ func runSpawnCodex(name, task string) error {
 	}
 
 	// Find the session file
-	sessionFile, err := codex.FindSessionFile(codex.CodexHome(), threadID)
+	codexHome, err := codex.CodexHome()
+	if err != nil {
+		return fmt.Errorf("failed to get codex home: %w", err)
+	}
+	sessionFile, err := codex.FindSessionFile(codexHome, threadID)
 	if err != nil {
 		// Session file might not exist yet, construct expected path
 		// For now, we'll store it and look it up later
@@ -123,7 +131,7 @@ func runSpawnCodex(name, task string) error {
 
 	// Update session file if we didn't have it
 	if sessionFile == "" {
-		if found, err := codex.FindSessionFile(codex.CodexHome(), threadID); err == nil {
+		if found, err := codex.FindSessionFile(codexHome, threadID); err == nil {
 			// Update the agent record with the session file
 			database.UpdateSessionFile(name, found)
 		}
@@ -132,7 +140,10 @@ func runSpawnCodex(name, task string) error {
 	return nil
 }
 
-func juneHome() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".june")
+func juneHome() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to get user home directory: %w", err)
+	}
+	return filepath.Join(home, ".june"), nil
 }

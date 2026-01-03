@@ -24,7 +24,11 @@ func newLogsCmd() *cobra.Command {
 
 func runLogs(name string) error {
 	// Open database
-	dbPath := filepath.Join(juneHome(), "june.db")
+	home, err := juneHome()
+	if err != nil {
+		return fmt.Errorf("failed to get june home: %w", err)
+	}
+	dbPath := filepath.Join(home, "june.db")
 	database, err := db.Open(dbPath)
 	if err != nil {
 		return fmt.Errorf("failed to open database: %w", err)
@@ -43,7 +47,11 @@ func runLogs(name string) error {
 	// Find session file if not set
 	sessionFile := agent.SessionFile
 	if sessionFile == "" {
-		found, err := codex.FindSessionFile(codex.CodexHome(), agent.ULID)
+		codexHome, err := codex.CodexHome()
+		if err != nil {
+			return fmt.Errorf("failed to get codex home: %w", err)
+		}
+		found, err := codex.FindSessionFile(codexHome, agent.ULID)
 		if err != nil {
 			return fmt.Errorf("session file not found for agent %q", name)
 		}

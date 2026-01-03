@@ -2,6 +2,7 @@ package codex
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,9 +13,12 @@ import (
 var ErrSessionNotFound = errors.New("session file not found")
 
 // CodexHome returns the Codex home directory
-func CodexHome() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".codex")
+func CodexHome() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to get user home directory: %w", err)
+	}
+	return filepath.Join(home, ".codex"), nil
 }
 
 // FindSessionFile finds a Codex session file by ULID

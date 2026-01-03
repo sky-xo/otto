@@ -41,6 +41,8 @@ func Execute() {
 		},
 	}
 
+	rootCmd.AddCommand(newSpawnCmd())
+
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}

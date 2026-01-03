@@ -89,9 +89,10 @@ func parseEntry(data []byte) TranscriptEntry {
 	case "function_call_output":
 		// response_item with payload.type = "function_call_output", payload.output = result
 		if output, ok := payload["output"].(string); ok {
-			// Truncate long outputs
-			if len(output) > 200 {
-				output = output[:200] + "..."
+			// Truncate long outputs (using runes to avoid splitting multi-byte UTF-8 chars)
+			runes := []rune(output)
+			if len(runes) > 200 {
+				output = string(runes[:200]) + "..."
 			}
 			return TranscriptEntry{Type: "tool_output", Content: output}
 		}

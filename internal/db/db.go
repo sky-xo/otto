@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql"
 	"errors"
+	"log"
 	"os"
 	"path/filepath"
 	"time"
@@ -84,7 +85,11 @@ func (db *DB) GetAgent(name string) (*Agent, error) {
 	if err != nil {
 		return nil, err
 	}
-	a.SpawnedAt, _ = time.Parse(time.RFC3339, spawnedAt)
+	var parseErr error
+	a.SpawnedAt, parseErr = time.Parse(time.RFC3339, spawnedAt)
+	if parseErr != nil {
+		log.Printf("warning: failed to parse spawned_at for agent %s: %v", name, parseErr)
+	}
 	return &a, nil
 }
 
@@ -132,7 +137,11 @@ func (db *DB) ListAgents() ([]Agent, error) {
 		if err := rows.Scan(&a.Name, &a.ULID, &a.SessionFile, &a.Cursor, &a.PID, &spawnedAt); err != nil {
 			return nil, err
 		}
-		a.SpawnedAt, _ = time.Parse(time.RFC3339, spawnedAt)
+		var parseErr error
+		a.SpawnedAt, parseErr = time.Parse(time.RFC3339, spawnedAt)
+		if parseErr != nil {
+			log.Printf("warning: failed to parse spawned_at for agent %s: %v", a.Name, parseErr)
+		}
 		agents = append(agents, a)
 	}
 	if err := rows.Err(); err != nil {

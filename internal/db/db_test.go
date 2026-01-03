@@ -98,14 +98,19 @@ func TestUpdateCursor(t *testing.T) {
 		SessionFile: "/path/to/session.jsonl",
 		PID:         12345,
 	}
-	db.CreateAgent(agent)
+	if err := db.CreateAgent(agent); err != nil {
+		t.Fatalf("CreateAgent failed: %v", err)
+	}
 
 	err := db.UpdateCursor("impl-1", 42)
 	if err != nil {
 		t.Fatalf("UpdateCursor failed: %v", err)
 	}
 
-	got, _ := db.GetAgent("impl-1")
+	got, err := db.GetAgent("impl-1")
+	if err != nil {
+		t.Fatalf("GetAgent failed: %v", err)
+	}
 	if got.Cursor != 42 {
 		t.Errorf("Cursor = %d, want 42", got.Cursor)
 	}
@@ -115,8 +120,12 @@ func TestListAgents(t *testing.T) {
 	db := openTestDB(t)
 	defer db.Close()
 
-	db.CreateAgent(Agent{Name: "a", ULID: "ulid-a", SessionFile: "/a.jsonl", PID: 1})
-	db.CreateAgent(Agent{Name: "b", ULID: "ulid-b", SessionFile: "/b.jsonl", PID: 2})
+	if err := db.CreateAgent(Agent{Name: "a", ULID: "ulid-a", SessionFile: "/a.jsonl", PID: 1}); err != nil {
+		t.Fatalf("CreateAgent failed: %v", err)
+	}
+	if err := db.CreateAgent(Agent{Name: "b", ULID: "ulid-b", SessionFile: "/b.jsonl", PID: 2}); err != nil {
+		t.Fatalf("CreateAgent failed: %v", err)
+	}
 
 	agents, err := db.ListAgents()
 	if err != nil {

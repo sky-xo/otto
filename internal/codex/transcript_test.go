@@ -3,7 +3,9 @@ package codex
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func TestParseEntryAgentReasoning(t *testing.T) {
@@ -83,6 +85,33 @@ func TestParseEntryFunctionCallOutputTruncation(t *testing.T) {
 	}
 }
 
+func TestParseEntryFunctionCallOutputUTF8Truncation(t *testing.T) {
+	// Create output with multi-byte characters that would be split by byte truncation
+	// 250 emoji (each is 4 bytes in UTF-8) = 250 runes, 1000 bytes
+	longOutput := strings.Repeat("🎉", 250)
+	data := []byte(`{"type":"response_item","payload":{"type":"function_call_output","output":"` + longOutput + `"}}`)
+
+	entry := parseEntry(data)
+
+	if entry.Content == "" {
+		t.Fatal("Content is empty, parser not working")
+	}
+
+	// Should be 200 runes + "..." = 203 runes, all valid UTF-8
+	runes := []rune(entry.Content)
+	if len(runes) != 203 {
+		t.Errorf("rune count = %d, want 203", len(runes))
+	}
+	// Verify it's valid UTF-8 (no split chars)
+	if !utf8.ValidString(entry.Content) {
+		t.Error("Content is not valid UTF-8")
+	}
+	// Verify it ends with "..."
+	if !strings.HasSuffix(entry.Content, "...") {
+		t.Error("Content should end with '...'")
+	}
+}
+
 func TestParseEntryMessage(t *testing.T) {
 	// Actual Codex format for message: type is "response_item", payload.type is "message", payload.text has content
 	data := []byte(`{"type":"response_item","payload":{"type":"message","text":"Here is my response to your question"}}`)
@@ -106,7 +135,9 @@ func TestReadTranscriptWithRealFormat(t *testing.T) {
 {"type":"response_item","payload":{"type":"function_call","name":"shell_command"}}
 {"type":"response_item","payload":{"type":"function_call_output","output":"done"}}
 `
-	os.WriteFile(sessionFile, []byte(content), 0644)
+	if err := os.WriteFile(sessionFile, []byte(content), 0644); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
 
 	entries, lineCount, err := ReadTranscript(sessionFile, 0)
 	if err != nil {

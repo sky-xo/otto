@@ -59,6 +59,8 @@ func runSpawnCodex(name, task string) error {
 	// Check if agent already exists
 	if _, err := database.GetAgent(name); err == nil {
 		return fmt.Errorf("agent %q already exists", name)
+	} else if err != db.ErrAgentNotFound {
+		return fmt.Errorf("failed to check for existing agent: %w", err)
 	}
 
 	// Start codex exec --json
@@ -93,6 +95,7 @@ func runSpawnCodex(name, task string) error {
 
 	if threadID == "" {
 		codexCmd.Process.Kill()
+		codexCmd.Wait() // Reap the killed process
 		return fmt.Errorf("failed to get thread_id from codex output")
 	}
 
@@ -133,7 +136,9 @@ func runSpawnCodex(name, task string) error {
 	if sessionFile == "" {
 		if found, err := codex.FindSessionFile(codexHome, threadID); err == nil {
 			// Update the agent record with the session file
-			database.UpdateSessionFile(name, found)
+			if err := database.UpdateSessionFile(name, found); err != nil {
+				fmt.Fprintf(os.Stderr, "warning: failed to update session file: %v\n", err)
+			}
 		}
 	}
 

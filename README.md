@@ -14,7 +14,7 @@ A subagent viewer for Claude Code.
 Install with Go:
 
 ```bash
-go install github.com/sky-xo/june
+go install github.com/sky-xo/june@latest
 ```
 
 Or build from source:

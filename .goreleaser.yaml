@@ -25,7 +25,7 @@ builds:
 
 archives:
   - id: june-archive
-    format: tar.gz
+    formats: [tar.gz]
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     files:
       - README.md
@@ -45,20 +45,18 @@ changelog:
       - "Merge pull request"
       - "Merge branch"
 
-brews:
+homebrew_casks:
   - name: june
     repository:
       owner: sky-xo
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
-    directory: Formula
     homepage: "https://github.com/sky-xo/june"
     description: "A read-only TUI for viewing Claude Code subagent activity"
-    license: "MIT"
-    install: |
-      bin.install "june"
-    test: |
-      system "#{bin}/june", "--help"
+    hooks:
+      post:
+        install: |
+          system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/june"]
 
 release:
   github:

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 
 	"github.com/sky-xo/june/internal/claude"
 	"github.com/sky-xo/june/internal/scope"
@@ -14,14 +15,27 @@ import (
 	"golang.org/x/term"
 )
 
-// Version is set via ldflags at build time
-var Version = "dev"
+// version can be set via ldflags at build time (e.g., make build)
+var version = ""
+
+// Version returns the version string, checking ldflags first, then Go module info
+func Version() string {
+	// If set via ldflags (make build), use that
+	if version != "" {
+		return version
+	}
+	// Otherwise try to read from Go's embedded module info (go install @version)
+	if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "" && info.Main.Version != "(devel)" {
+		return info.Main.Version
+	}
+	return "dev"
+}
 
 func Execute() {
 	rootCmd := &cobra.Command{
 		Use:     "june",
 		Short:   "Subagent viewer for Claude Code",
-		Version: Version,
+		Version: Version(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runWatch()
 		},

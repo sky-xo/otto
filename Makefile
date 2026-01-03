@@ -4,11 +4,11 @@ VERSION ?= v0.1.0
 
 # Build the june binary
 build:
-	go build -ldflags "-X github.com/sky-xo/june/internal/cli.Version=$(VERSION)" -o june .
+	go build -ldflags "-X github.com/sky-xo/june/internal/cli.version=$(VERSION)" -o june .
 
 # Install to $GOPATH/bin
 install:
-	go install -ldflags "-X github.com/sky-xo/june/internal/cli.Version=$(VERSION)" .
+	go install -ldflags "-X github.com/sky-xo/june/internal/cli.version=$(VERSION)" .
 
 # Run all tests
 test:

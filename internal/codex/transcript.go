@@ -52,26 +52,38 @@ func parseEntry(data []byte) TranscriptEntry {
 		return TranscriptEntry{}
 	}
 
-	entryType, _ := raw["type"].(string)
+	// Get payload for nested type info
+	payload, _ := raw["payload"].(map[string]interface{})
+	if payload == nil {
+		return TranscriptEntry{}
+	}
 
-	switch entryType {
-	case "response_item":
-		// Extract message content
-		if payload, ok := raw["payload"].(map[string]interface{}); ok {
-			if content, ok := payload["content"].(string); ok {
-				return TranscriptEntry{Type: "message", Content: content}
+	// Actual Codex format uses payload.type for the event type
+	payloadType, _ := payload["type"].(string)
+
+	switch payloadType {
+	case "agent_reasoning":
+		// event_msg with payload.type = "agent_reasoning", payload.text = content
+		if text, ok := payload["text"].(string); ok {
+			return TranscriptEntry{Type: "reasoning", Content: text}
+		}
+	case "reasoning":
+		// response_item with payload.type = "reasoning", summary[0].text = content
+		if summary, ok := payload["summary"].([]interface{}); ok && len(summary) > 0 {
+			if first, ok := summary[0].(map[string]interface{}); ok {
+				if text, ok := first["text"].(string); ok {
+					return TranscriptEntry{Type: "reasoning", Content: text}
+				}
 			}
 		}
-	case "agent_reasoning":
-		if content, ok := raw["content"].(string); ok {
-			return TranscriptEntry{Type: "reasoning", Content: content}
-		}
 	case "function_call":
-		if name, ok := raw["name"].(string); ok {
+		// response_item with payload.type = "function_call", payload.name = tool name
+		if name, ok := payload["name"].(string); ok {
 			return TranscriptEntry{Type: "tool", Content: fmt.Sprintf("[tool: %s]", name)}
 		}
 	case "function_call_output":
-		if output, ok := raw["output"].(string); ok {
+		// response_item with payload.type = "function_call_output", payload.output = result
+		if output, ok := payload["output"].(string); ok {
 			// Truncate long outputs
 			if len(output) > 200 {
 				output = output[:200] + "..."

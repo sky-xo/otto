@@ -125,7 +125,7 @@ func runSpawnCodex(name, task string) error {
 	if sessionFile == "" {
 		if found, err := codex.FindSessionFile(codex.CodexHome(), threadID); err == nil {
 			// Update the agent record with the session file
-			database.Exec("UPDATE agents SET session_file = ? WHERE name = ?", found, name)
+			database.UpdateSessionFile(name, found)
 		}
 	}
 

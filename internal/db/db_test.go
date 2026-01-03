@@ -128,6 +128,39 @@ func TestListAgents(t *testing.T) {
 	}
 }
 
+func TestUpdateSessionFile(t *testing.T) {
+	db := openTestDB(t)
+	defer db.Close()
+
+	agent := Agent{
+		Name:        "impl-1",
+		ULID:        "test-ulid",
+		SessionFile: "",
+		PID:         12345,
+	}
+	db.CreateAgent(agent)
+
+	err := db.UpdateSessionFile("impl-1", "/path/to/session.jsonl")
+	if err != nil {
+		t.Fatalf("UpdateSessionFile failed: %v", err)
+	}
+
+	got, _ := db.GetAgent("impl-1")
+	if got.SessionFile != "/path/to/session.jsonl" {
+		t.Errorf("SessionFile = %q, want %q", got.SessionFile, "/path/to/session.jsonl")
+	}
+}
+
+func TestUpdateSessionFileNotFound(t *testing.T) {
+	db := openTestDB(t)
+	defer db.Close()
+
+	err := db.UpdateSessionFile("nonexistent", "/path/to/session.jsonl")
+	if err != ErrAgentNotFound {
+		t.Errorf("err = %v, want ErrAgentNotFound", err)
+	}
+}
+
 func openTestDB(t *testing.T) *DB {
 	t.Helper()
 	tmpDir := t.TempDir()

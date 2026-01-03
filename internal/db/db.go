@@ -101,6 +101,19 @@ func (db *DB) UpdateCursor(name string, cursor int) error {
 	return nil
 }
 
+// UpdateSessionFile updates the session file path for an agent
+func (db *DB) UpdateSessionFile(name string, sessionFile string) error {
+	result, err := db.Exec(`UPDATE agents SET session_file = ? WHERE name = ?`, sessionFile, name)
+	if err != nil {
+		return err
+	}
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		return ErrAgentNotFound
+	}
+	return nil
+}
+
 // ListAgents returns all agents
 func (db *DB) ListAgents() ([]Agent, error) {
 	rows, err := db.Query(

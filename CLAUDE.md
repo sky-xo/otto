@@ -39,6 +39,18 @@ The TUI shows:
 - Right panel: Selected agent's transcript
 - Activity indicators based on file modification time
 
+## Spawn Commands
+
+Spawn and monitor Codex agents:
+
+```bash
+june spawn codex "task" --name <name>   # Spawn a Codex agent
+june peek <name>                         # Show new output since last peek
+june logs <name>                         # Show full transcript
+```
+
+Agent state is stored in `~/.june/june.db` (SQLite).
+
 ## Coding Conventions
 
 - Follow TDD: write failing test, implement, verify

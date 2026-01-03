@@ -2,6 +2,8 @@
 
 A subagent viewer for Claude Code.
 
+<img width="1512" height="911" alt="june-screenshot" src="https://github.com/user-attachments/assets/f5502731-e81b-4fe4-8ca7-d8aa23746367" />
+
 ## What It Shows
 
 - List of all subagents spawned in your current project

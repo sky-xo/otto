@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/sky-xo/june/internal/agent"
 )
 
 const activeThreshold = 10 * time.Second
@@ -72,6 +74,21 @@ func (a Agent) IsActive() bool {
 // IsRecent returns true if the agent was modified within the recent threshold (2 hours).
 func (a Agent) IsRecent() bool {
 	return time.Since(a.LastMod) < recentThreshold
+}
+
+// ToUnified converts a claude.Agent to the unified agent.Agent type.
+// repoPath and branch come from the channel context.
+func (a Agent) ToUnified(repoPath, branch string) agent.Agent {
+	return agent.Agent{
+		ID:             a.ID,
+		Name:           a.Description, // Use extracted description as display name
+		Source:         agent.SourceClaude,
+		RepoPath:       repoPath,
+		Branch:         branch,
+		TranscriptPath: a.FilePath,
+		LastActivity:   a.LastMod,
+		PID:            0, // Claude agents don't track PID
+	}
 }
 
 // ScanAgents finds all agent-*.jsonl files in a directory.

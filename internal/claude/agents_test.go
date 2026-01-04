@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/sky-xo/june/internal/agent"
 )
 
 func TestScanAgents(t *testing.T) {
@@ -248,5 +250,42 @@ func TestScanAgentsDescriptionEdgeCases(t *testing.T) {
 		if agents[i].Description != tc.wantDesc {
 			t.Errorf("test %q: expected description %q, got %q", tc.name, tc.wantDesc, agents[i].Description)
 		}
+	}
+}
+
+func TestAgent_ToUnified(t *testing.T) {
+	claudeAgent := Agent{
+		ID:          "abc123",
+		FilePath:    "/path/to/agent-abc123.jsonl",
+		LastMod:     time.Now(),
+		Description: "Fix the auth bug",
+	}
+
+	// Channel context would be provided by the caller
+	unified := claudeAgent.ToUnified("/Users/test/project", "main")
+
+	if unified.ID != claudeAgent.ID {
+		t.Errorf("ID = %q, want %q", unified.ID, claudeAgent.ID)
+	}
+	if unified.Name != claudeAgent.Description {
+		t.Errorf("Name = %q, want %q (from Description)", unified.Name, claudeAgent.Description)
+	}
+	if unified.Source != agent.SourceClaude {
+		t.Errorf("Source = %q, want %q", unified.Source, agent.SourceClaude)
+	}
+	if unified.RepoPath != "/Users/test/project" {
+		t.Errorf("RepoPath = %q, want %q", unified.RepoPath, "/Users/test/project")
+	}
+	if unified.Branch != "main" {
+		t.Errorf("Branch = %q, want %q", unified.Branch, "main")
+	}
+	if unified.TranscriptPath != claudeAgent.FilePath {
+		t.Errorf("TranscriptPath = %q, want %q", unified.TranscriptPath, claudeAgent.FilePath)
+	}
+	if !unified.LastActivity.Equal(claudeAgent.LastMod) {
+		t.Errorf("LastActivity = %v, want %v", unified.LastActivity, claudeAgent.LastMod)
+	}
+	if unified.PID != 0 {
+		t.Errorf("PID = %d, want 0 (Claude agents don't track PID)", unified.PID)
 	}
 }

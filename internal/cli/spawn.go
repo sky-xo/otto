@@ -69,9 +69,16 @@ func runSpawnCodex(name, task string) error {
 		return fmt.Errorf("failed to check for existing agent: %w", err)
 	}
 
+	// Before creating the command, ensure isolated codex home
+	isolatedCodexHome, err := codex.EnsureCodexHome()
+	if err != nil {
+		return fmt.Errorf("failed to setup isolated codex home: %w", err)
+	}
+
 	// Start codex exec --json
 	codexCmd := exec.Command("codex", "exec", "--json", task)
 	codexCmd.Stderr = os.Stderr
+	codexCmd.Env = append(os.Environ(), fmt.Sprintf("CODEX_HOME=%s", isolatedCodexHome))
 
 	stdout, err := codexCmd.StdoutPipe()
 	if err != nil {

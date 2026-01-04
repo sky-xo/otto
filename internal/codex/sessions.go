@@ -21,28 +21,34 @@ func CodexHome() (string, error) {
 	return filepath.Join(home, ".codex"), nil
 }
 
-// FindSessionFile finds a Codex session file by ULID
-// It searches in the sessions directory structure: ~/.codex/sessions/YYYY/MM/DD/
-func FindSessionFile(codexHome string, ulid string) (string, error) {
-	sessionsDir := filepath.Join(codexHome, "sessions")
+// FindSessionFile finds a session file by thread ID in the June codex home.
+// It searches in ~/.june/codex/sessions/YYYY/MM/DD/
+func FindSessionFile(threadID string) (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+
+	// Look in ~/.june/codex/sessions/
+	sessionsDir := filepath.Join(home, ".june", "codex", "sessions")
 
 	// First, try today's directory (most common case)
 	now := time.Now()
 	todayDir := filepath.Join(sessionsDir, now.Format("2006"), now.Format("01"), now.Format("02"))
-	if path, found := findInDir(todayDir, ulid); found {
+	if path, found := findInDir(todayDir, threadID); found {
 		return path, nil
 	}
 
 	// Otherwise, search all directories (less common)
 	var foundPath string
-	err := filepath.Walk(sessionsDir, func(path string, info os.FileInfo, err error) error {
+	err = filepath.Walk(sessionsDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil // Skip errors
 		}
 		if info.IsDir() {
 			return nil
 		}
-		if strings.Contains(info.Name(), ulid) && strings.HasSuffix(info.Name(), ".jsonl") {
+		if strings.Contains(info.Name(), threadID) && strings.HasSuffix(info.Name(), ".jsonl") {
 			foundPath = path
 			return filepath.SkipAll
 		}

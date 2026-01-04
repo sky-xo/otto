@@ -111,11 +111,7 @@ func runSpawnCodex(name, task string) error {
 	}
 
 	// Find the session file
-	codexHome, err := codex.CodexHome()
-	if err != nil {
-		return fmt.Errorf("failed to get codex home: %w", err)
-	}
-	sessionFile, err := codex.FindSessionFile(codexHome, threadID)
+	sessionFile, err := codex.FindSessionFile(threadID)
 	if err != nil {
 		// Session file might not exist yet, construct expected path
 		// For now, we'll store it and look it up later
@@ -147,7 +143,7 @@ func runSpawnCodex(name, task string) error {
 
 	// Update session file if we didn't have it
 	if sessionFile == "" {
-		if found, err := codex.FindSessionFile(codexHome, threadID); err == nil {
+		if found, err := codex.FindSessionFile(threadID); err == nil {
 			// Update the agent record with the session file
 			if err := database.UpdateSessionFile(name, found); err != nil {
 				fmt.Fprintf(os.Stderr, "warning: failed to update session file: %v\n", err)

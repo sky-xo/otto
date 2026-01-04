@@ -47,11 +47,7 @@ func runLogs(name string) error {
 	// Find session file if not set
 	sessionFile := agent.SessionFile
 	if sessionFile == "" {
-		codexHome, err := codex.CodexHome()
-		if err != nil {
-			return fmt.Errorf("failed to get codex home: %w", err)
-		}
-		found, err := codex.FindSessionFile(codexHome, agent.ULID)
+		found, err := codex.FindSessionFile(agent.ULID)
 		if err != nil {
 			return fmt.Errorf("session file not found for agent %q", name)
 		}

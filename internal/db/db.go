@@ -56,13 +56,39 @@ func Open(path string) (*DB, error) {
 		return nil, err
 	}
 
-	// Create schema
+	// Create schema (for new DBs)
 	if _, err := db.Exec(schema); err != nil {
 		db.Close()
 		return nil, err
 	}
 
+	// Run migrations (for existing DBs)
+	if err := migrate(db); err != nil {
+		db.Close()
+		return nil, err
+	}
+
 	return &DB{db}, nil
+}
+
+// migrate runs schema migrations for existing databases
+func migrate(db *sql.DB) error {
+	// Check if repo_path column exists
+	var count int
+	err := db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('agents') WHERE name='repo_path'`).Scan(&count)
+	if err != nil {
+		return err
+	}
+	if count == 0 {
+		// Add missing columns
+		if _, err := db.Exec(`ALTER TABLE agents ADD COLUMN repo_path TEXT DEFAULT ''`); err != nil {
+			return err
+		}
+		if _, err := db.Exec(`ALTER TABLE agents ADD COLUMN branch TEXT DEFAULT ''`); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // CreateAgent inserts a new agent record

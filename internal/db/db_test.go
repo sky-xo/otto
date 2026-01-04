@@ -1,6 +1,7 @@
 package db
 
 import (
+	"database/sql"
 	"os"
 	"path/filepath"
 	"testing"
@@ -202,6 +203,53 @@ func TestCreateAgent_WithGitContext(t *testing.T) {
 	}
 	if got.Branch != agent.Branch {
 		t.Errorf("Branch = %q, want %q", got.Branch, agent.Branch)
+	}
+}
+
+func TestMigration_AddsNewColumns(t *testing.T) {
+	// Create a DB with the OLD schema (no repo_path, branch)
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+
+	// Manually create old schema
+	rawDB, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = rawDB.Exec(`
+		CREATE TABLE agents (
+			name TEXT PRIMARY KEY,
+			ulid TEXT NOT NULL,
+			session_file TEXT NOT NULL,
+			cursor INTEGER DEFAULT 0,
+			pid INTEGER,
+			spawned_at TEXT NOT NULL
+		);
+		INSERT INTO agents (name, ulid, session_file, pid, spawned_at)
+		VALUES ('old-agent', 'ulid123', '/tmp/session.jsonl', 0, '2025-01-01T00:00:00Z');
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rawDB.Close()
+
+	// Now open with our Open() which should migrate
+	db, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer db.Close()
+
+	// Old agent should still be readable with empty repo_path/branch
+	agent, err := db.GetAgent("old-agent")
+	if err != nil {
+		t.Fatalf("GetAgent failed: %v", err)
+	}
+	if agent.RepoPath != "" {
+		t.Errorf("expected empty RepoPath for migrated agent, got %q", agent.RepoPath)
+	}
+	if agent.Branch != "" {
+		t.Errorf("expected empty Branch for migrated agent, got %q", agent.Branch)
 	}
 }
 

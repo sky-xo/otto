@@ -267,6 +267,40 @@ func openTestDB(t *testing.T) *DB {
 	return db
 }
 
+func TestListAgentsByRepo(t *testing.T) {
+	db := openTestDB(t)
+	defer db.Close()
+
+	// Create agents in different repos
+	if err := db.CreateAgent(Agent{Name: "a1", ULID: "1", SessionFile: "/tmp/1.jsonl", RepoPath: "/code/project", Branch: "main"}); err != nil {
+		t.Fatalf("CreateAgent failed: %v", err)
+	}
+	if err := db.CreateAgent(Agent{Name: "a2", ULID: "2", SessionFile: "/tmp/2.jsonl", RepoPath: "/code/project", Branch: "feature"}); err != nil {
+		t.Fatalf("CreateAgent failed: %v", err)
+	}
+	if err := db.CreateAgent(Agent{Name: "a3", ULID: "3", SessionFile: "/tmp/3.jsonl", RepoPath: "/code/other", Branch: "main"}); err != nil {
+		t.Fatalf("CreateAgent failed: %v", err)
+	}
+
+	agents, err := db.ListAgentsByRepo("/code/project")
+	if err != nil {
+		t.Fatalf("ListAgentsByRepo failed: %v", err)
+	}
+
+	if len(agents) != 2 {
+		t.Errorf("expected 2 agents, got %d", len(agents))
+	}
+
+	// Verify the returned agents are the right ones
+	names := make(map[string]bool)
+	for _, a := range agents {
+		names[a.Name] = true
+	}
+	if !names["a1"] || !names["a2"] {
+		t.Errorf("expected agents a1 and a2, got %v", agents)
+	}
+}
+
 func TestAgent_ToUnified(t *testing.T) {
 	dbAgent := Agent{
 		Name:        "my-agent",

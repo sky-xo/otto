@@ -195,3 +195,35 @@ func (db *DB) ListAgents() ([]Agent, error) {
 	}
 	return agents, nil
 }
+
+// ListAgentsByRepo returns agents matching the given repo path.
+func (db *DB) ListAgentsByRepo(repoPath string) ([]Agent, error) {
+	rows, err := db.Query(
+		`SELECT name, ulid, session_file, cursor, pid, spawned_at, repo_path, branch
+		 FROM agents WHERE repo_path = ? ORDER BY spawned_at DESC`,
+		repoPath,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var agents []Agent
+	for rows.Next() {
+		var a Agent
+		var spawnedAt string
+		if err := rows.Scan(&a.Name, &a.ULID, &a.SessionFile, &a.Cursor, &a.PID, &spawnedAt, &a.RepoPath, &a.Branch); err != nil {
+			return nil, err
+		}
+		var parseErr error
+		a.SpawnedAt, parseErr = time.Parse(time.RFC3339, spawnedAt)
+		if parseErr != nil {
+			log.Printf("warning: failed to parse spawned_at for agent %s: %v", a.Name, parseErr)
+		}
+		agents = append(agents, a)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return agents, nil
+}

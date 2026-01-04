@@ -175,6 +175,36 @@ func TestUpdateSessionFileNotFound(t *testing.T) {
 	}
 }
 
+func TestCreateAgent_WithGitContext(t *testing.T) {
+	db := openTestDB(t)
+	defer db.Close()
+
+	agent := Agent{
+		Name:        "test-agent",
+		ULID:        "01234567890",
+		SessionFile: "/tmp/session.jsonl",
+		PID:         1234,
+		RepoPath:    "/Users/test/code/myproject",
+		Branch:      "main",
+	}
+
+	if err := db.CreateAgent(agent); err != nil {
+		t.Fatalf("CreateAgent failed: %v", err)
+	}
+
+	got, err := db.GetAgent("test-agent")
+	if err != nil {
+		t.Fatalf("GetAgent failed: %v", err)
+	}
+
+	if got.RepoPath != agent.RepoPath {
+		t.Errorf("RepoPath = %q, want %q", got.RepoPath, agent.RepoPath)
+	}
+	if got.Branch != agent.Branch {
+		t.Errorf("Branch = %q, want %q", got.Branch, agent.Branch)
+	}
+}
+
 func openTestDB(t *testing.T) *DB {
 	t.Helper()
 	tmpDir := t.TempDir()

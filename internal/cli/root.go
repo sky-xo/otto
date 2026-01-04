@@ -80,6 +80,7 @@ func runWatch() error {
 
 	// Run TUI
 	model := tui.NewModel(claudeProjectsDir, basePath, repoName)
+	defer model.Close()
 	p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
 	_, err = p.Run()
 	return err

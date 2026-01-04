@@ -2,8 +2,6 @@
 package tui
 
 import (
-	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/sky-xo/june/internal/agent"
@@ -32,24 +30,9 @@ func tickCmd() tea.Cmd {
 }
 
 // scanChannelsCmd scans for channels and their agents.
-func scanChannelsCmd(claudeProjectsDir, basePath, repoName string) tea.Cmd {
+// The codexDB parameter is reused across ticks for performance.
+func scanChannelsCmd(claudeProjectsDir, basePath, repoName string, codexDB *db.DB) tea.Cmd {
 	return func() tea.Msg {
-		// Open Codex database for agent lookup
-		var codexDB *db.DB
-		home, err := os.UserHomeDir()
-		if err == nil {
-			dbPath := filepath.Join(home, ".june", "june.db")
-			codexDB, err = db.Open(dbPath)
-			if err != nil {
-				codexDB = nil // Non-fatal: continue without Codex agents
-			}
-		}
-		defer func() {
-			if codexDB != nil {
-				codexDB.Close()
-			}
-		}()
-
 		channels, err := claude.ScanChannels(claudeProjectsDir, basePath, repoName, codexDB)
 		if err != nil {
 			return errMsg(err)

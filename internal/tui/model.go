@@ -4,11 +4,13 @@ package tui
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/sky-xo/june/internal/agent"
 	"github.com/sky-xo/june/internal/claude"
+	"github.com/sky-xo/june/internal/db"
 
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
@@ -251,6 +253,7 @@ type Model struct {
 	repoName          string                    // Repository name (e.g., "june")
 	channels          []agent.Channel           // Channels with their agents
 	transcripts       map[string][]claude.Entry // Agent ID -> transcript entries
+	codexDB           *db.DB                    // Codex agent database connection (reused across ticks)
 
 	selectedIdx        int           // Currently selected item index (across all channels + headers)
 	lastViewedAgent    *agent.Agent  // Last agent shown in right panel (persists when header selected)
@@ -269,14 +272,30 @@ type Model struct {
 
 // NewModel creates a new TUI model.
 func NewModel(claudeProjectsDir, basePath, repoName string) Model {
+	// Open Codex database (non-fatal if fails)
+	var codexDB *db.DB
+	if home, err := os.UserHomeDir(); err == nil {
+		dbPath := filepath.Join(home, ".june", "june.db")
+		codexDB, _ = db.Open(dbPath)
+	}
+
 	return Model{
 		claudeProjectsDir: claudeProjectsDir,
 		basePath:          basePath,
 		repoName:          repoName,
 		channels:          []agent.Channel{},
 		transcripts:       make(map[string][]claude.Entry),
+		codexDB:           codexDB,
 		expandedChannels:  make(map[int]bool),
 		viewport:          viewport.New(0, 0),
+	}
+}
+
+// Close cleans up resources held by the Model.
+func (m *Model) Close() {
+	if m.codexDB != nil {
+		m.codexDB.Close()
+		m.codexDB = nil
 	}
 }
 
@@ -479,7 +498,7 @@ func (m *Model) ensureSelectedVisible() {
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		tickCmd(),
-		scanChannelsCmd(m.claudeProjectsDir, m.basePath, m.repoName),
+		scanChannelsCmd(m.claudeProjectsDir, m.basePath, m.repoName, m.codexDB),
 	)
 }
 
@@ -813,7 +832,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.updateViewport()
 
 	case tickMsg:
-		cmds = append(cmds, tickCmd(), scanChannelsCmd(m.claudeProjectsDir, m.basePath, m.repoName))
+		cmds = append(cmds, tickCmd(), scanChannelsCmd(m.claudeProjectsDir, m.basePath, m.repoName, m.codexDB))
 
 	case channelsMsg:
 		m.channels = msg

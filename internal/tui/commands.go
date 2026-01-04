@@ -2,10 +2,13 @@
 package tui
 
 import (
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/sky-xo/june/internal/agent"
 	"github.com/sky-xo/june/internal/claude"
+	"github.com/sky-xo/june/internal/db"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -31,8 +34,23 @@ func tickCmd() tea.Cmd {
 // scanChannelsCmd scans for channels and their agents.
 func scanChannelsCmd(claudeProjectsDir, basePath, repoName string) tea.Cmd {
 	return func() tea.Msg {
-		// TODO: Pass actual db connection for Codex agent integration
-		channels, err := claude.ScanChannels(claudeProjectsDir, basePath, repoName, nil)
+		// Open Codex database for agent lookup
+		var codexDB *db.DB
+		home, err := os.UserHomeDir()
+		if err == nil {
+			dbPath := filepath.Join(home, ".june", "june.db")
+			codexDB, err = db.Open(dbPath)
+			if err != nil {
+				codexDB = nil // Non-fatal: continue without Codex agents
+			}
+		}
+		defer func() {
+			if codexDB != nil {
+				codexDB.Close()
+			}
+		}()
+
+		channels, err := claude.ScanChannels(claudeProjectsDir, basePath, repoName, codexDB)
 		if err != nil {
 			return errMsg(err)
 		}

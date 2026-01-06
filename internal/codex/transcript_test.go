@@ -8,20 +8,6 @@ import (
 	"unicode/utf8"
 )
 
-func TestParseEntryAgentReasoning(t *testing.T) {
-	// Actual Codex format: type is "event_msg", payload.type is "agent_reasoning", payload.text has content
-	data := []byte(`{"type":"event_msg","payload":{"type":"agent_reasoning","text":"**Preparing to run shell command**"}}`)
-
-	entry := parseEntry(data)
-
-	if entry.Type != "reasoning" {
-		t.Errorf("Type = %q, want %q", entry.Type, "reasoning")
-	}
-	if entry.Content != "**Preparing to run shell command**" {
-		t.Errorf("Content = %q, want %q", entry.Content, "**Preparing to run shell command**")
-	}
-}
-
 func TestParseEntryReasoning(t *testing.T) {
 	// Actual Codex format: type is "response_item", payload.type is "reasoning", summary[0].text has content
 	data := []byte(`{"type":"response_item","payload":{"type":"reasoning","summary":[{"type":"summary_text","text":"**Thinking about this**"}]}}`)
@@ -126,26 +112,12 @@ func TestParseEntryMessageWithOutputText(t *testing.T) {
 	}
 }
 
-func TestParseEntryAgentMessage(t *testing.T) {
-	// Actual Codex format: type is "event_msg", payload.type is "agent_message", payload.message has content
-	data := []byte(`{"type":"event_msg","payload":{"type":"agent_message","message":"Hello! I'm Codex, ready to help."}}`)
-
-	entry := parseEntry(data)
-
-	if entry.Type != "message" {
-		t.Errorf("Type = %q, want %q", entry.Type, "message")
-	}
-	if entry.Content != "Hello! I'm Codex, ready to help." {
-		t.Errorf("Content = %q, want %q", entry.Content, "Hello! I'm Codex, ready to help.")
-	}
-}
-
 func TestReadTranscriptWithRealFormat(t *testing.T) {
 	tmpDir := t.TempDir()
 	sessionFile := filepath.Join(tmpDir, "session.jsonl")
 
 	content := `{"type":"session_meta","payload":{}}
-{"type":"event_msg","payload":{"type":"agent_reasoning","text":"Thinking..."}}
+{"type":"response_item","payload":{"type":"reasoning","summary":[{"type":"summary_text","text":"Thinking..."}]}}
 {"type":"response_item","payload":{"type":"function_call","name":"shell_command"}}
 {"type":"response_item","payload":{"type":"function_call_output","output":"done"}}
 `

@@ -77,9 +77,18 @@ func parseEntry(data []byte) TranscriptEntry {
 			}
 		}
 	case "message":
-		// response_item with payload.type = "message", payload.text = content
-		if text, ok := payload["text"].(string); ok {
-			return TranscriptEntry{Type: "message", Content: text}
+		// response_item with payload.type = "message", content[0].text = content
+		if content, ok := payload["content"].([]interface{}); ok && len(content) > 0 {
+			if first, ok := content[0].(map[string]interface{}); ok {
+				if text, ok := first["text"].(string); ok {
+					return TranscriptEntry{Type: "message", Content: text}
+				}
+			}
+		}
+	case "agent_message":
+		// event_msg with payload.type = "agent_message", payload.message = content
+		if message, ok := payload["message"].(string); ok {
+			return TranscriptEntry{Type: "message", Content: message}
 		}
 	case "function_call":
 		// response_item with payload.type = "function_call", payload.name = tool name

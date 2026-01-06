@@ -112,17 +112,31 @@ func TestParseEntryFunctionCallOutputUTF8Truncation(t *testing.T) {
 	}
 }
 
-func TestParseEntryMessage(t *testing.T) {
-	// Actual Codex format for message: type is "response_item", payload.type is "message", payload.text has content
-	data := []byte(`{"type":"response_item","payload":{"type":"message","text":"Here is my response to your question"}}`)
+func TestParseEntryMessageWithOutputText(t *testing.T) {
+	// Actual Codex format: type is "response_item", payload.type is "message", content[0].type is "output_text"
+	data := []byte(`{"type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Hello! I'm Codex, your coding teammate."}]}}`)
 
 	entry := parseEntry(data)
 
 	if entry.Type != "message" {
 		t.Errorf("Type = %q, want %q", entry.Type, "message")
 	}
-	if entry.Content != "Here is my response to your question" {
-		t.Errorf("Content = %q, want %q", entry.Content, "Here is my response to your question")
+	if entry.Content != "Hello! I'm Codex, your coding teammate." {
+		t.Errorf("Content = %q, want %q", entry.Content, "Hello! I'm Codex, your coding teammate.")
+	}
+}
+
+func TestParseEntryAgentMessage(t *testing.T) {
+	// Actual Codex format: type is "event_msg", payload.type is "agent_message", payload.message has content
+	data := []byte(`{"type":"event_msg","payload":{"type":"agent_message","message":"Hello! I'm Codex, ready to help."}}`)
+
+	entry := parseEntry(data)
+
+	if entry.Type != "message" {
+		t.Errorf("Type = %q, want %q", entry.Type, "message")
+	}
+	if entry.Content != "Hello! I'm Codex, ready to help." {
+		t.Errorf("Content = %q, want %q", entry.Content, "Hello! I'm Codex, ready to help.")
 	}
 }
 

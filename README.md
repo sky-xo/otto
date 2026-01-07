@@ -32,10 +32,14 @@ The TUI will launch showing any subagents that have been spawned in that project
 ## Spawning Codex Agents
 
 ```bash
-june spawn codex "your task here" --name mytask   # Spawn agent
-june peek mytask                                   # Show new output since last peek
-june logs mytask                                   # Show full transcript
+june spawn codex "your task here" --name refactor   # Output: refactor-9c4f
+june spawn codex "your task here"                   # Output: swift-falcon-7d1e
+
+june peek refactor-9c4f                             # Show new output since last peek
+june logs refactor-9c4f                             # Show full transcript
 ```
+
+Names always include a unique 4-character suffix. The `--name` flag sets a prefix; if omitted, an adjective-noun prefix is auto-generated.
 
 Agent state is stored in `~/.june/june.db`.
 

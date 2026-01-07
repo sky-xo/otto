@@ -345,6 +345,21 @@ func (m Model) sidebarItems() []sidebarItem {
 	return items
 }
 
+// findAgentIndexByID returns the sidebar index of an agent by its ID.
+// Returns (-1, false) if not found or ID is empty.
+func (m Model) findAgentIndexByID(agentID string) (int, bool) {
+	if agentID == "" {
+		return -1, false
+	}
+	items := m.sidebarItems()
+	for i, item := range items {
+		if item.agent != nil && item.agent.ID == agentID {
+			return i, true
+		}
+	}
+	return -1, false
+}
+
 // countSeparatorsBefore returns the number of blank separator lines that would appear
 // before the given item index. Separators appear before each channel header except the first.
 func (m Model) countSeparatorsBefore(itemIdx int) int {

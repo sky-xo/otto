@@ -1123,3 +1123,67 @@ func TestConvertCodexEntries_ConsistentContentType(t *testing.T) {
 		}
 	}
 }
+
+func TestModel_FindAgentIndexByID(t *testing.T) {
+	now := time.Now()
+	m := Model{
+		channels: []agent.Channel{
+			{
+				Name: "test:main",
+				Agents: []agent.Agent{
+					{ID: "agent-a", LastActivity: now},
+					{ID: "agent-b", LastActivity: now},
+					{ID: "agent-c", LastActivity: now},
+				},
+			},
+		},
+	}
+
+	tests := []struct {
+		name      string
+		agentID   string
+		wantIdx   int
+		wantFound bool
+	}{
+		{
+			name:      "finds first agent",
+			agentID:   "agent-a",
+			wantIdx:   1, // index 0 is the header
+			wantFound: true,
+		},
+		{
+			name:      "finds middle agent",
+			agentID:   "agent-b",
+			wantIdx:   2,
+			wantFound: true,
+		},
+		{
+			name:      "finds last agent",
+			agentID:   "agent-c",
+			wantIdx:   3,
+			wantFound: true,
+		},
+		{
+			name:      "returns false for unknown agent",
+			agentID:   "agent-unknown",
+			wantIdx:   -1,
+			wantFound: false,
+		},
+		{
+			name:      "returns false for empty ID",
+			agentID:   "",
+			wantIdx:   -1,
+			wantFound: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotIdx, gotFound := m.findAgentIndexByID(tt.agentID)
+			if gotIdx != tt.wantIdx || gotFound != tt.wantFound {
+				t.Errorf("findAgentIndexByID(%q) = (%d, %v), want (%d, %v)",
+					tt.agentID, gotIdx, gotFound, tt.wantIdx, tt.wantFound)
+			}
+		})
+	}
+}

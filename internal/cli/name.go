@@ -73,13 +73,12 @@ func randomHexSuffix() string {
 // resolveAgentNameWithULID builds a name from prefix + ULID suffix.
 // If collision, falls back to random suffix with retries.
 func resolveAgentNameWithULID(database *db.DB, prefix, ulid string) (string, error) {
-	if prefix == "" {
-		prefix = generateAdjectiveNoun()
-	}
+	// Build initial name using ULID suffix
+	name := buildAgentName(prefix, ulid)
 
-	// Try ULID-based suffix first
-	suffix := strings.ToLower(ulid[len(ulid)-4:])
-	name := prefix + "-" + suffix
+	// Extract prefix for potential collision fallback (may have been auto-generated)
+	lastDash := strings.LastIndex(name, "-")
+	resolvedPrefix := name[:lastDash]
 
 	_, err := database.GetAgent(name)
 	if err == db.ErrAgentNotFound {
@@ -91,7 +90,7 @@ func resolveAgentNameWithULID(database *db.DB, prefix, ulid string) (string, err
 
 	// Collision (rare) - fall back to random suffix
 	for attempts := 0; attempts < 10; attempts++ {
-		name = prefix + "-" + randomHexSuffix()
+		name = resolvedPrefix + "-" + randomHexSuffix()
 		_, err := database.GetAgent(name)
 		if err == db.ErrAgentNotFound {
 			return name, nil

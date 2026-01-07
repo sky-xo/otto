@@ -3,9 +3,12 @@ package cli
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"math/big"
 	"strings"
+
+	"github.com/sky-xo/june/internal/db"
 )
 
 const base62Chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
@@ -80,4 +83,38 @@ func randomHexSuffix() string {
 		panic(fmt.Sprintf("failed to generate random bytes: %v", err))
 	}
 	return hex.EncodeToString(bytes)
+}
+
+// resolveAgentNameWithULID builds a name from prefix + ULID suffix.
+// If collision, falls back to random suffix with retries.
+func resolveAgentNameWithULID(database *db.DB, prefix, ulid string) (string, error) {
+	if prefix == "" {
+		prefix = generateAdjectiveNoun()
+	}
+
+	// Try ULID-based suffix first
+	suffix := strings.ToLower(ulid[len(ulid)-4:])
+	name := prefix + "-" + suffix
+
+	_, err := database.GetAgent(name)
+	if err == db.ErrAgentNotFound {
+		return name, nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("failed to check for existing agent: %w", err)
+	}
+
+	// Collision (rare) - fall back to random suffix
+	for attempts := 0; attempts < 10; attempts++ {
+		name = prefix + "-" + randomHexSuffix()
+		_, err := database.GetAgent(name)
+		if err == db.ErrAgentNotFound {
+			return name, nil
+		}
+		if err != nil {
+			return "", fmt.Errorf("failed to check for existing agent: %w", err)
+		}
+	}
+
+	return "", errors.New("failed to generate unique agent name after 10 attempts")
 }

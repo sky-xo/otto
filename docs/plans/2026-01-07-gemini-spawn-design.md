@@ -76,23 +76,30 @@ This distinguishes Codex vs Gemini agents for transcript parsing.
 
 1. Create isolated home at `~/.june/gemini/` (for future config isolation)
 2. Run `gemini -p "task" --approval-mode auto_edit --output-format stream-json`
-3. Read first JSON event: `{"type":"init","session_id":"..."}`
-4. Extract `session_id` as the agent's ULID
+3. Buffer first JSON event: `{"type":"init","session_id":"...","timestamp":"..."}`
+4. Extract `session_id` (UUID format) as the agent's identifier
 5. Create session file at `~/.june/gemini/sessions/{session_id}.jsonl`
-6. Pipe remaining output to session file (while also draining stdout)
+6. Write buffered init event, then stream remaining output to session file
 7. Insert agent record into SQLite with `type='gemini'`
 8. Print agent name when process completes
 
-### Gemini Stream-JSON Format
+**Note:** We buffer the first event before creating the file so we know the session_id for the filename, then write it as the first line.
+
+### Gemini Stream-JSON Format (Verified)
+
+Tested with gemini-cli v0.22.5. All events include ISO 8601 timestamps.
 
 ```jsonl
-{"type":"init","session_id":"abc123","model":"gemini-2.5-pro"}
-{"type":"message","role":"user","content":"Fix the parser bug"}
-{"type":"tool_use","tool_name":"read_file","tool_id":"t1","parameters":{"path":"parser.go"}}
-{"type":"tool_result","tool_id":"t1","status":"success","output":"..."}
-{"type":"message","role":"assistant","content":"I've fixed the bug..."}
-{"type":"result","status":"success","stats":{...}}
+{"type":"init","timestamp":"2026-01-07T10:02:12.875Z","session_id":"8b6238bf-8332-4fc7-ba9a-2f3323119bb2","model":"auto-gemini-3"}
+{"type":"message","timestamp":"...","role":"user","content":"Fix the parser bug"}
+{"type":"message","timestamp":"...","role":"assistant","content":"I've","delta":true}
+{"type":"message","timestamp":"...","role":"assistant","content":" fixed","delta":true}
+{"type":"tool_use","timestamp":"...","tool_name":"read_file","tool_id":"read_file-123-abc","parameters":{"path":"parser.go"}}
+{"type":"tool_result","timestamp":"...","tool_id":"read_file-123-abc","status":"success","output":"..."}
+{"type":"result","timestamp":"...","status":"success","stats":{"total_tokens":7266,"duration_ms":3262,"tool_calls":1}}
 ```
+
+**Key implementation detail:** Assistant messages arrive as multiple chunks with `"delta":true`. The transcript parser must accumulate these into a single message.
 
 ### Transcript Parsing for peek/logs
 
@@ -127,10 +134,11 @@ Gemini agents appear alongside Codex agents in June TUI:
 | Aspect | Codex | Gemini |
 |--------|-------|--------|
 | Command | `codex exec --json` | `gemini -p --output-format stream-json` |
-| Session ID source | `thread.started` event | `init` event |
+| Session ID source | `thread.started` event (`thread_id`) | `init` event (`session_id`, UUID format) |
 | Session file | Written by Codex | Written by June |
 | Session location | `~/.june/codex/sessions/` | `~/.june/gemini/sessions/` |
 | Auto-approve | N/A | `--approval-mode auto_edit` default |
+| Message streaming | Single events | Chunked with `delta:true` |
 
 ## Future Enhancements
 

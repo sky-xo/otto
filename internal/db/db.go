@@ -25,6 +25,7 @@ type Agent struct {
 	SpawnedAt   time.Time
 	RepoPath    string // Git repo path for channel grouping
 	Branch      string // Git branch for channel grouping
+	Type        string // "codex" or "gemini"
 }
 
 // ToUnified converts a db.Agent to the unified agent.Agent type.
@@ -37,10 +38,15 @@ func (a Agent) ToUnified() agent.Agent {
 		}
 	}
 
+	source := agent.SourceCodex
+	if a.Type == "gemini" {
+		source = agent.SourceGemini
+	}
+
 	return agent.Agent{
 		ID:             a.ULID,
 		Name:           a.Name,
-		Source:         agent.SourceCodex,
+		Source:         source,
 		RepoPath:       a.RepoPath,
 		Branch:         a.Branch,
 		TranscriptPath: a.SessionFile,
@@ -58,7 +64,8 @@ CREATE TABLE IF NOT EXISTS agents (
 	pid INTEGER,
 	spawned_at TEXT NOT NULL,
 	repo_path TEXT DEFAULT '',
-	branch TEXT DEFAULT ''
+	branch TEXT DEFAULT '',
+	type TEXT DEFAULT 'codex'
 );
 `
 
@@ -120,16 +127,32 @@ func migrate(db *sql.DB) error {
 		}
 	}
 
+	// Check if type column exists and add if missing
+	var typeCount int
+	err = db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('agents') WHERE name='type'`).Scan(&typeCount)
+	if err != nil {
+		return err
+	}
+	if typeCount == 0 {
+		if _, err := db.Exec(`ALTER TABLE agents ADD COLUMN type TEXT DEFAULT 'codex'`); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
 // CreateAgent inserts a new agent record
 func (db *DB) CreateAgent(a Agent) error {
+	agentType := a.Type
+	if agentType == "" {
+		agentType = "codex"
+	}
 	_, err := db.Exec(
-		`INSERT INTO agents (name, ulid, session_file, cursor, pid, spawned_at, repo_path, branch)
-		 VALUES (?, ?, ?, 0, ?, ?, ?, ?)`,
+		`INSERT INTO agents (name, ulid, session_file, cursor, pid, spawned_at, repo_path, branch, type)
+		 VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?)`,
 		a.Name, a.ULID, a.SessionFile, a.PID, time.Now().UTC().Format(time.RFC3339),
-		a.RepoPath, a.Branch,
+		a.RepoPath, a.Branch, agentType,
 	)
 	return err
 }
@@ -139,9 +162,9 @@ func (db *DB) GetAgent(name string) (*Agent, error) {
 	var a Agent
 	var spawnedAt string
 	err := db.QueryRow(
-		`SELECT name, ulid, session_file, cursor, pid, spawned_at, repo_path, branch
+		`SELECT name, ulid, session_file, cursor, pid, spawned_at, repo_path, branch, type
 		 FROM agents WHERE name = ?`, name,
-	).Scan(&a.Name, &a.ULID, &a.SessionFile, &a.Cursor, &a.PID, &spawnedAt, &a.RepoPath, &a.Branch)
+	).Scan(&a.Name, &a.ULID, &a.SessionFile, &a.Cursor, &a.PID, &spawnedAt, &a.RepoPath, &a.Branch, &a.Type)
 	if err == sql.ErrNoRows {
 		return nil, ErrAgentNotFound
 	}
@@ -185,7 +208,7 @@ func (db *DB) UpdateSessionFile(name string, sessionFile string) error {
 // ListAgents returns all agents
 func (db *DB) ListAgents() ([]Agent, error) {
 	rows, err := db.Query(
-		`SELECT name, ulid, session_file, cursor, pid, spawned_at, repo_path, branch
+		`SELECT name, ulid, session_file, cursor, pid, spawned_at, repo_path, branch, type
 		 FROM agents ORDER BY spawned_at DESC`,
 	)
 	if err != nil {
@@ -197,7 +220,7 @@ func (db *DB) ListAgents() ([]Agent, error) {
 	for rows.Next() {
 		var a Agent
 		var spawnedAt string
-		if err := rows.Scan(&a.Name, &a.ULID, &a.SessionFile, &a.Cursor, &a.PID, &spawnedAt, &a.RepoPath, &a.Branch); err != nil {
+		if err := rows.Scan(&a.Name, &a.ULID, &a.SessionFile, &a.Cursor, &a.PID, &spawnedAt, &a.RepoPath, &a.Branch, &a.Type); err != nil {
 			return nil, err
 		}
 		var parseErr error
@@ -216,7 +239,7 @@ func (db *DB) ListAgents() ([]Agent, error) {
 // ListAgentsByRepo returns agents matching the given repo path.
 func (db *DB) ListAgentsByRepo(repoPath string) ([]Agent, error) {
 	rows, err := db.Query(
-		`SELECT name, ulid, session_file, cursor, pid, spawned_at, repo_path, branch
+		`SELECT name, ulid, session_file, cursor, pid, spawned_at, repo_path, branch, type
 		 FROM agents WHERE repo_path = ? ORDER BY spawned_at DESC`,
 		repoPath,
 	)
@@ -229,7 +252,7 @@ func (db *DB) ListAgentsByRepo(repoPath string) ([]Agent, error) {
 	for rows.Next() {
 		var a Agent
 		var spawnedAt string
-		if err := rows.Scan(&a.Name, &a.ULID, &a.SessionFile, &a.Cursor, &a.PID, &spawnedAt, &a.RepoPath, &a.Branch); err != nil {
+		if err := rows.Scan(&a.Name, &a.ULID, &a.SessionFile, &a.Cursor, &a.PID, &spawnedAt, &a.RepoPath, &a.Branch, &a.Type); err != nil {
 			return nil, err
 		}
 		var parseErr error

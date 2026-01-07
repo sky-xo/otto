@@ -48,3 +48,27 @@ func TestGenerateAdjectiveNoun_Unique(t *testing.T) {
 		seen[name] = true
 	}
 }
+
+func TestBuildAgentName_WithPrefix(t *testing.T) {
+	name := buildAgentName("refactor", "01JGXYZ123456789ABCD")
+	if name != "refactor-abcd" {
+		t.Errorf("buildAgentName() = %q, want %q", name, "refactor-abcd")
+	}
+}
+
+func TestBuildAgentName_NoPrefix(t *testing.T) {
+	name := buildAgentName("", "01JGXYZ123456789WXYZ")
+
+	// Should be adjective-noun-wxyz
+	pattern := regexp.MustCompile(`^[a-z]+-[a-z]+-wxyz$`)
+	if !pattern.MatchString(name) {
+		t.Errorf("buildAgentName() = %q, want adjective-noun-wxyz pattern", name)
+	}
+}
+
+func TestBuildAgentName_SuffixLowercase(t *testing.T) {
+	name := buildAgentName("test", "01JGXYZ123456789ABCD")
+	if name != "test-abcd" {
+		t.Errorf("buildAgentName() = %q, want lowercase suffix", name)
+	}
+}

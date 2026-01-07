@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"math/big"
+	"strings"
 )
 
 const base62Chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
@@ -58,4 +59,15 @@ func generateName() string {
 		suffix[i] = base62Chars[randomBytes[i]%62]
 	}
 	return "task-" + string(suffix)
+}
+
+// buildAgentName creates a name from prefix + ULID suffix.
+// If prefix is empty, generates adjective-noun prefix.
+// Suffix is last 4 chars of ULID, lowercased.
+func buildAgentName(prefix, ulid string) string {
+	if prefix == "" {
+		prefix = generateAdjectiveNoun()
+	}
+	suffix := strings.ToLower(ulid[len(ulid)-4:])
+	return prefix + "-" + suffix
 }

@@ -15,7 +15,13 @@ import (
 )
 
 func newSpawnCmd() *cobra.Command {
-	var name string
+	var (
+		name            string
+		model           string
+		reasoningEffort string
+		maxTokens       int
+		sandbox         string
+	)
 
 	cmd := &cobra.Command{
 		Use:   "spawn <type> <task>",
@@ -34,17 +40,21 @@ func newSpawnCmd() *cobra.Command {
 				return fmt.Errorf("--name is required")
 			}
 
-			return runSpawnCodex(name, task)
+			return runSpawnCodex(name, task, model, reasoningEffort, sandbox, maxTokens)
 		},
 	}
 
 	cmd.Flags().StringVar(&name, "name", "", "Name for the agent (required)")
 	cmd.MarkFlagRequired("name")
+	cmd.Flags().StringVar(&model, "model", "", "Codex model to use")
+	cmd.Flags().StringVar(&reasoningEffort, "reasoning-effort", "", "Reasoning effort (minimal|low|medium|high|xhigh)")
+	cmd.Flags().IntVar(&maxTokens, "max-tokens", 0, "Max output tokens")
+	cmd.Flags().StringVar(&sandbox, "sandbox", "", "Sandbox mode (read-only|workspace-write|danger-full-access)")
 
 	return cmd
 }
 
-func runSpawnCodex(name, task string) error {
+func runSpawnCodex(name, task, model, reasoningEffort, sandbox string, maxTokens int) error {
 	// Capture git context before spawning
 	// Non-fatal if not in a git repo - we just won't have channel info
 	repoPath := scope.RepoRoot()
@@ -75,8 +85,11 @@ func runSpawnCodex(name, task string) error {
 		return fmt.Errorf("failed to setup isolated codex home: %w", err)
 	}
 
+	// Build codex command arguments dynamically
+	args := buildCodexArgs(task, model, reasoningEffort, sandbox, maxTokens)
+
 	// Start codex exec --json
-	codexCmd := exec.Command("codex", "exec", "--json", task)
+	codexCmd := exec.Command("codex", args...)
 	codexCmd.Stderr = os.Stderr
 	codexCmd.Env = append(os.Environ(), fmt.Sprintf("CODEX_HOME=%s", isolatedCodexHome))
 
@@ -152,6 +165,25 @@ func runSpawnCodex(name, task string) error {
 	}
 
 	return nil
+}
+
+// buildCodexArgs constructs the argument slice for the codex exec command.
+func buildCodexArgs(task, model, reasoningEffort, sandbox string, maxTokens int) []string {
+	args := []string{"exec", "--json"}
+	if model != "" {
+		args = append(args, "--model", model)
+	}
+	if reasoningEffort != "" {
+		args = append(args, "-c", "model_reasoning_effort="+reasoningEffort)
+	}
+	if maxTokens > 0 {
+		args = append(args, "-c", fmt.Sprintf("model_max_output_tokens=%d", maxTokens))
+	}
+	if sandbox != "" {
+		args = append(args, "--sandbox", sandbox)
+	}
+	args = append(args, task)
+	return args
 }
 
 func juneHome() (string, error) {

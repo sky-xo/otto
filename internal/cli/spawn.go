@@ -3,6 +3,7 @@ package cli
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -13,6 +14,33 @@ import (
 	"github.com/sky-xo/june/internal/scope"
 	"github.com/spf13/cobra"
 )
+
+// resolveAgentName returns the agent name to use.
+// If userProvided is true, it validates the name doesn't exist and returns an error on collision.
+// If userProvided is false, it generates a unique name with retries.
+func resolveAgentName(database *db.DB, name string, userProvided bool) (string, error) {
+	if userProvided {
+		existing, err := database.GetAgent(name)
+		if err == nil {
+			return "", errors.New(formatCollisionError(name, existing.SpawnedAt))
+		} else if err != db.ErrAgentNotFound {
+			return "", fmt.Errorf("failed to check for existing agent: %w", err)
+		}
+		return name, nil
+	}
+
+	// Auto-generate name, retry on collision (unlikely)
+	for attempts := 0; attempts < 10; attempts++ {
+		name = generateName()
+		if _, err := database.GetAgent(name); err == db.ErrAgentNotFound {
+			return name, nil
+		} else if err != nil {
+			return "", fmt.Errorf("failed to check for existing agent: %w", err)
+		}
+		// Collision with auto-generated name, try again
+	}
+	return "", errors.New("failed to generate unique agent name after 10 attempts")
+}
 
 func newSpawnCmd() *cobra.Command {
 	var (
@@ -36,16 +64,13 @@ func newSpawnCmd() *cobra.Command {
 				return fmt.Errorf("unsupported agent type: %s (only 'codex' is supported)", agentType)
 			}
 
-			if name == "" {
-				return fmt.Errorf("--name is required")
-			}
+			userProvidedName := name != ""
 
-			return runSpawnCodex(name, task, model, reasoningEffort, sandbox, maxTokens)
+			return runSpawnCodex(name, task, userProvidedName, model, reasoningEffort, sandbox, maxTokens)
 		},
 	}
 
-	cmd.Flags().StringVar(&name, "name", "", "Name for the agent (required)")
-	cmd.MarkFlagRequired("name")
+	cmd.Flags().StringVar(&name, "name", "", "Name for the agent (auto-generated if omitted)")
 	cmd.Flags().StringVar(&model, "model", "", "Codex model to use")
 	cmd.Flags().StringVar(&reasoningEffort, "reasoning-effort", "", "Reasoning effort (minimal|low|medium|high|xhigh)")
 	cmd.Flags().IntVar(&maxTokens, "max-tokens", 0, "Max output tokens")
@@ -54,7 +79,7 @@ func newSpawnCmd() *cobra.Command {
 	return cmd
 }
 
-func runSpawnCodex(name, task, model, reasoningEffort, sandbox string, maxTokens int) error {
+func runSpawnCodex(name, task string, userProvidedName bool, model, reasoningEffort, sandbox string, maxTokens int) error {
 	// Capture git context before spawning
 	// Non-fatal if not in a git repo - we just won't have channel info
 	repoPath := scope.RepoRoot()
@@ -72,12 +97,12 @@ func runSpawnCodex(name, task, model, reasoningEffort, sandbox string, maxTokens
 	}
 	defer database.Close()
 
-	// Check if agent already exists
-	if _, err := database.GetAgent(name); err == nil {
-		return fmt.Errorf("agent %q already exists", name)
-	} else if err != db.ErrAgentNotFound {
-		return fmt.Errorf("failed to check for existing agent: %w", err)
+	// Resolve agent name (validate user-provided or auto-generate)
+	resolvedName, err := resolveAgentName(database, name, userProvidedName)
+	if err != nil {
+		return err
 	}
+	name = resolvedName
 
 	// Before creating the command, ensure isolated codex home
 	isolatedCodexHome, err := codex.EnsureCodexHome()
@@ -163,6 +188,9 @@ func runSpawnCodex(name, task, model, reasoningEffort, sandbox string, maxTokens
 			}
 		}
 	}
+
+	// Print the agent name to confirm what was created
+	fmt.Println(name)
 
 	return nil
 }

@@ -256,6 +256,7 @@ type Model struct {
 	codexDB           *db.DB                    // Codex agent database connection (reused across ticks)
 
 	selectedIdx        int           // Currently selected item index (across all channels + headers)
+	selectedAgentID    string        // ID of selected agent (for preserving selection across refreshes)
 	lastViewedAgent    *agent.Agent  // Last agent shown in right panel (persists when header selected)
 	sidebarOffset      int           // Scroll offset for the sidebar
 	lastNavWasKeyboard bool          // Track if last sidebar interaction was keyboard (for auto-scroll behavior)

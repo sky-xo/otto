@@ -44,10 +44,14 @@ The TUI shows:
 Spawn and monitor Codex agents:
 
 ```bash
-june spawn codex "task" --name <name>   # Spawn a Codex agent
-june peek <name>                         # Show new output since last peek
-june logs <name>                         # Show full transcript
+june spawn codex "task" --name refactor   # Output: refactor-9c4f
+june spawn codex "task"                   # Output: swift-falcon-7d1e
+
+june peek refactor-9c4f                   # Show new output since last peek
+june logs refactor-9c4f                   # Show full transcript
 ```
+
+Names always include a unique 4-char ULID suffix. `--name` sets a prefix; if omitted, an adjective-noun prefix is auto-generated.
 
 Agent state is stored in `~/.june/june.db` (SQLite).
 

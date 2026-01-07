@@ -784,6 +784,7 @@ git commit -m "feat(gemini): add transcript.go with delta accumulation"
 
 **Files:**
 - Modify: `internal/cli/spawn.go`
+- Modify: `internal/cli/spawn_test.go`
 
 **Step 1: Add buildGeminiArgs function**
 
@@ -812,12 +813,101 @@ func buildGeminiArgs(task, model string, yolo, sandbox bool) []string {
 }
 ```
 
-**Step 2: Add runSpawnGemini function**
+**Step 2: Add test for buildGeminiArgs**
+
+Add to `spawn_test.go`:
+
+```go
+func TestBuildGeminiArgs(t *testing.T) {
+	tests := []struct {
+		name    string
+		task    string
+		model   string
+		yolo    bool
+		sandbox bool
+		want    []string
+	}{
+		{
+			name:    "basic task with defaults",
+			task:    "fix the bug",
+			model:   "",
+			yolo:    false,
+			sandbox: false,
+			want:    []string{"-p", "fix the bug", "--output-format", "stream-json", "--approval-mode", "auto_edit"},
+		},
+		{
+			name:    "with yolo mode",
+			task:    "refactor code",
+			model:   "",
+			yolo:    true,
+			sandbox: false,
+			want:    []string{"-p", "refactor code", "--output-format", "stream-json", "--yolo"},
+		},
+		{
+			name:    "with model",
+			task:    "write tests",
+			model:   "gemini-2.5-pro",
+			yolo:    false,
+			sandbox: false,
+			want:    []string{"-p", "write tests", "--output-format", "stream-json", "--approval-mode", "auto_edit", "-m", "gemini-2.5-pro"},
+		},
+		{
+			name:    "with sandbox",
+			task:    "dangerous task",
+			model:   "",
+			yolo:    true,
+			sandbox: true,
+			want:    []string{"-p", "dangerous task", "--output-format", "stream-json", "--yolo", "--sandbox"},
+		},
+		{
+			name:    "all options",
+			task:    "full task",
+			model:   "gemini-2.5-flash",
+			yolo:    true,
+			sandbox: true,
+			want:    []string{"-p", "full task", "--output-format", "stream-json", "--yolo", "-m", "gemini-2.5-flash", "--sandbox"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := buildGeminiArgs(tt.task, tt.model, tt.yolo, tt.sandbox)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("buildGeminiArgs() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+```
+
+**Step 3: Run test to verify buildGeminiArgs**
+
+Run: `go test ./internal/cli/... -run TestBuildGeminiArgs -v`
+Expected: PASS
+
+**Step 4: Add geminiInstalled helper**
+
+Add to `spawn.go`:
+
+```go
+// geminiInstalled checks if the gemini CLI is available in PATH.
+func geminiInstalled() bool {
+	_, err := exec.LookPath("gemini")
+	return err == nil
+}
+```
+
+**Step 5: Add runSpawnGemini function with buffer sizing and gemini check**
 
 Add to `spawn.go`:
 
 ```go
 func runSpawnGemini(prefix, task string, model string, yolo, sandbox bool) error {
+	// Check if gemini is installed
+	if !geminiInstalled() {
+		return fmt.Errorf("gemini CLI not found - install with: npm install -g @google/gemini-cli")
+	}
+
 	// Capture git context before spawning
 	repoPath := scope.RepoRoot()
 	branch := scope.BranchName()
@@ -856,7 +946,11 @@ func runSpawnGemini(prefix, task string, model string, yolo, sandbox bool) error
 	}
 
 	// Read first line to get session_id
+	// Use large buffer to handle long lines (tool outputs can be large)
 	scanner := bufio.NewScanner(stdout)
+	buf := make([]byte, 0, 256*1024)
+	scanner.Buffer(buf, 1024*1024) // 1MB max line size
+
 	var sessionID string
 	var firstLine []byte
 	if scanner.Scan() {
@@ -943,7 +1037,7 @@ func runSpawnGemini(prefix, task string, model string, yolo, sandbox bool) error
 }
 ```
 
-**Step 3: Add import for gemini package**
+**Step 6: Add import for gemini package**
 
 Add to imports in `spawn.go`:
 
@@ -951,16 +1045,16 @@ Add to imports in `spawn.go`:
 "github.com/sky-xo/june/internal/gemini"
 ```
 
-**Step 4: Run build to verify**
+**Step 7: Run build to verify**
 
 Run: `go build ./...`
 Expected: SUCCESS
 
-**Step 5: Commit**
+**Step 8: Commit**
 
 ```bash
-git add internal/cli/spawn.go
-git commit -m "feat(cli): add runSpawnGemini function"
+git add internal/cli/spawn.go internal/cli/spawn_test.go
+git commit -m "feat(cli): add runSpawnGemini function with tests"
 ```
 
 ---
@@ -970,18 +1064,19 @@ git commit -m "feat(cli): add runSpawnGemini function"
 **Files:**
 - Modify: `internal/cli/spawn.go`
 
-**Step 1: Update newSpawnCmd to support gemini**
+**Step 1: Update newSpawnCmd to support gemini with separate sandbox flags**
 
 Replace the command setup with:
 
 ```go
 func newSpawnCmd() *cobra.Command {
 	var (
-		name    string
-		model   string
-		sandbox string
-		yolo    bool
+		name          string
+		model         string
+		yolo          bool
+		geminiSandbox bool
 		// Codex-specific
+		codexSandbox    string
 		reasoningEffort string
 		maxTokens       int
 	)
@@ -997,11 +1092,9 @@ func newSpawnCmd() *cobra.Command {
 
 			switch agentType {
 			case "codex":
-				return runSpawnCodex(name, task, model, reasoningEffort, sandbox, maxTokens)
+				return runSpawnCodex(name, task, model, reasoningEffort, codexSandbox, maxTokens)
 			case "gemini":
-				// Convert sandbox string to bool for gemini
-				sandboxEnabled := sandbox != ""
-				return runSpawnGemini(name, task, model, yolo, sandboxEnabled)
+				return runSpawnGemini(name, task, model, yolo, geminiSandbox)
 			default:
 				return fmt.Errorf("unsupported agent type: %s (supported: codex, gemini)", agentType)
 			}
@@ -1011,37 +1104,30 @@ func newSpawnCmd() *cobra.Command {
 	// Shared flags
 	cmd.Flags().StringVar(&name, "name", "", "Name prefix for the agent (auto-generated if omitted)")
 	cmd.Flags().StringVar(&model, "model", "", "Model to use")
-	cmd.Flags().StringVar(&sandbox, "sandbox", "", "Sandbox mode")
 
 	// Codex-specific flags
+	cmd.Flags().StringVar(&codexSandbox, "sandbox", "", "Sandbox mode (codex: read-only|workspace-write|danger-full-access)")
 	cmd.Flags().StringVar(&reasoningEffort, "reasoning-effort", "", "Reasoning effort (codex only)")
 	cmd.Flags().IntVar(&maxTokens, "max-tokens", 0, "Max output tokens (codex only)")
 
 	// Gemini-specific flags
 	cmd.Flags().BoolVar(&yolo, "yolo", false, "Auto-approve all actions (gemini only, default is auto_edit)")
+	cmd.Flags().BoolVar(&geminiSandbox, "gemini-sandbox", false, "Run in Docker sandbox (gemini only)")
 
 	return cmd
 }
 ```
 
-**Step 2: Update Long description**
-
-Change the Long description to:
-
-```go
-Long:  "Spawn a Codex or Gemini agent to perform a task",
-```
-
-**Step 3: Run build**
+**Step 2: Run build**
 
 Run: `go build ./...`
 Expected: SUCCESS
 
-**Step 4: Commit**
+**Step 3: Commit**
 
 ```bash
 git add internal/cli/spawn.go
-git commit -m "feat(cli): dispatch spawn to codex or gemini"
+git commit -m "feat(cli): dispatch spawn to codex or gemini with proper flags"
 ```
 
 ---
@@ -1247,7 +1333,154 @@ git commit -m "feat(cli): update logs to support gemini agents"
 
 ---
 
-## Task 10: Run full test suite and verify
+## Task 10: Add TUI support for Gemini agents
+
+**Files:**
+- Modify: `internal/tui/commands.go`
+
+**Step 1: Add gemini import**
+
+Add to imports in `commands.go`:
+
+```go
+"github.com/sky-xo/june/internal/gemini"
+```
+
+**Step 2: Update loadTranscriptCmd to handle Gemini**
+
+Update the switch statement in `loadTranscriptCmd`:
+
+```go
+// loadTranscriptCmd loads a transcript from a file.
+func loadTranscriptCmd(a agent.Agent) tea.Cmd {
+	return func() tea.Msg {
+		var entries []claude.Entry
+		var err error
+
+		switch a.Source {
+		case agent.SourceGemini:
+			// Parse Gemini format and convert to claude.Entry for display
+			var geminiEntries []gemini.TranscriptEntry
+			geminiEntries, _, err = gemini.ReadTranscript(a.TranscriptPath, 0)
+			if err != nil {
+				return errMsg(err)
+			}
+			entries = convertGeminiEntries(geminiEntries)
+		case agent.SourceCodex:
+			// Parse Codex format and convert to claude.Entry for display
+			var codexEntries []codex.TranscriptEntry
+			codexEntries, _, err = codex.ReadTranscript(a.TranscriptPath, 0)
+			if err != nil {
+				return errMsg(err)
+			}
+			entries = convertCodexEntries(codexEntries)
+		default:
+			// Default to Claude format
+			entries, err = claude.ParseTranscript(a.TranscriptPath)
+			if err != nil {
+				return errMsg(err)
+			}
+		}
+
+		return transcriptMsg{
+			agentID: a.ID,
+			entries: entries,
+		}
+	}
+}
+```
+
+**Step 3: Add convertGeminiEntries function**
+
+Add after `convertCodexEntries`:
+
+```go
+// convertGeminiEntries converts Gemini transcript entries to Claude entry format for TUI display.
+func convertGeminiEntries(geminiEntries []gemini.TranscriptEntry) []claude.Entry {
+	entries := make([]claude.Entry, 0, len(geminiEntries))
+	for _, ge := range geminiEntries {
+		var entry claude.Entry
+		switch ge.Type {
+		case "user":
+			// Gemini user message -> Claude user
+			entry = claude.Entry{
+				Type: "user",
+				Message: claude.Message{
+					Role: "user",
+					Content: []interface{}{
+						map[string]interface{}{
+							"type": "text",
+							"text": ge.Content,
+						},
+					},
+				},
+			}
+		case "message":
+			// Gemini assistant message -> Claude assistant
+			entry = claude.Entry{
+				Type: "assistant",
+				Message: claude.Message{
+					Role: "assistant",
+					Content: []interface{}{
+						map[string]interface{}{
+							"type": "text",
+							"text": ge.Content,
+						},
+					},
+				},
+			}
+		case "tool":
+			// Gemini tool call -> Claude assistant with tool info
+			entry = claude.Entry{
+				Type: "assistant",
+				Message: claude.Message{
+					Role: "assistant",
+					Content: []interface{}{
+						map[string]interface{}{
+							"type": "text",
+							"text": ge.Content, // Already formatted as "[tool: name]"
+						},
+					},
+				},
+			}
+		case "tool_output":
+			// Gemini tool output -> Claude user with tool_result
+			entry = claude.Entry{
+				Type: "user",
+				Message: claude.Message{
+					Role: "user",
+					Content: []interface{}{
+						map[string]interface{}{
+							"type": "tool_result",
+							"text": "  -> " + ge.Content,
+						},
+					},
+				},
+			}
+		default:
+			continue
+		}
+		entries = append(entries, entry)
+	}
+	return entries
+}
+```
+
+**Step 4: Run build**
+
+Run: `go build ./...`
+Expected: SUCCESS
+
+**Step 5: Commit**
+
+```bash
+git add internal/tui/commands.go
+git commit -m "feat(tui): add support for Gemini agent transcripts"
+```
+
+---
+
+## Task 11: Run full test suite and verify
 
 **Step 1: Run all tests**
 
@@ -1265,6 +1498,7 @@ Expected: SUCCESS
 ./june spawn gemini "Say hello" --name test-gemini
 ./june peek test-gemini
 ./june logs test-gemini
+./june  # Check TUI shows Gemini agent
 ```
 
 **Step 4: Final commit if any fixes needed**
@@ -1285,8 +1519,19 @@ git commit -m "fix: address test failures"
 | 3 | Create gemini home.go | gemini/home.go, home_test.go |
 | 4 | Create gemini sessions.go | gemini/sessions.go, sessions_test.go |
 | 5 | Create gemini transcript.go | gemini/transcript.go, transcript_test.go |
-| 6 | Add runSpawnGemini function | cli/spawn.go |
+| 6 | Add runSpawnGemini function | cli/spawn.go, spawn_test.go |
 | 7 | Update spawn command dispatch | cli/spawn.go |
 | 8 | Update peek for multi-agent | cli/peek.go |
 | 9 | Update logs for multi-agent | cli/logs.go |
-| 10 | Full test suite verification | - |
+| 10 | Add TUI support for Gemini | tui/commands.go |
+| 11 | Full test suite verification | - |
+
+## Fresh Eyes Review Fixes Applied
+
+This plan was updated based on a fresh eyes review that identified:
+
+1. **TUI Integration Missing** - Added Task 10 to update `internal/tui/commands.go`
+2. **Sandbox flag mismatch** - Task 7 now uses `--gemini-sandbox` (bool) separate from `--sandbox` (string for Codex)
+3. **Scanner buffer limit** - Task 6 now sets 1MB buffer limit to prevent truncation
+4. **Missing tests** - Task 6 now includes `TestBuildGeminiArgs`
+5. **Missing "gemini not installed" error** - Task 6 now includes `geminiInstalled()` check

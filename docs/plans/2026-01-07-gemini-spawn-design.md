@@ -31,8 +31,10 @@ june spawn gemini "task description" --name <name>
 |------|---------|-------------|
 | `--name` | auto-generated | Name prefix (ULID suffix added automatically) |
 | `--model` | gemini default | Model to use (e.g., `gemini-2.5-pro`) |
-| `--sandbox` | off | Run in Docker sandbox |
+| `--gemini-sandbox` | off | Run in Docker sandbox (boolean flag) |
 | `--yolo` | off | Full auto-approve (default is `auto_edit`) |
+
+Note: `--sandbox` (string) is for Codex only. Gemini uses `--gemini-sandbox` (boolean).
 
 **Underlying command:**
 
@@ -106,10 +108,11 @@ Tested with gemini-cli v0.22.5. All events include ISO 8601 timestamps.
 | Gemini Event | Display As |
 |--------------|------------|
 | `message` (role=user) | User prompt |
-| `message` (role=assistant) | Agent response |
+| `message` (role=assistant) | Agent response (accumulated from delta chunks) |
 | `tool_use` | Tool call (file read, write, shell) |
 | `tool_result` | Tool output |
-| `result` | Final summary |
+| `init` | (skipped - metadata only) |
+| `result` | (skipped - stats only, no user-facing content) |
 
 The peek/logs commands check agent type and use the appropriate parser (Codex or Gemini).
 

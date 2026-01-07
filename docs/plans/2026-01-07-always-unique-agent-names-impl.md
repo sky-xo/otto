@@ -278,6 +278,7 @@ Add to `internal/cli/name_test.go`:
 ```go
 import (
 	"path/filepath"
+	"strings"
 	"github.com/sky-xo/june/internal/db"
 )
 
@@ -344,6 +345,19 @@ func TestResolveAgentNameWithULID_EmptyPrefix(t *testing.T) {
 		t.Errorf("name = %q, want adjective-noun-wxyz pattern", name)
 	}
 }
+
+func TestResolveAgentNameWithULID_DBError_Propagates(t *testing.T) {
+	database := openTestDB(t)
+	database.Close() // Close DB to force errors
+
+	_, err := resolveAgentNameWithULID(database, "test", "01JGXYZ123456789ABCD")
+	if err == nil {
+		t.Error("expected error from closed DB, got nil")
+	}
+	if !strings.Contains(err.Error(), "failed to check for existing agent") {
+		t.Errorf("error = %q, want 'failed to check for existing agent'", err)
+	}
+}
 ```
 
 **Step 2: Run test to verify it fails**
@@ -358,6 +372,7 @@ Add to `internal/cli/name.go`:
 ```go
 import (
 	"errors"
+	"fmt"
 	"github.com/sky-xo/june/internal/db"
 )
 
@@ -372,15 +387,23 @@ func resolveAgentNameWithULID(database *db.DB, prefix, ulid string) (string, err
 	suffix := strings.ToLower(ulid[len(ulid)-4:])
 	name := prefix + "-" + suffix
 
-	if _, err := database.GetAgent(name); err == db.ErrAgentNotFound {
+	_, err := database.GetAgent(name)
+	if err == db.ErrAgentNotFound {
 		return name, nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("failed to check for existing agent: %w", err)
 	}
 
 	// Collision (rare) - fall back to random suffix
 	for attempts := 0; attempts < 10; attempts++ {
 		name = prefix + "-" + randomHexSuffix()
-		if _, err := database.GetAgent(name); err == db.ErrAgentNotFound {
+		_, err := database.GetAgent(name)
+		if err == db.ErrAgentNotFound {
 			return name, nil
+		}
+		if err != nil {
+			return "", fmt.Errorf("failed to check for existing agent: %w", err)
 		}
 	}
 

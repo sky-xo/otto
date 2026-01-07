@@ -12,11 +12,11 @@ func TestVersion(t *testing.T) {
 	}()
 
 	tests := []struct {
-		name        string
-		version     string
-		commit      string
-		wantContain string
-		wantExact   string
+		name          string
+		version       string
+		commit        string
+		wantExact     string
+		checkNotEmpty bool // when true, just verify non-empty output
 	}{
 		{
 			name:      "tagged release version",
@@ -55,10 +55,10 @@ func TestVersion(t *testing.T) {
 			wantExact: "dev",
 		},
 		{
-			name:        "empty version falls back",
-			version:     "",
-			commit:      "",
-			wantContain: "", // Will be "dev" or module version
+			name:          "empty version falls back",
+			version:       "",
+			commit:        "",
+			checkNotEmpty: true, // Will be "dev" or module version
 		},
 	}
 
@@ -72,32 +72,9 @@ func TestVersion(t *testing.T) {
 			if tt.wantExact != "" && got != tt.wantExact {
 				t.Errorf("Version() = %q, want %q", got, tt.wantExact)
 			}
-			if tt.wantContain != "" && got != tt.wantContain {
-				// For empty version case, we just check it returns something
-				if got == "" {
-					t.Errorf("Version() returned empty string")
-				}
+			if tt.checkNotEmpty && got == "" {
+				t.Errorf("Version() returned empty string")
 			}
 		})
-	}
-}
-
-func TestVersionWithEmptyFallsToDev(t *testing.T) {
-	// Save original values
-	origVersion := version
-	origCommit := commit
-	defer func() {
-		version = origVersion
-		commit = origCommit
-	}()
-
-	// When both are empty and no module info, should return "dev"
-	version = ""
-	commit = ""
-
-	got := Version()
-	// It will either return "dev" or a module version - both are valid
-	if got == "" {
-		t.Error("Version() should not return empty string")
 	}
 }

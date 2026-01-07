@@ -16,8 +16,10 @@ import (
 )
 
 // version and commit can be set via ldflags at build time (e.g., make build)
-var version = ""
-var commit = ""
+var (
+	version = ""
+	commit  = ""
+)
 
 // Version returns the version string, checking ldflags first, then Go module info
 func Version() string {

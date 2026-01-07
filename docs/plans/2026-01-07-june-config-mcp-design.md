@@ -69,10 +69,13 @@ Both copied with `0600` permissions, only if source exists and destination doesn
 ### Spawn Flow
 
 1. Load `~/.june/config.yaml` (if exists)
-2. Copy auth files from `~/.gemini/` (if not already present)
-3. Write `~/.june/gemini/settings.json` with MCP servers from config
-4. Set `GEMINI_CONFIG_DIR=~/.june/gemini/` env var
-5. Run `gemini -p "task" ...`
+2. Copy auth files from `~/.gemini/` (if not already present, warn if missing)
+3. If config has MCP servers:
+   - Write `~/.june/gemini/settings.json` with MCP servers (permissions `0600`)
+   - Set `GEMINI_CONFIG_DIR=~/.june/gemini/` env var
+4. Run `gemini -p "task" ...`
+
+**Important:** If no config file exists or it has no MCP servers, Gemini uses its normal `~/.gemini/` config. This preserves any MCP servers the user configured directly in Gemini.
 
 ### Components
 

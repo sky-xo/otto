@@ -138,7 +138,7 @@ func TestLoadConfigInvalidYAML(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := os.WriteFile(filepath.Join(configDir, "config.yaml"), []byte("invalid: yaml: content:"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(configDir, "config.yaml"), []byte("mcpServers:\n  chrome:\n    - not a map"), 0644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -255,7 +255,7 @@ func TestEnsureGeminiHomeCopiesAuth(t *testing.T) {
 
 	// Create google_accounts.json
 	accountsContent := `{"active": "user@example.com"}`
-	if err := os.WriteFile(filepath.Join(userGemini, "google_accounts.json"), []byte(accountsContent), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(userGemini, "google_accounts.json"), []byte(accountsContent), 0600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -289,6 +289,12 @@ func TestEnsureGeminiHomeCopiesAuth(t *testing.T) {
 	}
 	if string(data) != accountsContent {
 		t.Errorf("google_accounts.json content = %q, want %q", string(data), accountsContent)
+	}
+
+	// Verify google_accounts.json has 0600 permissions
+	info, _ = os.Stat(accountsDst)
+	if info.Mode().Perm() != 0600 {
+		t.Errorf("google_accounts.json mode = %o, want 0600", info.Mode().Perm())
 	}
 }
 
@@ -324,6 +330,7 @@ Update `internal/gemini/home.go`:
 package gemini
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 )
@@ -351,30 +358,37 @@ func EnsureGeminiHome() (string, error) {
 
 	// Copy auth files from user's ~/.gemini/ if they exist
 	userGemini := filepath.Join(home, ".gemini")
-	copyAuthFile(userGemini, geminiHome, "oauth_creds.json", 0600)
-	copyAuthFile(userGemini, geminiHome, "google_accounts.json", 0644)
+	oauthMissing := copyAuthFile(userGemini, geminiHome, "oauth_creds.json", 0600)
+	accountsMissing := copyAuthFile(userGemini, geminiHome, "google_accounts.json", 0600)
+
+	// Warn if auth files are missing (user may not have logged into Gemini yet)
+	if oauthMissing || accountsMissing {
+		fmt.Fprintf(os.Stderr, "warning: gemini auth files not found in ~/.gemini/ - run 'gemini' to authenticate\n")
+	}
 
 	return geminiHome, nil
 }
 
 // copyAuthFile copies a file from src dir to dst dir if source exists and dest doesn't.
 // Uses atomic create-if-not-exists pattern.
-func copyAuthFile(srcDir, dstDir, filename string, perm os.FileMode) {
+// Returns true if source was missing (for warning purposes).
+func copyAuthFile(srcDir, dstDir, filename string, perm os.FileMode) bool {
 	srcPath := filepath.Join(srcDir, filename)
 	dstPath := filepath.Join(dstDir, filename)
 
 	data, err := os.ReadFile(srcPath)
 	if err != nil {
-		return // Source doesn't exist, skip
+		return true // Source doesn't exist
 	}
 
 	// Try to create the file exclusively - fails if it already exists
 	f, err := os.OpenFile(dstPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, perm)
 	if err != nil {
-		return // Already exists or other error, skip
+		return false // Already exists or other error
 	}
 	defer f.Close()
 	f.Write(data)
+	return false
 }
 
 // SessionsDir returns the path to the sessions directory.
@@ -536,7 +550,7 @@ func WriteSettings(geminiHome string, mcpServers map[string]MCPServerConfig) err
 		return err
 	}
 
-	return os.WriteFile(filepath.Join(geminiHome, "settings.json"), data, 0644)
+	return os.WriteFile(filepath.Join(geminiHome, "settings.json"), data, 0600)
 }
 ```
 
@@ -563,9 +577,8 @@ git commit -m "feat(gemini): add WriteSettings for MCP server configuration"
 
 In `internal/cli/spawn.go`, update `runSpawnGemini` to:
 1. Load config
-2. Convert MCP servers to gemini format
-3. Write settings.json
-4. Set GEMINI_CONFIG_DIR env var
+2. Only if config has MCP servers: write settings.json and set GEMINI_CONFIG_DIR
+3. Otherwise: let Gemini use its normal ~/.gemini/ config
 
 Find the `runSpawnGemini` function and update it:
 
@@ -604,19 +617,6 @@ func runSpawnGemini(prefix, task string, model string, yolo, sandbox bool) error
 		return fmt.Errorf("failed to setup gemini home: %w", err)
 	}
 
-	// Write settings.json with MCP servers from config
-	mcpServers := make(map[string]gemini.MCPServerConfig)
-	for name, server := range cfg.MCPServers {
-		mcpServers[name] = gemini.MCPServerConfig{
-			Command: server.Command,
-			Args:    server.Args,
-			Env:     server.Env,
-		}
-	}
-	if err := gemini.WriteSettings(geminiHome, mcpServers); err != nil {
-		return fmt.Errorf("failed to write gemini settings: %w", err)
-	}
-
 	// Build gemini command arguments
 	args := buildGeminiArgs(task, model, yolo, sandbox)
 
@@ -624,8 +624,23 @@ func runSpawnGemini(prefix, task string, model string, yolo, sandbox bool) error
 	geminiCmd := exec.Command("gemini", args...)
 	geminiCmd.Stderr = os.Stderr
 
-	// Set GEMINI_CONFIG_DIR to use our isolated home with MCP config
-	geminiCmd.Env = append(os.Environ(), fmt.Sprintf("GEMINI_CONFIG_DIR=%s", geminiHome))
+	// Only set GEMINI_CONFIG_DIR if we have MCP servers to configure
+	// Otherwise, let Gemini use its normal ~/.gemini/ config (preserves user's existing MCP servers)
+	if len(cfg.MCPServers) > 0 {
+		// Write settings.json with MCP servers from config
+		mcpServers := make(map[string]gemini.MCPServerConfig)
+		for name, server := range cfg.MCPServers {
+			mcpServers[name] = gemini.MCPServerConfig{
+				Command: server.Command,
+				Args:    server.Args,
+				Env:     server.Env,
+			}
+		}
+		if err := gemini.WriteSettings(geminiHome, mcpServers); err != nil {
+			return fmt.Errorf("failed to write gemini settings: %w", err)
+		}
+		geminiCmd.Env = append(os.Environ(), fmt.Sprintf("GEMINI_CONFIG_DIR=%s", geminiHome))
+	}
 
 	// ... rest of function unchanged
 ```

@@ -15,19 +15,32 @@ import (
 	"golang.org/x/term"
 )
 
-// version can be set via ldflags at build time (e.g., make build)
-var version = ""
+// version and commit can be set via ldflags at build time (e.g., make build)
+var (
+	version = ""
+	commit  = ""
+)
 
 // Version returns the version string, checking ldflags first, then Go module info
 func Version() string {
-	// If set via ldflags (make build), use that
-	if version != "" {
+	// If version is set via ldflags and isn't "dev", use it
+	if version != "" && version != "dev" {
 		return version
 	}
-	// Otherwise try to read from Go's embedded module info (go install @version)
-	if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "" && info.Main.Version != "(devel)" {
-		return info.Main.Version
+
+	// If version is "dev" and commit is set, show "dev (commit)"
+	if version == "dev" && commit != "" && commit != "unknown" {
+		return "dev (" + commit + ")"
 	}
+
+	// If version is empty, try to read from Go's embedded module info (go install @version)
+	if version == "" {
+		if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "" && info.Main.Version != "(devel)" {
+			return info.Main.Version
+		}
+	}
+
+	// Final fallback
 	return "dev"
 }
 

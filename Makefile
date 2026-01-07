@@ -1,14 +1,16 @@
 .PHONY: build install test clean
 
-VERSION ?= v0.1.0
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+LDFLAGS := -ldflags "-X github.com/sky-xo/june/internal/cli.version=$(VERSION) -X github.com/sky-xo/june/internal/cli.commit=$(COMMIT)"
 
 # Build the june binary
 build:
-	go build -ldflags "-X github.com/sky-xo/june/internal/cli.version=$(VERSION)" -o june .
+	go build $(LDFLAGS) -o june .
 
 # Install to $GOPATH/bin
 install:
-	go install -ldflags "-X github.com/sky-xo/june/internal/cli.version=$(VERSION)" .
+	go install $(LDFLAGS) .
 
 # Run all tests
 test:
@@ -24,4 +26,4 @@ clean:
 
 # Build and run the TUI watch
 watch:
-	go build -o june . && ./june watch
+	go build $(LDFLAGS) -o june . && ./june watch

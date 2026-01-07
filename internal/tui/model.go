@@ -598,6 +598,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				nextIdx := m.nextSelectableIdx(m.selectedIdx, -1)
 				if nextIdx != -1 {
 					m.selectedIdx = nextIdx
+					if agent := m.SelectedAgent(); agent != nil {
+						m.selectedAgentID = agent.ID
+					}
 					m.lastNavWasKeyboard = true
 					m.ensureSelectedVisible()
 					if agent := m.SelectedAgent(); agent != nil {
@@ -616,6 +619,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				nextIdx := m.nextSelectableIdx(m.selectedIdx, 1)
 				if nextIdx != -1 {
 					m.selectedIdx = nextIdx
+					if agent := m.SelectedAgent(); agent != nil {
+						m.selectedAgentID = agent.ID
+					}
 					m.lastNavWasKeyboard = true
 					m.ensureSelectedVisible()
 					if agent := m.SelectedAgent(); agent != nil {
@@ -653,6 +659,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.selectedIdx = 0
 					}
 				}
+				if agent := m.SelectedAgent(); agent != nil {
+					m.selectedAgentID = agent.ID
+				}
 				m.lastNavWasKeyboard = true
 				if agent := m.SelectedAgent(); agent != nil {
 					m.lastViewedAgent = agent
@@ -689,6 +698,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if m.selectedIdx >= m.totalSidebarItems() {
 						m.selectedIdx = m.totalSidebarItems() - 1
 					}
+				}
+				if agent := m.SelectedAgent(); agent != nil {
+					m.selectedAgentID = agent.ID
 				}
 				m.lastNavWasKeyboard = true
 				if agent := m.SelectedAgent(); agent != nil {
@@ -789,6 +801,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 
 				m.selectedIdx = itemIdx
+				if agent := m.SelectedAgent(); agent != nil {
+					m.selectedAgentID = agent.ID
+				}
 
 				// If clicked on an expander, toggle expansion
 				if item.isExpander {

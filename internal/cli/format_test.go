@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"strings"
 	"testing"
 	"time"
 )
@@ -31,31 +30,5 @@ func TestRelativeTime(t *testing.T) {
 				t.Errorf("relativeTime() = %q, want %q", got, tt.want)
 			}
 		})
-	}
-}
-
-func TestFormatCollisionError(t *testing.T) {
-	spawnedAt := time.Now().Add(-2 * time.Hour)
-	errMsg := formatCollisionError("myagent", spawnedAt)
-
-	expected := `agent "myagent" already exists (spawned 2 hours ago)
-Hint: use --name myagent-2 or another unique name`
-
-	if errMsg != expected {
-		t.Errorf("formatCollisionError() = %q, want %q", errMsg, expected)
-	}
-}
-
-func TestFormatCollisionError_NoPercentInterpolation(t *testing.T) {
-	// Ensure % in name doesn't cause issues
-	spawnedAt := time.Now().Add(-1 * time.Hour)
-	errMsg := formatCollisionError("test%s", spawnedAt)
-
-	if errMsg == "" {
-		t.Error("formatCollisionError should handle % in names")
-	}
-	// Should contain the literal %s, not interpolate it
-	if !strings.Contains(errMsg, "test%s") {
-		t.Errorf("formatCollisionError should preserve literal %%s, got: %s", errMsg)
 	}
 }

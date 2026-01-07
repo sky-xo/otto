@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 
 	"github.com/sky-xo/june/internal/codex"
-	"github.com/sky-xo/june/internal/config"
 	"github.com/sky-xo/june/internal/db"
 	"github.com/sky-xo/june/internal/gemini"
 	"github.com/sky-xo/june/internal/scope"
@@ -222,12 +221,6 @@ func runSpawnGemini(prefix, task string, model string, yolo, sandbox bool) error
 		return fmt.Errorf("gemini CLI not found - install with: npm install -g @google/gemini-cli")
 	}
 
-	// Load June config for MCP servers
-	cfg, err := config.LoadConfig()
-	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
-	}
-
 	// Capture git context before spawning
 	repoPath := scope.RepoRoot()
 	branch := scope.BranchName()
@@ -244,8 +237,8 @@ func runSpawnGemini(prefix, task string, model string, yolo, sandbox bool) error
 	}
 	defer database.Close()
 
-	// Ensure gemini home exists (copies auth files)
-	geminiHome, err := gemini.EnsureGeminiHome()
+	// Ensure gemini home exists (copies auth files, creates sessions directory)
+	_, err = gemini.EnsureGeminiHome()
 	if err != nil {
 		return fmt.Errorf("failed to setup gemini home: %w", err)
 	}
@@ -256,24 +249,6 @@ func runSpawnGemini(prefix, task string, model string, yolo, sandbox bool) error
 	// Start gemini -p ...
 	geminiCmd := exec.Command("gemini", args...)
 	geminiCmd.Stderr = os.Stderr
-
-	// Only set GEMINI_CONFIG_DIR if we have MCP servers to configure
-	// Otherwise, let Gemini use its normal ~/.gemini/ config (preserves user's existing MCP servers)
-	if len(cfg.MCPServers) > 0 {
-		// Write settings.json with MCP servers from config
-		mcpServers := make(map[string]gemini.MCPServerConfig)
-		for name, server := range cfg.MCPServers {
-			mcpServers[name] = gemini.MCPServerConfig{
-				Command: server.Command,
-				Args:    server.Args,
-				Env:     server.Env,
-			}
-		}
-		if err := gemini.WriteSettings(geminiHome, mcpServers); err != nil {
-			return fmt.Errorf("failed to write gemini settings: %w", err)
-		}
-		geminiCmd.Env = append(os.Environ(), fmt.Sprintf("GEMINI_CONFIG_DIR=%s", geminiHome))
-	}
 
 	stdout, err := geminiCmd.StdoutPipe()
 	if err != nil {

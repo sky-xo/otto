@@ -10,6 +10,7 @@ import (
 
 	"github.com/sky-xo/june/internal/codex"
 	"github.com/sky-xo/june/internal/db"
+	"github.com/sky-xo/june/internal/gemini"
 	"github.com/sky-xo/june/internal/scope"
 	"github.com/spf13/cobra"
 )
@@ -162,6 +163,168 @@ func runSpawnCodex(prefix, task string, model, reasoningEffort, sandbox string, 
 	}
 
 	// Print the agent name to confirm what was created
+	fmt.Println(name)
+
+	return nil
+}
+
+// buildGeminiArgs constructs the argument slice for the gemini command.
+// sandbox is a boolean - for Gemini we just pass --sandbox if true.
+func buildGeminiArgs(task, model string, yolo, sandbox bool) []string {
+	args := []string{"-p", task, "--output-format", "stream-json"}
+
+	if yolo {
+		args = append(args, "--yolo")
+	} else {
+		args = append(args, "--approval-mode", "auto_edit")
+	}
+
+	if model != "" {
+		args = append(args, "-m", model)
+	}
+
+	if sandbox {
+		args = append(args, "--sandbox")
+	}
+
+	return args
+}
+
+// geminiInstalled checks if the gemini CLI is available in PATH.
+func geminiInstalled() bool {
+	_, err := exec.LookPath("gemini")
+	return err == nil
+}
+
+func runSpawnGemini(prefix, task string, model string, yolo, sandbox bool) error {
+	// Check if gemini is installed
+	if !geminiInstalled() {
+		return fmt.Errorf("gemini CLI not found - install with: npm install -g @google/gemini-cli")
+	}
+
+	// Capture git context before spawning
+	repoPath := scope.RepoRoot()
+	branch := scope.BranchName()
+
+	// Open database
+	home, err := juneHome()
+	if err != nil {
+		return fmt.Errorf("failed to get june home: %w", err)
+	}
+	dbPath := filepath.Join(home, "june.db")
+	database, err := db.Open(dbPath)
+	if err != nil {
+		return fmt.Errorf("failed to open database: %w", err)
+	}
+	defer database.Close()
+
+	// Ensure gemini home exists
+	if _, err := gemini.EnsureGeminiHome(); err != nil {
+		return fmt.Errorf("failed to setup gemini home: %w", err)
+	}
+
+	// Build gemini command arguments
+	args := buildGeminiArgs(task, model, yolo, sandbox)
+
+	// Start gemini -p ...
+	geminiCmd := exec.Command("gemini", args...)
+	geminiCmd.Stderr = os.Stderr
+
+	stdout, err := geminiCmd.StdoutPipe()
+	if err != nil {
+		return fmt.Errorf("failed to get stdout pipe: %w", err)
+	}
+
+	if err := geminiCmd.Start(); err != nil {
+		return fmt.Errorf("failed to start gemini: %w", err)
+	}
+
+	// Read first line to get session_id
+	// Use large buffer to handle long lines (tool outputs can be large)
+	scanner := bufio.NewScanner(stdout)
+	buf := make([]byte, 0, 256*1024)
+	scanner.Buffer(buf, 1024*1024) // 1MB max line size
+
+	var sessionID string
+	var firstLine []byte
+	if scanner.Scan() {
+		firstLine = make([]byte, len(scanner.Bytes()))
+		copy(firstLine, scanner.Bytes())
+
+		var event struct {
+			Type      string `json:"type"`
+			SessionID string `json:"session_id"`
+		}
+		if err := json.Unmarshal(firstLine, &event); err == nil {
+			if event.Type == "init" {
+				sessionID = event.SessionID
+			}
+		}
+	}
+
+	if sessionID == "" {
+		geminiCmd.Process.Kill()
+		geminiCmd.Wait()
+		return fmt.Errorf("failed to get session_id from gemini output")
+	}
+
+	// Get session file path and create it
+	sessionFile, err := gemini.SessionFilePath(sessionID)
+	if err != nil {
+		geminiCmd.Process.Kill()
+		geminiCmd.Wait()
+		return fmt.Errorf("failed to get session file path: %w", err)
+	}
+
+	// Create session file and write first line
+	f, err := os.Create(sessionFile)
+	if err != nil {
+		geminiCmd.Process.Kill()
+		geminiCmd.Wait()
+		return fmt.Errorf("failed to create session file: %w", err)
+	}
+
+	// Write the buffered first line
+	f.Write(firstLine)
+	f.Write([]byte("\n"))
+
+	// Resolve agent name using session ID
+	name, err := resolveAgentNameWithULID(database, prefix, sessionID)
+	if err != nil {
+		f.Close()
+		geminiCmd.Process.Kill()
+		geminiCmd.Wait()
+		return fmt.Errorf("failed to resolve agent name: %w", err)
+	}
+
+	// Create agent record
+	agent := db.Agent{
+		Name:        name,
+		ULID:        sessionID,
+		SessionFile: sessionFile,
+		PID:         geminiCmd.Process.Pid,
+		RepoPath:    repoPath,
+		Branch:      branch,
+		Type:        "gemini",
+	}
+	if err := database.CreateAgent(agent); err != nil {
+		f.Close()
+		return fmt.Errorf("failed to create agent record: %w", err)
+	}
+
+	// Stream remaining output to session file
+	for scanner.Scan() {
+		f.Write(scanner.Bytes())
+		f.Write([]byte("\n"))
+	}
+	f.Close()
+
+	// Wait for process to finish
+	if err := geminiCmd.Wait(); err != nil {
+		fmt.Fprintf(os.Stderr, "gemini exited with error: %v\n", err)
+	}
+
+	// Print the agent name
 	fmt.Println(name)
 
 	return nil

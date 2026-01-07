@@ -238,3 +238,64 @@ func openTestDB(t *testing.T) *db.DB {
 	}
 	return database
 }
+
+func TestBuildGeminiArgs(t *testing.T) {
+	tests := []struct {
+		name    string
+		task    string
+		model   string
+		yolo    bool
+		sandbox bool
+		want    []string
+	}{
+		{
+			name:    "basic task with defaults",
+			task:    "fix the bug",
+			model:   "",
+			yolo:    false,
+			sandbox: false,
+			want:    []string{"-p", "fix the bug", "--output-format", "stream-json", "--approval-mode", "auto_edit"},
+		},
+		{
+			name:    "with yolo mode",
+			task:    "refactor code",
+			model:   "",
+			yolo:    true,
+			sandbox: false,
+			want:    []string{"-p", "refactor code", "--output-format", "stream-json", "--yolo"},
+		},
+		{
+			name:    "with model",
+			task:    "write tests",
+			model:   "gemini-2.5-pro",
+			yolo:    false,
+			sandbox: false,
+			want:    []string{"-p", "write tests", "--output-format", "stream-json", "--approval-mode", "auto_edit", "-m", "gemini-2.5-pro"},
+		},
+		{
+			name:    "with sandbox",
+			task:    "dangerous task",
+			model:   "",
+			yolo:    true,
+			sandbox: true,
+			want:    []string{"-p", "dangerous task", "--output-format", "stream-json", "--yolo", "--sandbox"},
+		},
+		{
+			name:    "all options",
+			task:    "full task",
+			model:   "gemini-2.5-flash",
+			yolo:    true,
+			sandbox: true,
+			want:    []string{"-p", "full task", "--output-format", "stream-json", "--yolo", "-m", "gemini-2.5-flash", "--sandbox"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := buildGeminiArgs(tt.task, tt.model, tt.yolo, tt.sandbox)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("buildGeminiArgs() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

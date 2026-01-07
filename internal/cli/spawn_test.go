@@ -3,6 +3,7 @@ package cli
 import (
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/sky-xo/june/internal/db"
@@ -237,6 +238,63 @@ func openTestDB(t *testing.T) *db.DB {
 		t.Fatalf("failed to open db: %v", err)
 	}
 	return database
+}
+
+func TestStreamLines(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    []string
+		wantErr bool
+	}{
+		{
+			name:  "normal lines",
+			input: "line1\nline2\nline3\n",
+			want:  []string{"line1", "line2", "line3"},
+		},
+		{
+			name:  "empty input",
+			input: "",
+			want:  []string{},
+		},
+		{
+			name:  "single line no newline",
+			input: "single",
+			want:  []string{"single"},
+		},
+		{
+			name:  "line over 1MB (scanner would fail)",
+			input: string(make([]byte, 2*1024*1024)) + "\n", // 2MB of zeros
+			want:  []string{string(make([]byte, 2*1024*1024))},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reader := strings.NewReader(tt.input)
+			var got []string
+			err := streamLines(reader, func(line []byte) error {
+				got = append(got, string(line))
+				return nil
+			})
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("streamLines() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if len(got) != len(tt.want) {
+				t.Errorf("streamLines() got %d lines, want %d", len(got), len(tt.want))
+				return
+			}
+
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Errorf("streamLines() line %d length = %d, want %d", i, len(got[i]), len(tt.want[i]))
+				}
+			}
+		})
+	}
 }
 
 func TestBuildGeminiArgs(t *testing.T) {

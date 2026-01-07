@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -284,25 +285,28 @@ func runSpawnGemini(prefix, task string, model string, yolo, sandbox bool) error
 	}
 
 	// Read first line to get session_id
-	// Use large buffer to handle long lines (tool outputs can be large)
-	scanner := bufio.NewScanner(stdout)
-	buf := make([]byte, 0, 256*1024)
-	scanner.Buffer(buf, 1024*1024) // 1MB max line size
+	// Use bufio.Reader instead of Scanner to handle arbitrarily large lines
+	reader := bufio.NewReader(stdout)
+	firstLine, err := reader.ReadBytes('\n')
+	if err != nil && err != io.EOF {
+		geminiCmd.Process.Kill()
+		geminiCmd.Wait()
+		return fmt.Errorf("failed to read first line from gemini: %w", err)
+	}
+
+	// Trim newline if present
+	if len(firstLine) > 0 && firstLine[len(firstLine)-1] == '\n' {
+		firstLine = firstLine[:len(firstLine)-1]
+	}
 
 	var sessionID string
-	var firstLine []byte
-	if scanner.Scan() {
-		firstLine = make([]byte, len(scanner.Bytes()))
-		copy(firstLine, scanner.Bytes())
-
-		var event struct {
-			Type      string `json:"type"`
-			SessionID string `json:"session_id"`
-		}
-		if err := json.Unmarshal(firstLine, &event); err == nil {
-			if event.Type == "init" {
-				sessionID = event.SessionID
-			}
+	var event struct {
+		Type      string `json:"type"`
+		SessionID string `json:"session_id"`
+	}
+	if err := json.Unmarshal(firstLine, &event); err == nil {
+		if event.Type == "init" {
+			sessionID = event.SessionID
 		}
 	}
 
@@ -368,22 +372,19 @@ func runSpawnGemini(prefix, task string, model string, yolo, sandbox bool) error
 		return fmt.Errorf("failed to create agent record: %w", err)
 	}
 
-	// Stream remaining output to session file
+	// Stream remaining output to session file using streamLines (handles large lines)
 	var writeErr error
-	for scanner.Scan() {
-		if _, err := f.Write(scanner.Bytes()); err != nil {
-			writeErr = err
-			break
+	streamErr := streamLines(reader, func(line []byte) error {
+		if _, err := f.Write(line); err != nil {
+			return err
 		}
 		if _, err := f.Write([]byte("\n")); err != nil {
-			writeErr = err
-			break
+			return err
 		}
-	}
-
-	// Check for scanner errors
-	if err := scanner.Err(); err != nil && writeErr == nil {
-		writeErr = fmt.Errorf("error reading gemini output: %w", err)
+		return nil
+	})
+	if streamErr != nil {
+		writeErr = fmt.Errorf("error streaming gemini output: %w", streamErr)
 	}
 
 	// Check f.Close() error
@@ -423,6 +424,30 @@ func buildCodexArgs(task, model, reasoningEffort, sandbox string, maxTokens int)
 	}
 	args = append(args, task)
 	return args
+}
+
+// streamLines reads lines from r and calls fn for each line.
+// Unlike bufio.Scanner, this handles arbitrarily large lines.
+func streamLines(r io.Reader, fn func(line []byte) error) error {
+	reader := bufio.NewReader(r)
+	for {
+		line, err := reader.ReadBytes('\n')
+		if len(line) > 0 {
+			// Trim the newline if present
+			if line[len(line)-1] == '\n' {
+				line = line[:len(line)-1]
+			}
+			if err := fn(line); err != nil {
+				return err
+			}
+		}
+		if err != nil {
+			if err == io.EOF {
+				return nil
+			}
+			return err
+		}
+	}
 }
 
 func juneHome() (string, error) {

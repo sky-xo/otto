@@ -8,6 +8,7 @@ import (
 	"github.com/sky-xo/june/internal/claude"
 	"github.com/sky-xo/june/internal/codex"
 	"github.com/sky-xo/june/internal/db"
+	"github.com/sky-xo/june/internal/gemini"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -49,6 +50,14 @@ func loadTranscriptCmd(a agent.Agent) tea.Cmd {
 		var err error
 
 		switch a.Source {
+		case agent.SourceGemini:
+			// Parse Gemini format and convert to claude.Entry for display
+			var geminiEntries []gemini.TranscriptEntry
+			geminiEntries, _, err = gemini.ReadTranscript(a.TranscriptPath, 0)
+			if err != nil {
+				return errMsg(err)
+			}
+			entries = convertGeminiEntries(geminiEntries)
 		case agent.SourceCodex:
 			// Parse Codex format and convert to claude.Entry for display
 			var codexEntries []codex.TranscriptEntry
@@ -130,6 +139,76 @@ func convertCodexEntries(codexEntries []codex.TranscriptEntry) []claude.Entry {
 						map[string]interface{}{
 							"type": "tool_result",
 							"text": "  -> " + ce.Content,
+						},
+					},
+				},
+			}
+		default:
+			continue
+		}
+		entries = append(entries, entry)
+	}
+	return entries
+}
+
+// convertGeminiEntries converts Gemini transcript entries to Claude entry format for TUI display.
+func convertGeminiEntries(geminiEntries []gemini.TranscriptEntry) []claude.Entry {
+	entries := make([]claude.Entry, 0, len(geminiEntries))
+	for _, ge := range geminiEntries {
+		var entry claude.Entry
+		switch ge.Type {
+		case "user":
+			// Gemini user message -> Claude user
+			entry = claude.Entry{
+				Type: "user",
+				Message: claude.Message{
+					Role: "user",
+					Content: []interface{}{
+						map[string]interface{}{
+							"type": "text",
+							"text": ge.Content,
+						},
+					},
+				},
+			}
+		case "message":
+			// Gemini assistant message -> Claude assistant
+			entry = claude.Entry{
+				Type: "assistant",
+				Message: claude.Message{
+					Role: "assistant",
+					Content: []interface{}{
+						map[string]interface{}{
+							"type": "text",
+							"text": ge.Content,
+						},
+					},
+				},
+			}
+		case "tool":
+			// Gemini tool call -> Claude assistant with tool info
+			entry = claude.Entry{
+				Type: "assistant",
+				Message: claude.Message{
+					Role: "assistant",
+					Content: []interface{}{
+						map[string]interface{}{
+							"type": "text",
+							"text": ge.Content, // Already formatted as "[tool: name]"
+						},
+					},
+				},
+			}
+		case "tool_output":
+			// Gemini tool output -> Claude user with tool_result
+			entry = claude.Entry{
+				Type: "user",
+				Message: claude.Message{
+					Role: "user",
+					Content: []interface{}{
+						map[string]interface{}{
+							"type": "tool_result",
+							"text": "  -> " + ge.Content,
 						},
 					},
 				},

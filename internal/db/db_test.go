@@ -389,6 +389,126 @@ func TestAgent_ToUnified_FallsBackToSpawnedAt(t *testing.T) {
 	}
 }
 
+func TestAgentTypeField(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+	database, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer database.Close()
+
+	// Create agent with type
+	agent := Agent{
+		Name:        "test-agent",
+		ULID:        "test-ulid",
+		SessionFile: "/tmp/session.jsonl",
+		Type:        "gemini",
+	}
+	if err := database.CreateAgent(agent); err != nil {
+		t.Fatalf("CreateAgent failed: %v", err)
+	}
+
+	// Retrieve and verify type
+	got, err := database.GetAgent("test-agent")
+	if err != nil {
+		t.Fatalf("GetAgent failed: %v", err)
+	}
+	if got.Type != "gemini" {
+		t.Errorf("Type = %q, want %q", got.Type, "gemini")
+	}
+}
+
+func TestAgentTypeDefaultsToCodex(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+	database, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer database.Close()
+
+	// Create agent without type (should default to codex)
+	agent := Agent{
+		Name:        "test-agent",
+		ULID:        "test-ulid",
+		SessionFile: "/tmp/session.jsonl",
+	}
+	if err := database.CreateAgent(agent); err != nil {
+		t.Fatalf("CreateAgent failed: %v", err)
+	}
+
+	got, err := database.GetAgent("test-agent")
+	if err != nil {
+		t.Fatalf("GetAgent failed: %v", err)
+	}
+	if got.Type != "codex" {
+		t.Errorf("Type = %q, want %q", got.Type, "codex")
+	}
+}
+
+func TestAgent_ToUnified_GeminiType(t *testing.T) {
+	dbAgent := Agent{
+		Name:        "gemini-agent",
+		ULID:        "ulid-gemini",
+		SessionFile: "/path/to/session.jsonl",
+		Type:        "gemini",
+		SpawnedAt:   time.Now(),
+	}
+
+	unified := dbAgent.ToUnified()
+
+	if unified.Source != agent.SourceGemini {
+		t.Errorf("Source = %q, want %q", unified.Source, agent.SourceGemini)
+	}
+}
+
+func TestMigration_AddsTypeColumn(t *testing.T) {
+	// Create a DB with old schema (no type column)
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+
+	// Manually create schema without type column
+	rawDB, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = rawDB.Exec(`
+		CREATE TABLE agents (
+			name TEXT PRIMARY KEY,
+			ulid TEXT NOT NULL,
+			session_file TEXT NOT NULL,
+			cursor INTEGER DEFAULT 0,
+			pid INTEGER,
+			spawned_at TEXT NOT NULL,
+			repo_path TEXT DEFAULT '',
+			branch TEXT DEFAULT ''
+		);
+		INSERT INTO agents (name, ulid, session_file, pid, spawned_at, repo_path, branch)
+		VALUES ('old-agent', 'ulid123', '/tmp/session.jsonl', 0, '2025-01-01T00:00:00Z', '/code/project', 'main');
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rawDB.Close()
+
+	// Now open with our Open() which should migrate
+	database, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer database.Close()
+
+	// Old agent should still be readable with default type 'codex'
+	got, err := database.GetAgent("old-agent")
+	if err != nil {
+		t.Fatalf("GetAgent failed: %v", err)
+	}
+	if got.Type != "codex" {
+		t.Errorf("expected type 'codex' for migrated agent, got %q", got.Type)
+	}
+}
+
 func TestMigration_PartialMigration_AddsMissingBranchColumn(t *testing.T) {
 	// Create a DB with repo_path but NOT branch (partial migration scenario)
 	tmpDir := t.TempDir()

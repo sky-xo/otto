@@ -6,6 +6,7 @@ import (
 
 	"github.com/sky-xo/june/internal/codex"
 	"github.com/sky-xo/june/internal/db"
+	"github.com/sky-xo/june/internal/gemini"
 	"github.com/spf13/cobra"
 )
 
@@ -47,24 +48,39 @@ func runLogs(name string) error {
 	// Find session file if not set
 	sessionFile := agent.SessionFile
 	if sessionFile == "" {
-		found, err := codex.FindSessionFile(agent.ULID)
-		if err != nil {
+		var findErr error
+		if agent.Type == "gemini" {
+			sessionFile, findErr = gemini.FindSessionFile(agent.ULID)
+		} else {
+			sessionFile, findErr = codex.FindSessionFile(agent.ULID)
+		}
+		if findErr != nil {
 			return fmt.Errorf("session file not found for agent %q", name)
 		}
-		sessionFile = found
 	}
 
-	// Read from beginning (cursor 0), don't update cursor
-	entries, _, err := codex.ReadTranscript(sessionFile, 0)
-	if err != nil {
-		return fmt.Errorf("failed to read transcript: %w", err)
+	// Read transcript based on agent type
+	var output string
+
+	if agent.Type == "gemini" {
+		entries, _, err := gemini.ReadTranscript(sessionFile, 0)
+		if err != nil {
+			return fmt.Errorf("failed to read transcript: %w", err)
+		}
+		output = gemini.FormatEntries(entries)
+	} else {
+		entries, _, err := codex.ReadTranscript(sessionFile, 0)
+		if err != nil {
+			return fmt.Errorf("failed to read transcript: %w", err)
+		}
+		output = codex.FormatEntries(entries)
 	}
 
-	if len(entries) == 0 {
+	if output == "" {
 		fmt.Println("(no output)")
 		return nil
 	}
 
-	fmt.Print(codex.FormatEntries(entries))
+	fmt.Print(output)
 	return nil
 }

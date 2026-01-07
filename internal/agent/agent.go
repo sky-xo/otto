@@ -12,6 +12,7 @@ const (
 const (
 	SourceClaude = "claude"
 	SourceCodex  = "codex"
+	SourceGemini = "gemini"
 )
 
 // Agent represents any AI coding agent (Claude, Codex, etc.)
@@ -19,7 +20,7 @@ type Agent struct {
 	// Identity
 	ID     string // ULID or extracted from filename
 	Name   string // Display name (user-given for Codex, extracted from transcript for Claude)
-	Source string // "claude" or "codex"
+	Source string // "claude", "codex", or "gemini"
 
 	// Channel grouping
 	RepoPath string // Git repo path

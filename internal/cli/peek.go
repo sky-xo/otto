@@ -7,6 +7,7 @@ import (
 
 	"github.com/sky-xo/june/internal/codex"
 	"github.com/sky-xo/june/internal/db"
+	"github.com/sky-xo/june/internal/gemini"
 	"github.com/spf13/cobra"
 )
 
@@ -48,25 +49,41 @@ func runPeek(name string) error {
 	// Find session file if not set
 	sessionFile := agent.SessionFile
 	if sessionFile == "" {
-		found, err := codex.FindSessionFile(agent.ULID)
-		if err != nil {
+		var findErr error
+		if agent.Type == "gemini" {
+			sessionFile, findErr = gemini.FindSessionFile(agent.ULID)
+		} else {
+			sessionFile, findErr = codex.FindSessionFile(agent.ULID)
+		}
+		if findErr != nil {
 			return fmt.Errorf("session file not found for agent %q", name)
 		}
-		sessionFile = found
-		// Update in database
-		if err := database.UpdateSessionFile(name, found); err != nil {
-			// Log warning but continue - this is not fatal
+		if err := database.UpdateSessionFile(name, sessionFile); err != nil {
 			fmt.Fprintf(os.Stderr, "warning: failed to update session file in database: %v\n", err)
 		}
 	}
 
-	// Read from cursor
-	entries, newCursor, err := codex.ReadTranscript(sessionFile, agent.Cursor)
-	if err != nil {
-		return fmt.Errorf("failed to read transcript: %w", err)
+	// Read transcript based on agent type
+	var output string
+	var newCursor int
+
+	if agent.Type == "gemini" {
+		entries, cursor, err := gemini.ReadTranscript(sessionFile, agent.Cursor)
+		if err != nil {
+			return fmt.Errorf("failed to read transcript: %w", err)
+		}
+		newCursor = cursor
+		output = gemini.FormatEntries(entries)
+	} else {
+		entries, cursor, err := codex.ReadTranscript(sessionFile, agent.Cursor)
+		if err != nil {
+			return fmt.Errorf("failed to read transcript: %w", err)
+		}
+		newCursor = cursor
+		output = codex.FormatEntries(entries)
 	}
 
-	if len(entries) == 0 {
+	if output == "" {
 		fmt.Println("(no new output)")
 		return nil
 	}
@@ -76,7 +93,6 @@ func runPeek(name string) error {
 		return fmt.Errorf("failed to update cursor: %w", err)
 	}
 
-	// Print entries
-	fmt.Print(codex.FormatEntries(entries))
+	fmt.Print(output)
 	return nil
 }

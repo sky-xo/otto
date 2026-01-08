@@ -10,8 +10,10 @@ import (
 
 // TranscriptEntry represents a parsed entry from a Gemini session file
 type TranscriptEntry struct {
-	Type    string
-	Content string
+	Type      string
+	Content   string
+	ToolName  string                 // Tool name for tool_use entries
+	ToolInput map[string]interface{} // Tool parameters for tool_use entries
 }
 
 // ReadTranscript reads a Gemini session file from the given line offset.
@@ -73,12 +75,13 @@ func ReadTranscript(path string, fromLine int) ([]TranscriptEntry, int, error) {
 
 func parseEntry(data []byte) TranscriptEntry {
 	var raw struct {
-		Type     string `json:"type"`
-		Role     string `json:"role"`
-		Content  string `json:"content"`
-		ToolName string `json:"tool_name"`
-		Output   string `json:"output"`
-		Status   string `json:"status"`
+		Type       string                 `json:"type"`
+		Role       string                 `json:"role"`
+		Content    string                 `json:"content"`
+		ToolName   string                 `json:"tool_name"`
+		Output     string                 `json:"output"`
+		Status     string                 `json:"status"`
+		Parameters map[string]interface{} `json:"parameters"`
 	}
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return TranscriptEntry{}
@@ -93,7 +96,12 @@ func parseEntry(data []byte) TranscriptEntry {
 		return TranscriptEntry{Type: "message", Content: raw.Content}
 
 	case "tool_use":
-		return TranscriptEntry{Type: "tool", Content: fmt.Sprintf("[tool: %s]", raw.ToolName)}
+		return TranscriptEntry{
+			Type:      "tool",
+			Content:   fmt.Sprintf("[tool: %s]", raw.ToolName), // Keep for backwards compat
+			ToolName:  raw.ToolName,
+			ToolInput: raw.Parameters,
+		}
 
 	case "tool_result":
 		output := raw.Output

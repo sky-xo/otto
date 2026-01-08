@@ -111,3 +111,21 @@ func TestReadTranscriptAccumulatesDeltas(t *testing.T) {
 		t.Errorf("entries[2].Type = %q, want tool", entries[2].Type)
 	}
 }
+
+func TestParseEntryToolUseWithParameters(t *testing.T) {
+	data := []byte(`{"type":"tool_use","timestamp":"...","tool_name":"read_file","tool_id":"abc","parameters":{"path":"main.go","encoding":"utf-8"}}`)
+	entry := parseEntry(data)
+
+	if entry.Type != "tool" {
+		t.Errorf("Type = %q, want %q", entry.Type, "tool")
+	}
+	if entry.ToolName != "read_file" {
+		t.Errorf("ToolName = %q, want %q", entry.ToolName, "read_file")
+	}
+	if entry.ToolInput == nil {
+		t.Fatal("ToolInput is nil, want map with path")
+	}
+	if path, ok := entry.ToolInput["path"].(string); !ok || path != "main.go" {
+		t.Errorf("ToolInput[path] = %v, want %q", entry.ToolInput["path"], "main.go")
+	}
+}

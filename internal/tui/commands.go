@@ -81,6 +81,39 @@ func loadTranscriptCmd(a agent.Agent) tea.Cmd {
 	}
 }
 
+// normalizeCodexTool converts Codex tool names/params to Claude equivalents
+func normalizeCodexTool(name string, input map[string]interface{}) (string, map[string]interface{}) {
+	normalized := make(map[string]interface{})
+	for k, v := range input {
+		normalized[k] = v
+	}
+
+	switch name {
+	case "shell_command":
+		return "Bash", normalized
+	case "read_file":
+		if path, ok := normalized["path"]; ok {
+			delete(normalized, "path")
+			normalized["file_path"] = path
+		}
+		return "Read", normalized
+	case "write_file":
+		if path, ok := normalized["path"]; ok {
+			delete(normalized, "path")
+			normalized["file_path"] = path
+		}
+		return "Write", normalized
+	case "edit_file":
+		if path, ok := normalized["path"]; ok {
+			delete(normalized, "path")
+			normalized["file_path"] = path
+		}
+		return "Edit", normalized
+	default:
+		return name, normalized
+	}
+}
+
 // convertCodexEntries converts Codex transcript entries to Claude entry format for TUI display.
 func convertCodexEntries(codexEntries []codex.TranscriptEntry) []claude.Entry {
 	entries := make([]claude.Entry, 0, len(codexEntries))
@@ -116,15 +149,17 @@ func convertCodexEntries(codexEntries []codex.TranscriptEntry) []claude.Entry {
 				},
 			}
 		case "tool":
-			// Codex tool call -> Claude assistant with tool_use (displayed as summary)
+			// Normalize Codex tool name/params to Claude equivalents for rich formatting
+			normalizedName, normalizedInput := normalizeCodexTool(ce.ToolName, ce.ToolInput)
 			entry = claude.Entry{
 				Type: "assistant",
 				Message: claude.Message{
 					Role: "assistant",
 					Content: []interface{}{
 						map[string]interface{}{
-							"type": "text",
-							"text": ce.Content, // Already formatted as "[tool: name]"
+							"type":  "tool_use",
+							"name":  normalizedName,
+							"input": normalizedInput,
 						},
 					},
 				},

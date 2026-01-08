@@ -10,8 +10,10 @@ import (
 
 // TranscriptEntry represents a parsed entry from a Codex session file
 type TranscriptEntry struct {
-	Type    string
-	Content string
+	Type      string
+	Content   string
+	ToolName  string                 // Tool name for function_call entries
+	ToolInput map[string]interface{} // Tool arguments for function_call entries
 }
 
 // ReadTranscript reads a Codex session file from the given line offset
@@ -84,8 +86,22 @@ func parseEntry(data []byte) TranscriptEntry {
 	// Skip agent_message - it duplicates "message" response_item
 	case "function_call":
 		// response_item with payload.type = "function_call", payload.name = tool name
-		if name, ok := payload["name"].(string); ok {
-			return TranscriptEntry{Type: "tool", Content: fmt.Sprintf("[tool: %s]", name)}
+		name, _ := payload["name"].(string)
+		if name == "" {
+			return TranscriptEntry{}
+		}
+
+		// Parse arguments JSON string into map
+		var toolInput map[string]interface{}
+		if argsStr, ok := payload["arguments"].(string); ok && argsStr != "" {
+			_ = json.Unmarshal([]byte(argsStr), &toolInput)
+		}
+
+		return TranscriptEntry{
+			Type:      "tool",
+			Content:   fmt.Sprintf("[tool: %s]", name), // Keep for backwards compat
+			ToolName:  name,
+			ToolInput: toolInput,
 		}
 	case "function_call_output":
 		// response_item with payload.type = "function_call_output", payload.output = result

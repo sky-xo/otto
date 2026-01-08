@@ -36,6 +36,25 @@ func TestParseEntryFunctionCall(t *testing.T) {
 	}
 }
 
+func TestParseEntryFunctionCallWithArguments(t *testing.T) {
+	data := []byte(`{"type":"response_item","payload":{"type":"function_call","name":"shell_command","arguments":"{\"command\":\"go test ./...\",\"workdir\":\"/tmp\"}"}}`)
+
+	entry := parseEntry(data)
+
+	if entry.Type != "tool" {
+		t.Errorf("Type = %q, want %q", entry.Type, "tool")
+	}
+	if entry.ToolName != "shell_command" {
+		t.Errorf("ToolName = %q, want %q", entry.ToolName, "shell_command")
+	}
+	if entry.ToolInput == nil {
+		t.Fatal("ToolInput is nil, want map with command")
+	}
+	if cmd, ok := entry.ToolInput["command"].(string); !ok || cmd != "go test ./..." {
+		t.Errorf("ToolInput[command] = %v, want %q", entry.ToolInput["command"], "go test ./...")
+	}
+}
+
 func TestParseEntryFunctionCallOutput(t *testing.T) {
 	// Actual Codex format: type is "response_item", payload.type is "function_call_output"
 	data := []byte(`{"type":"response_item","payload":{"type":"function_call_output","output":"Exit code: 0\nOutput: hello"}}`)

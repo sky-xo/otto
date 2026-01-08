@@ -94,7 +94,9 @@ func parseEntry(data []byte) TranscriptEntry {
 		// Parse arguments JSON string into map
 		var toolInput map[string]interface{}
 		if argsStr, ok := payload["arguments"].(string); ok && argsStr != "" {
-			_ = json.Unmarshal([]byte(argsStr), &toolInput)
+			if err := json.Unmarshal([]byte(argsStr), &toolInput); err != nil {
+				fmt.Fprintf(os.Stderr, "codex: failed to unmarshal tool arguments for %s: %v\n", name, err)
+			}
 		}
 
 		return TranscriptEntry{

@@ -177,3 +177,111 @@ func TestConvertGeminiEntriesRichFormatting(t *testing.T) {
 		t.Errorf("ToolName() = %q, want %q", entries[0].ToolName(), "Read")
 	}
 }
+
+func TestConvertCodexEntriesNilToolInput(t *testing.T) {
+	// Verify that nil ToolInput doesn't cause panic
+	codexEntries := []codex.TranscriptEntry{
+		{
+			Type:      "tool",
+			Content:   "[tool: shell_command]",
+			ToolName:  "shell_command",
+			ToolInput: nil, // nil input (can happen with malformed JSON)
+		},
+	}
+
+	// Should not panic
+	entries := convertCodexEntries(codexEntries)
+
+	if len(entries) != 1 {
+		t.Fatalf("len(entries) = %d, want 1", len(entries))
+	}
+
+	// Should still normalize tool name
+	if entries[0].ToolName() != "Bash" {
+		t.Errorf("ToolName() = %q, want %q", entries[0].ToolName(), "Bash")
+	}
+
+	// ToolInput should be empty map, not nil
+	toolInput := entries[0].ToolInput()
+	if toolInput == nil {
+		t.Error("ToolInput() = nil, want empty map")
+	}
+}
+
+func TestConvertCodexEntriesEmptyToolInput(t *testing.T) {
+	// Verify that empty ToolInput works correctly
+	codexEntries := []codex.TranscriptEntry{
+		{
+			Type:      "tool",
+			Content:   "[tool: read_file]",
+			ToolName:  "read_file",
+			ToolInput: map[string]interface{}{}, // empty map
+		},
+	}
+
+	// Should not panic
+	entries := convertCodexEntries(codexEntries)
+
+	if len(entries) != 1 {
+		t.Fatalf("len(entries) = %d, want 1", len(entries))
+	}
+
+	// Should still normalize tool name
+	if entries[0].ToolName() != "Read" {
+		t.Errorf("ToolName() = %q, want %q", entries[0].ToolName(), "Read")
+	}
+}
+
+func TestConvertGeminiEntriesNilToolInput(t *testing.T) {
+	// Verify that nil ToolInput doesn't cause panic
+	geminiEntries := []gemini.TranscriptEntry{
+		{
+			Type:      "tool",
+			Content:   "[tool: shell]",
+			ToolName:  "shell",
+			ToolInput: nil, // nil input (can happen with malformed JSON)
+		},
+	}
+
+	// Should not panic
+	entries := convertGeminiEntries(geminiEntries)
+
+	if len(entries) != 1 {
+		t.Fatalf("len(entries) = %d, want 1", len(entries))
+	}
+
+	// Should still normalize tool name
+	if entries[0].ToolName() != "Bash" {
+		t.Errorf("ToolName() = %q, want %q", entries[0].ToolName(), "Bash")
+	}
+
+	// ToolInput should be empty map, not nil
+	toolInput := entries[0].ToolInput()
+	if toolInput == nil {
+		t.Error("ToolInput() = nil, want empty map")
+	}
+}
+
+func TestConvertGeminiEntriesEmptyToolInput(t *testing.T) {
+	// Verify that empty ToolInput works correctly
+	geminiEntries := []gemini.TranscriptEntry{
+		{
+			Type:      "tool",
+			Content:   "[tool: read_file]",
+			ToolName:  "read_file",
+			ToolInput: map[string]interface{}{}, // empty map
+		},
+	}
+
+	// Should not panic
+	entries := convertGeminiEntries(geminiEntries)
+
+	if len(entries) != 1 {
+		t.Fatalf("len(entries) = %d, want 1", len(entries))
+	}
+
+	// Should still normalize tool name
+	if entries[0].ToolName() != "Read" {
+		t.Errorf("ToolName() = %q, want %q", entries[0].ToolName(), "Read")
+	}
+}

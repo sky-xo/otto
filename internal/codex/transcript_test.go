@@ -55,6 +55,29 @@ func TestParseEntryFunctionCallWithArguments(t *testing.T) {
 	}
 }
 
+func TestParseEntryFunctionCallMalformedArguments(t *testing.T) {
+	// Malformed JSON in arguments field - should handle gracefully (not panic)
+	data := []byte(`{"type":"response_item","payload":{"type":"function_call","name":"shell_command","arguments":"{invalid json here"}}`)
+
+	entry := parseEntry(data)
+
+	// Should still return a valid tool entry
+	if entry.Type != "tool" {
+		t.Errorf("Type = %q, want %q", entry.Type, "tool")
+	}
+	if entry.ToolName != "shell_command" {
+		t.Errorf("ToolName = %q, want %q", entry.ToolName, "shell_command")
+	}
+	// ToolInput should be nil when JSON parsing fails
+	if entry.ToolInput != nil {
+		t.Errorf("ToolInput = %v, want nil for malformed JSON", entry.ToolInput)
+	}
+	// Content should still be populated
+	if entry.Content != "[tool: shell_command]" {
+		t.Errorf("Content = %q, want %q", entry.Content, "[tool: shell_command]")
+	}
+}
+
 func TestParseEntryFunctionCallOutput(t *testing.T) {
 	// Actual Codex format: type is "response_item", payload.type is "function_call_output"
 	data := []byte(`{"type":"response_item","payload":{"type":"function_call_output","output":"Exit code: 0\nOutput: hello"}}`)

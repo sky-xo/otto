@@ -51,6 +51,57 @@ func TestScanAgents(t *testing.T) {
 	}
 }
 
+func TestScanAgents_NestedSubagents(t *testing.T) {
+	dir := t.TempDir()
+
+	// Create root-level agent (old structure, for backwards compat)
+	f1, _ := os.Create(filepath.Join(dir, "agent-root123.jsonl"))
+	f1.WriteString(`{"type":"user","message":{"role":"user","content":"Root task"}}`)
+	f1.Close()
+
+	// Create nested subagent (new structure)
+	// Structure: {session-uuid}/subagents/agent-{id}.jsonl
+	sessionDir := filepath.Join(dir, "a1b2c3d4-e5f6-7890-abcd-ef1234567890", "subagents")
+	os.MkdirAll(sessionDir, 0755)
+
+	f2, _ := os.Create(filepath.Join(sessionDir, "agent-nested456.jsonl"))
+	f2.WriteString(`{"type":"user","message":{"role":"user","content":"Nested task"}}`)
+	f2.Close()
+
+	// Create another nested subagent in different session
+	sessionDir2 := filepath.Join(dir, "deadbeef-cafe-1234-5678-abcdef012345", "subagents")
+	os.MkdirAll(sessionDir2, 0755)
+
+	f3, _ := os.Create(filepath.Join(sessionDir2, "agent-nested789.jsonl"))
+	f3.WriteString(`{"type":"user","message":{"role":"user","content":"Another nested task"}}`)
+	f3.Close()
+
+	agents, err := ScanAgents(dir)
+	if err != nil {
+		t.Fatalf("ScanAgents: %v", err)
+	}
+
+	// Should find all 3 agents: 1 root + 2 nested
+	if len(agents) != 3 {
+		t.Errorf("got %d agents, want 3", len(agents))
+	}
+
+	// Check all IDs were found
+	ids := make(map[string]bool)
+	for _, a := range agents {
+		ids[a.ID] = true
+	}
+	if !ids["root123"] {
+		t.Error("missing root-level agent root123")
+	}
+	if !ids["nested456"] {
+		t.Error("missing nested agent nested456")
+	}
+	if !ids["nested789"] {
+		t.Error("missing nested agent nested789")
+	}
+}
+
 func TestAgentIsActive(t *testing.T) {
 	agent := Agent{
 		LastMod: time.Now().Add(-5 * time.Second),

@@ -255,3 +255,65 @@ func TestCountChildren(t *testing.T) {
 		t.Errorf("Count = %d, want 2", count)
 	}
 }
+
+func TestDeleteTask(t *testing.T) {
+	db := openTestDB(t)
+	defer db.Close()
+
+	now := time.Now()
+	db.CreateTask(Task{ID: "t-todel", Title: "To Delete", Status: "open", RepoPath: "/app", Branch: "main", CreatedAt: now, UpdatedAt: now})
+
+	err := db.DeleteTask("t-todel")
+	if err != nil {
+		t.Fatalf("DeleteTask failed: %v", err)
+	}
+
+	// Should not appear in list
+	tasks, _ := db.ListRootTasks("/app", "main")
+	if len(tasks) != 0 {
+		t.Errorf("Deleted task still appears in list")
+	}
+
+	// GetTask should still work (returns deleted task)
+	task, err := db.GetTask("t-todel")
+	if err != nil {
+		t.Fatalf("GetTask failed: %v", err)
+	}
+	if task.DeletedAt == nil {
+		t.Error("DeletedAt should be set")
+	}
+}
+
+func TestDeleteTaskCascadesToChildren(t *testing.T) {
+	db := openTestDB(t)
+	defer db.Close()
+
+	now := time.Now()
+	parent := "t-parent"
+
+	db.CreateTask(Task{ID: "t-parent", Title: "Parent", Status: "open", RepoPath: "/app", Branch: "main", CreatedAt: now, UpdatedAt: now})
+	db.CreateTask(Task{ID: "t-child1", ParentID: &parent, Title: "Child 1", Status: "open", RepoPath: "/app", Branch: "main", CreatedAt: now, UpdatedAt: now})
+	db.CreateTask(Task{ID: "t-child2", ParentID: &parent, Title: "Child 2", Status: "open", RepoPath: "/app", Branch: "main", CreatedAt: now, UpdatedAt: now})
+
+	// Delete parent
+	err := db.DeleteTask("t-parent")
+	if err != nil {
+		t.Fatalf("DeleteTask failed: %v", err)
+	}
+
+	// Children should also be deleted
+	children, _ := db.ListChildTasks("t-parent")
+	if len(children) != 0 {
+		t.Errorf("Children still exist after parent delete: %d", len(children))
+	}
+}
+
+func TestDeleteTaskNotFound(t *testing.T) {
+	db := openTestDB(t)
+	defer db.Close()
+
+	err := db.DeleteTask("t-nonexistent")
+	if err != ErrTaskNotFound {
+		t.Errorf("Expected ErrTaskNotFound, got: %v", err)
+	}
+}

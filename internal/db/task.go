@@ -167,6 +167,48 @@ func (d *DB) CountChildren(parentID string) (int, error) {
 	return count, nil
 }
 
+// DeleteTask soft-deletes a task and all its children
+func (d *DB) DeleteTask(id string) error {
+	now := time.Now().Format(time.RFC3339)
+
+	// First check if task exists and is not already deleted
+	task, err := d.GetTask(id)
+	if err != nil {
+		return err
+	}
+	if task.DeletedAt != nil {
+		return ErrTaskNotFound
+	}
+
+	// Soft delete children first (recursive via CTE)
+	_, err = d.Exec(`
+		WITH RECURSIVE descendants AS (
+			SELECT id FROM tasks WHERE parent_id = ?
+			UNION ALL
+			SELECT t.id FROM tasks t
+			INNER JOIN descendants d ON t.parent_id = d.id
+		)
+		UPDATE tasks SET deleted_at = ?
+		WHERE id IN (SELECT id FROM descendants)`,
+		id, now)
+	if err != nil {
+		return fmt.Errorf("delete children: %w", err)
+	}
+
+	// Soft delete the task itself
+	result, err := d.Exec(`UPDATE tasks SET deleted_at = ? WHERE id = ? AND deleted_at IS NULL`, now, id)
+	if err != nil {
+		return fmt.Errorf("delete task: %w", err)
+	}
+
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		return ErrTaskNotFound
+	}
+
+	return nil
+}
+
 // scanTasks converts rows to Task slice
 func scanTasks(rows *sql.Rows) ([]Task, error) {
 	var tasks []Task

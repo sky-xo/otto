@@ -52,8 +52,12 @@ func setupTestRepo(t *testing.T) string {
 	if err := os.Chdir(repoDir); err != nil {
 		t.Fatalf("Chdir failed: %v", err)
 	}
-	exec.Command("git", "init").Run()
-	exec.Command("git", "checkout", "-b", "main").Run()
+	if out, err := exec.Command("git", "init").CombinedOutput(); err != nil {
+		t.Fatalf("git init failed: %v\n%s", err, out)
+	}
+	if out, err := exec.Command("git", "checkout", "-b", "main").CombinedOutput(); err != nil {
+		t.Fatalf("git checkout failed: %v\n%s", err, out)
+	}
 
 	return repoDir
 }
@@ -88,7 +92,9 @@ func TestTaskCreateWithParent(t *testing.T) {
 	cmd.SetArgs([]string{"create", "Parent task"})
 	var stdout bytes.Buffer
 	cmd.SetOut(&stdout)
-	cmd.Execute()
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute failed: %v", err)
+	}
 
 	parentID := strings.TrimSpace(stdout.String())
 
@@ -136,12 +142,16 @@ func TestTaskListRoot(t *testing.T) {
 	cmd := newTaskCmd()
 	cmd.SetArgs([]string{"create", "Task 1"})
 	cmd.SetOut(&bytes.Buffer{})
-	cmd.Execute()
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute failed: %v", err)
+	}
 
 	cmd = newTaskCmd()
 	cmd.SetArgs([]string{"create", "Task 2"})
 	cmd.SetOut(&bytes.Buffer{})
-	cmd.Execute()
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute failed: %v", err)
+	}
 
 	// List root tasks
 	cmd = newTaskCmd()
@@ -168,14 +178,18 @@ func TestTaskListSpecific(t *testing.T) {
 	cmd.SetArgs([]string{"create", "Parent task"})
 	var stdout bytes.Buffer
 	cmd.SetOut(&stdout)
-	cmd.Execute()
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute failed: %v", err)
+	}
 	parentID := strings.TrimSpace(stdout.String())
 
 	// Create children
 	cmd = newTaskCmd()
 	cmd.SetArgs([]string{"create", "Child 1", "Child 2", "--parent", parentID})
 	cmd.SetOut(&bytes.Buffer{})
-	cmd.Execute()
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute failed: %v", err)
+	}
 
 	// List specific task
 	cmd = newTaskCmd()
@@ -205,7 +219,9 @@ func TestTaskUpdateStatus(t *testing.T) {
 	cmd.SetArgs([]string{"create", "Test task"})
 	var stdout bytes.Buffer
 	cmd.SetOut(&stdout)
-	cmd.Execute()
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute failed: %v", err)
+	}
 	taskID := strings.TrimSpace(stdout.String())
 
 	// Update status
@@ -223,7 +239,9 @@ func TestTaskUpdateStatus(t *testing.T) {
 	cmd.SetArgs([]string{"list", taskID})
 	stdout.Reset()
 	cmd.SetOut(&stdout)
-	cmd.Execute()
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute failed: %v", err)
+	}
 
 	if !strings.Contains(stdout.String(), "[in_progress]") {
 		t.Errorf("Status not updated: %s", stdout.String())
@@ -237,21 +255,27 @@ func TestTaskUpdateNote(t *testing.T) {
 	cmd.SetArgs([]string{"create", "Test task"})
 	var stdout bytes.Buffer
 	cmd.SetOut(&stdout)
-	cmd.Execute()
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute failed: %v", err)
+	}
 	taskID := strings.TrimSpace(stdout.String())
 
 	// Update note
 	cmd = newTaskCmd()
 	cmd.SetArgs([]string{"update", taskID, "--note", "Important note"})
 	cmd.SetOut(&bytes.Buffer{})
-	cmd.Execute()
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute failed: %v", err)
+	}
 
 	// Verify
 	cmd = newTaskCmd()
 	cmd.SetArgs([]string{"list", taskID})
 	stdout.Reset()
 	cmd.SetOut(&stdout)
-	cmd.Execute()
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute failed: %v", err)
+	}
 
 	if !strings.Contains(stdout.String(), "Important note") {
 		t.Errorf("Note not shown: %s", stdout.String())
@@ -266,7 +290,9 @@ func TestTaskDelete(t *testing.T) {
 	cmd.SetArgs([]string{"create", "Test task"})
 	var stdout bytes.Buffer
 	cmd.SetOut(&stdout)
-	cmd.Execute()
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute failed: %v", err)
+	}
 	taskID := strings.TrimSpace(stdout.String())
 
 	// Delete task
@@ -284,7 +310,9 @@ func TestTaskDelete(t *testing.T) {
 	cmd.SetArgs([]string{"list"})
 	stdout.Reset()
 	cmd.SetOut(&stdout)
-	cmd.Execute()
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute failed: %v", err)
+	}
 
 	if strings.Contains(stdout.String(), taskID) {
 		t.Errorf("Deleted task still appears in list")
@@ -299,14 +327,18 @@ func TestTaskListDeletedByID(t *testing.T) {
 	cmd.SetArgs([]string{"create", "Test task"})
 	var stdout bytes.Buffer
 	cmd.SetOut(&stdout)
-	cmd.Execute()
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute failed: %v", err)
+	}
 	taskID := strings.TrimSpace(stdout.String())
 
 	// Delete task
 	cmd = newTaskCmd()
 	cmd.SetArgs([]string{"delete", taskID})
 	cmd.SetOut(&bytes.Buffer{})
-	cmd.Execute()
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute failed: %v", err)
+	}
 
 	// Try to list the deleted task by ID - should fail
 	cmd = newTaskCmd()
@@ -330,14 +362,18 @@ func TestTaskListJSON(t *testing.T) {
 	cmd := newTaskCmd()
 	cmd.SetArgs([]string{"create", "Test task"})
 	cmd.SetOut(&bytes.Buffer{})
-	cmd.Execute()
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute failed: %v", err)
+	}
 
 	// List with JSON
 	cmd = newTaskCmd()
 	cmd.SetArgs([]string{"list", "--json"})
 	var stdout bytes.Buffer
 	cmd.SetOut(&stdout)
-	cmd.Execute()
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute failed: %v", err)
+	}
 
 	// Should be valid JSON array
 	var tasks []map[string]any
@@ -358,7 +394,9 @@ func TestTaskCreateJSON(t *testing.T) {
 	cmd.SetArgs([]string{"create", "Test task", "--json"})
 	var stdout bytes.Buffer
 	cmd.SetOut(&stdout)
-	cmd.Execute()
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute failed: %v", err)
+	}
 
 	var result map[string]string
 	err := json.Unmarshal(stdout.Bytes(), &result)

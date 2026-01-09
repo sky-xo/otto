@@ -1,6 +1,7 @@
 package db
 
 import (
+	"errors"
 	"testing"
 	"time"
 )
@@ -43,7 +44,7 @@ func TestGetTaskNotFound(t *testing.T) {
 	defer db.Close()
 
 	_, err := db.GetTask("t-nonexistent")
-	if err != ErrTaskNotFound {
+	if !errors.Is(err, ErrTaskNotFound) {
 		t.Errorf("Expected ErrTaskNotFound, got: %v", err)
 	}
 }
@@ -153,7 +154,10 @@ func TestUpdateTask(t *testing.T) {
 	}
 
 	// Verify
-	got, _ := db.GetTask("t-b2c3d")
+	got, err := db.GetTask("t-b2c3d")
+	if err != nil {
+		t.Fatalf("GetTask failed: %v", err)
+	}
 	if got.Status != "in_progress" {
 		t.Errorf("Status = %q, want %q", got.Status, "in_progress")
 	}
@@ -175,7 +179,9 @@ func TestUpdateTaskTitle(t *testing.T) {
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
-	db.CreateTask(task)
+	if err := db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask failed: %v", err)
+	}
 
 	newTitle := "Updated title"
 	err := db.UpdateTask("t-c3d4e", TaskUpdate{Title: &newTitle})
@@ -183,7 +189,10 @@ func TestUpdateTaskTitle(t *testing.T) {
 		t.Fatalf("UpdateTask failed: %v", err)
 	}
 
-	got, _ := db.GetTask("t-c3d4e")
+	got, err := db.GetTask("t-c3d4e")
+	if err != nil {
+		t.Fatalf("GetTask failed: %v", err)
+	}
 	if got.Title != "Updated title" {
 		t.Errorf("Title = %q, want %q", got.Title, "Updated title")
 	}
@@ -195,8 +204,51 @@ func TestUpdateTaskNotFound(t *testing.T) {
 
 	newStatus := "closed"
 	err := db.UpdateTask("t-nonexistent", TaskUpdate{Status: &newStatus})
-	if err != ErrTaskNotFound {
+	if !errors.Is(err, ErrTaskNotFound) {
 		t.Errorf("Expected ErrTaskNotFound, got: %v", err)
+	}
+}
+
+func TestUpdateTaskEmptyTitle(t *testing.T) {
+	db := openTestDB(t)
+	defer db.Close()
+
+	// Create a task first
+	now := time.Now()
+	task := Task{
+		ID:        "t-update-empty",
+		Title:     "Original title",
+		Status:    "open",
+		RepoPath:  "/app",
+		Branch:    "main",
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	if err := db.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask failed: %v", err)
+	}
+
+	// Try to update with empty title
+	emptyTitle := ""
+	err := db.UpdateTask("t-update-empty", TaskUpdate{Title: &emptyTitle})
+	if err == nil {
+		t.Error("Expected error for empty title, got nil")
+	}
+
+	// Try to update with whitespace-only title
+	whitespaceTitle := "   "
+	err = db.UpdateTask("t-update-empty", TaskUpdate{Title: &whitespaceTitle})
+	if err == nil {
+		t.Error("Expected error for whitespace-only title, got nil")
+	}
+
+	// Verify original title is preserved
+	got, err := db.GetTask("t-update-empty")
+	if err != nil {
+		t.Fatalf("GetTask failed: %v", err)
+	}
+	if got.Title != "Original title" {
+		t.Errorf("Title changed unexpectedly: got %q, want %q", got.Title, "Original title")
 	}
 }
 
@@ -207,15 +259,23 @@ func TestListRootTasks(t *testing.T) {
 	now := time.Now()
 
 	// Create root tasks
-	db.CreateTask(Task{ID: "t-root1", Title: "Root 1", Status: "open", RepoPath: "/app", Branch: "main", CreatedAt: now, UpdatedAt: now})
-	db.CreateTask(Task{ID: "t-root2", Title: "Root 2", Status: "in_progress", RepoPath: "/app", Branch: "main", CreatedAt: now, UpdatedAt: now})
+	if err := db.CreateTask(Task{ID: "t-root1", Title: "Root 1", Status: "open", RepoPath: "/app", Branch: "main", CreatedAt: now, UpdatedAt: now}); err != nil {
+		t.Fatalf("CreateTask failed: %v", err)
+	}
+	if err := db.CreateTask(Task{ID: "t-root2", Title: "Root 2", Status: "in_progress", RepoPath: "/app", Branch: "main", CreatedAt: now, UpdatedAt: now}); err != nil {
+		t.Fatalf("CreateTask failed: %v", err)
+	}
 
 	// Create child task (should not appear in root list)
 	parent := "t-root1"
-	db.CreateTask(Task{ID: "t-child1", ParentID: &parent, Title: "Child 1", Status: "open", RepoPath: "/app", Branch: "main", CreatedAt: now, UpdatedAt: now})
+	if err := db.CreateTask(Task{ID: "t-child1", ParentID: &parent, Title: "Child 1", Status: "open", RepoPath: "/app", Branch: "main", CreatedAt: now, UpdatedAt: now}); err != nil {
+		t.Fatalf("CreateTask failed: %v", err)
+	}
 
 	// Create task in different scope (should not appear)
-	db.CreateTask(Task{ID: "t-other", Title: "Other", Status: "open", RepoPath: "/other", Branch: "main", CreatedAt: now, UpdatedAt: now})
+	if err := db.CreateTask(Task{ID: "t-other", Title: "Other", Status: "open", RepoPath: "/other", Branch: "main", CreatedAt: now, UpdatedAt: now}); err != nil {
+		t.Fatalf("CreateTask failed: %v", err)
+	}
 
 	tasks, err := db.ListRootTasks("/app", "main")
 	if err != nil {
@@ -234,9 +294,15 @@ func TestListChildTasks(t *testing.T) {
 	now := time.Now()
 	parent := "t-parent"
 
-	db.CreateTask(Task{ID: "t-parent", Title: "Parent", Status: "open", RepoPath: "/app", Branch: "main", CreatedAt: now, UpdatedAt: now})
-	db.CreateTask(Task{ID: "t-child1", ParentID: &parent, Title: "Child 1", Status: "open", RepoPath: "/app", Branch: "main", CreatedAt: now, UpdatedAt: now})
-	db.CreateTask(Task{ID: "t-child2", ParentID: &parent, Title: "Child 2", Status: "closed", RepoPath: "/app", Branch: "main", CreatedAt: now, UpdatedAt: now})
+	if err := db.CreateTask(Task{ID: "t-parent", Title: "Parent", Status: "open", RepoPath: "/app", Branch: "main", CreatedAt: now, UpdatedAt: now}); err != nil {
+		t.Fatalf("CreateTask failed: %v", err)
+	}
+	if err := db.CreateTask(Task{ID: "t-child1", ParentID: &parent, Title: "Child 1", Status: "open", RepoPath: "/app", Branch: "main", CreatedAt: now, UpdatedAt: now}); err != nil {
+		t.Fatalf("CreateTask failed: %v", err)
+	}
+	if err := db.CreateTask(Task{ID: "t-child2", ParentID: &parent, Title: "Child 2", Status: "closed", RepoPath: "/app", Branch: "main", CreatedAt: now, UpdatedAt: now}); err != nil {
+		t.Fatalf("CreateTask failed: %v", err)
+	}
 
 	tasks, err := db.ListChildTasks("t-parent")
 	if err != nil {
@@ -253,13 +319,22 @@ func TestListTasksExcludesDeleted(t *testing.T) {
 	defer db.Close()
 
 	now := time.Now()
-	db.CreateTask(Task{ID: "t-active", Title: "Active", Status: "open", RepoPath: "/app", Branch: "main", CreatedAt: now, UpdatedAt: now})
+	if err := db.CreateTask(Task{ID: "t-active", Title: "Active", Status: "open", RepoPath: "/app", Branch: "main", CreatedAt: now, UpdatedAt: now}); err != nil {
+		t.Fatalf("CreateTask failed: %v", err)
+	}
 
 	// Manually soft-delete a task
-	db.CreateTask(Task{ID: "t-deleted", Title: "Deleted", Status: "open", RepoPath: "/app", Branch: "main", CreatedAt: now, UpdatedAt: now})
-	db.Exec("UPDATE tasks SET deleted_at = ? WHERE id = ?", now.Format(time.RFC3339), "t-deleted")
+	if err := db.CreateTask(Task{ID: "t-deleted", Title: "Deleted", Status: "open", RepoPath: "/app", Branch: "main", CreatedAt: now, UpdatedAt: now}); err != nil {
+		t.Fatalf("CreateTask failed: %v", err)
+	}
+	if _, err := db.Exec("UPDATE tasks SET deleted_at = ? WHERE id = ?", now.Format(time.RFC3339), "t-deleted"); err != nil {
+		t.Fatalf("Exec soft-delete failed: %v", err)
+	}
 
-	tasks, _ := db.ListRootTasks("/app", "main")
+	tasks, err := db.ListRootTasks("/app", "main")
+	if err != nil {
+		t.Fatalf("ListRootTasks failed: %v", err)
+	}
 	if len(tasks) != 1 {
 		t.Errorf("Got %d tasks, want 1 (deleted should be excluded)", len(tasks))
 	}
@@ -272,9 +347,15 @@ func TestCountChildren(t *testing.T) {
 	now := time.Now()
 	parent := "t-parent"
 
-	db.CreateTask(Task{ID: "t-parent", Title: "Parent", Status: "open", RepoPath: "/app", Branch: "main", CreatedAt: now, UpdatedAt: now})
-	db.CreateTask(Task{ID: "t-child1", ParentID: &parent, Title: "Child 1", Status: "open", RepoPath: "/app", Branch: "main", CreatedAt: now, UpdatedAt: now})
-	db.CreateTask(Task{ID: "t-child2", ParentID: &parent, Title: "Child 2", Status: "open", RepoPath: "/app", Branch: "main", CreatedAt: now, UpdatedAt: now})
+	if err := db.CreateTask(Task{ID: "t-parent", Title: "Parent", Status: "open", RepoPath: "/app", Branch: "main", CreatedAt: now, UpdatedAt: now}); err != nil {
+		t.Fatalf("CreateTask failed: %v", err)
+	}
+	if err := db.CreateTask(Task{ID: "t-child1", ParentID: &parent, Title: "Child 1", Status: "open", RepoPath: "/app", Branch: "main", CreatedAt: now, UpdatedAt: now}); err != nil {
+		t.Fatalf("CreateTask failed: %v", err)
+	}
+	if err := db.CreateTask(Task{ID: "t-child2", ParentID: &parent, Title: "Child 2", Status: "open", RepoPath: "/app", Branch: "main", CreatedAt: now, UpdatedAt: now}); err != nil {
+		t.Fatalf("CreateTask failed: %v", err)
+	}
 
 	count, err := db.CountChildren("t-parent")
 	if err != nil {
@@ -290,7 +371,9 @@ func TestDeleteTask(t *testing.T) {
 	defer db.Close()
 
 	now := time.Now()
-	db.CreateTask(Task{ID: "t-todel", Title: "To Delete", Status: "open", RepoPath: "/app", Branch: "main", CreatedAt: now, UpdatedAt: now})
+	if err := db.CreateTask(Task{ID: "t-todel", Title: "To Delete", Status: "open", RepoPath: "/app", Branch: "main", CreatedAt: now, UpdatedAt: now}); err != nil {
+		t.Fatalf("CreateTask failed: %v", err)
+	}
 
 	err := db.DeleteTask("t-todel")
 	if err != nil {
@@ -298,7 +381,10 @@ func TestDeleteTask(t *testing.T) {
 	}
 
 	// Should not appear in list
-	tasks, _ := db.ListRootTasks("/app", "main")
+	tasks, err := db.ListRootTasks("/app", "main")
+	if err != nil {
+		t.Fatalf("ListRootTasks failed: %v", err)
+	}
 	if len(tasks) != 0 {
 		t.Errorf("Deleted task still appears in list")
 	}
@@ -320,9 +406,15 @@ func TestDeleteTaskCascadesToChildren(t *testing.T) {
 	now := time.Now()
 	parent := "t-parent"
 
-	db.CreateTask(Task{ID: "t-parent", Title: "Parent", Status: "open", RepoPath: "/app", Branch: "main", CreatedAt: now, UpdatedAt: now})
-	db.CreateTask(Task{ID: "t-child1", ParentID: &parent, Title: "Child 1", Status: "open", RepoPath: "/app", Branch: "main", CreatedAt: now, UpdatedAt: now})
-	db.CreateTask(Task{ID: "t-child2", ParentID: &parent, Title: "Child 2", Status: "open", RepoPath: "/app", Branch: "main", CreatedAt: now, UpdatedAt: now})
+	if err := db.CreateTask(Task{ID: "t-parent", Title: "Parent", Status: "open", RepoPath: "/app", Branch: "main", CreatedAt: now, UpdatedAt: now}); err != nil {
+		t.Fatalf("CreateTask failed: %v", err)
+	}
+	if err := db.CreateTask(Task{ID: "t-child1", ParentID: &parent, Title: "Child 1", Status: "open", RepoPath: "/app", Branch: "main", CreatedAt: now, UpdatedAt: now}); err != nil {
+		t.Fatalf("CreateTask failed: %v", err)
+	}
+	if err := db.CreateTask(Task{ID: "t-child2", ParentID: &parent, Title: "Child 2", Status: "open", RepoPath: "/app", Branch: "main", CreatedAt: now, UpdatedAt: now}); err != nil {
+		t.Fatalf("CreateTask failed: %v", err)
+	}
 
 	// Delete parent
 	err := db.DeleteTask("t-parent")
@@ -331,7 +423,10 @@ func TestDeleteTaskCascadesToChildren(t *testing.T) {
 	}
 
 	// Children should also be deleted (not in list)
-	children, _ := db.ListChildTasks("t-parent")
+	children, err := db.ListChildTasks("t-parent")
+	if err != nil {
+		t.Fatalf("ListChildTasks failed: %v", err)
+	}
 	if len(children) != 0 {
 		t.Errorf("Children still exist after parent delete: %d", len(children))
 	}
@@ -359,7 +454,7 @@ func TestDeleteTaskNotFound(t *testing.T) {
 	defer db.Close()
 
 	err := db.DeleteTask("t-nonexistent")
-	if err != ErrTaskNotFound {
+	if !errors.Is(err, ErrTaskNotFound) {
 		t.Errorf("Expected ErrTaskNotFound, got: %v", err)
 	}
 }

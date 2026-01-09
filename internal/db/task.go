@@ -99,6 +99,9 @@ func (d *DB) UpdateTask(id string, update TaskUpdate) error {
 	args := []any{time.Now().Format(time.RFC3339)}
 
 	if update.Title != nil {
+		if strings.TrimSpace(*update.Title) == "" {
+			return fmt.Errorf("title cannot be empty")
+		}
 		setParts = append(setParts, "title = ?")
 		args = append(args, *update.Title)
 	}

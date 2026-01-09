@@ -102,6 +102,50 @@ func TestScanAgents_NestedSubagents(t *testing.T) {
 	}
 }
 
+func TestScanAgents_NestedSorting(t *testing.T) {
+	dir := t.TempDir()
+
+	// Create nested subagent that is active (recent mod time)
+	sessionDir := filepath.Join(dir, "session-1", "subagents")
+	os.MkdirAll(sessionDir, 0755)
+	f1, _ := os.Create(filepath.Join(sessionDir, "agent-active.jsonl"))
+	f1.WriteString(`{"type":"user","message":{"role":"user","content":"Active task"}}`)
+	f1.Close()
+	// Leave mod time as now (active)
+
+	// Create root-level agent that is inactive
+	f2, _ := os.Create(filepath.Join(dir, "agent-inactive.jsonl"))
+	f2.WriteString(`{"type":"user","message":{"role":"user","content":"Inactive task"}}`)
+	f2.Close()
+	oldTime := time.Now().Add(-1 * time.Hour)
+	os.Chtimes(filepath.Join(dir, "agent-inactive.jsonl"), oldTime, oldTime)
+
+	agents, err := ScanAgents(dir)
+	if err != nil {
+		t.Fatalf("ScanAgents: %v", err)
+	}
+
+	if len(agents) != 2 {
+		t.Fatalf("got %d agents, want 2", len(agents))
+	}
+
+	// Active nested agent should be first
+	if agents[0].ID != "active" {
+		t.Errorf("first agent should be 'active', got %q", agents[0].ID)
+	}
+	if !agents[0].IsActive() {
+		t.Error("first agent should be active")
+	}
+
+	// Inactive root agent should be second
+	if agents[1].ID != "inactive" {
+		t.Errorf("second agent should be 'inactive', got %q", agents[1].ID)
+	}
+	if agents[1].IsActive() {
+		t.Error("second agent should be inactive")
+	}
+}
+
 func TestAgentIsActive(t *testing.T) {
 	agent := Agent{
 		LastMod: time.Now().Add(-5 * time.Second),

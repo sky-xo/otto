@@ -92,6 +92,7 @@ func (a Agent) ToUnified(repoPath, branch string) agent.Agent {
 }
 
 // ScanAgents finds all agent-*.jsonl files in a directory.
+// It scans both root-level files and nested {session}/subagents/ directories.
 // Returns agents sorted by: 1) active first, 2) active by ID (stable), inactive by LastMod (recent first).
 // It uses a description cache to look up short descriptions from parent sessions.
 func ScanAgents(dir string) ([]Agent, error) {
@@ -109,36 +110,39 @@ func ScanAgents(dir string) ([]Agent, error) {
 	cache = ScanSessionFilesForDescriptions(dir, cache)
 
 	var agents []Agent
+
 	for _, e := range entries {
-		if e.IsDir() {
-			continue
-		}
 		name := e.Name()
-		if !strings.HasPrefix(name, "agent-") || !strings.HasSuffix(name, ".jsonl") {
+
+		// Check for root-level agent files (old structure)
+		if !e.IsDir() {
+			if strings.HasPrefix(name, "agent-") && strings.HasSuffix(name, ".jsonl") {
+				if agent, ok := parseAgentFile(dir, name, cache); ok {
+					agents = append(agents, agent)
+				}
+			}
 			continue
 		}
 
-		// Extract ID: agent-abc123.jsonl -> abc123
-		id := strings.TrimPrefix(name, "agent-")
-		id = strings.TrimSuffix(id, ".jsonl")
-
-		info, err := e.Info()
+		// Check for nested subagents directory (new structure)
+		// Structure: {session-uuid}/subagents/agent-*.jsonl
+		subagentsDir := filepath.Join(dir, name, "subagents")
+		subEntries, err := os.ReadDir(subagentsDir)
 		if err != nil {
-			continue
+			continue // No subagents dir or can't read it
 		}
 
-		// Look up description from cache, fall back to extractDescription if not found
-		desc := cache[id]
-		if desc == "" {
-			desc = extractDescription(filepath.Join(dir, name))
+		for _, se := range subEntries {
+			seName := se.Name()
+			if se.IsDir() {
+				continue
+			}
+			if strings.HasPrefix(seName, "agent-") && strings.HasSuffix(seName, ".jsonl") {
+				if agent, ok := parseAgentFile(subagentsDir, seName, cache); ok {
+					agents = append(agents, agent)
+				}
+			}
 		}
-
-		agents = append(agents, Agent{
-			ID:          id,
-			FilePath:    filepath.Join(dir, name),
-			LastMod:     info.ModTime(),
-			Description: desc,
-		})
 	}
 
 	// Save cache if we found new descriptions
@@ -164,4 +168,31 @@ func ScanAgents(dir string) ([]Agent, error) {
 	})
 
 	return agents, nil
+}
+
+// parseAgentFile extracts agent info from an agent-*.jsonl file.
+// Returns the Agent and true if successful, or zero value and false if not.
+func parseAgentFile(dir, name string, cache DescriptionCache) (Agent, bool) {
+	// Extract ID: agent-abc123.jsonl -> abc123
+	id := strings.TrimPrefix(name, "agent-")
+	id = strings.TrimSuffix(id, ".jsonl")
+
+	fullPath := filepath.Join(dir, name)
+	info, err := os.Stat(fullPath)
+	if err != nil {
+		return Agent{}, false
+	}
+
+	// Look up description from cache, fall back to extractDescription if not found
+	desc := cache[id]
+	if desc == "" {
+		desc = extractDescription(fullPath)
+	}
+
+	return Agent{
+		ID:          id,
+		FilePath:    fullPath,
+		LastMod:     info.ModTime(),
+		Description: desc,
+	}, true
 }

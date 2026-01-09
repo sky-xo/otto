@@ -54,9 +54,9 @@ Names always include a unique 4-character suffix. The `--name` flag sets a prefi
 | Flag | Description |
 |------|-------------|
 | `--name` | Custom prefix for agent name |
-| `--sandbox` | Sandbox mode: `full` (default), `permissive`, or `none`/`read-only` |
+| `--sandbox` | Enable sandbox. Codex: `--sandbox` (defaults to `workspace-write`) or `--sandbox=VALUE` where VALUE is `read-only`, `workspace-write`, or `danger-full-access`. Gemini: `--sandbox` only (no value accepted) |
 | `--model` | Model to use (Codex: `o3`, `o4-mini`; Gemini: `gemini-2.5-pro`, etc.) |
-| `--yolo` | Auto-approve all tool calls (use with caution) |
+| `--yolo` | Auto-approve all tool calls (Gemini only) |
 
 Agent state is stored in `~/.june/june.db`.
 

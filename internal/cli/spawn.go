@@ -50,12 +50,15 @@ Examples:
 			case "codex":
 				// For Codex, if --sandbox was passed without value, default to workspace-write
 				codexSandbox := sandbox
-				if cmd.Flags().Changed("sandbox") && sandbox == "" {
+				if sandbox == "true" {
 					codexSandbox = "workspace-write"
 				}
 				return runSpawnCodex(name, task, model, reasoningEffort, codexSandbox, maxTokens)
 			case "gemini":
-				// For Gemini, sandbox is boolean - true if flag was passed at all
+				// Gemini sandbox is boolean-only, reject explicit values
+				if sandbox != "" && sandbox != "true" {
+					return fmt.Errorf("Gemini --sandbox does not accept values, use --sandbox without a value")
+				}
 				geminiSandbox := cmd.Flags().Changed("sandbox")
 				return runSpawnGemini(name, task, model, yolo, geminiSandbox)
 			default:
@@ -68,7 +71,7 @@ Examples:
 	cmd.Flags().StringVar(&name, "name", "", "Name prefix for the agent (auto-generated if omitted)")
 	cmd.Flags().StringVar(&model, "model", "", "Model to use")
 	cmd.Flags().StringVar(&sandbox, "sandbox", "", "Enable sandbox (Codex: optional value read-only|workspace-write|danger-full-access, defaults to workspace-write; Gemini: boolean)")
-	cmd.Flags().Lookup("sandbox").NoOptDefVal = "" // Allow --sandbox without value
+	cmd.Flags().Lookup("sandbox").NoOptDefVal = "true" // Allow --sandbox without value
 
 	// Codex-specific flags
 	cmd.Flags().StringVar(&reasoningEffort, "reasoning-effort", "", "Reasoning effort (codex only)")

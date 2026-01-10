@@ -1,0 +1,14 @@
+{
+  "name": "june",
+  "owner": {
+    "name": "Sky"
+  },
+  "plugins": [
+    {
+      "name": "june",
+      "source": "./",
+      "description": "Task-aware workflow skills with persistent state",
+      "version": "1.0.0"
+    }
+  ]
+}

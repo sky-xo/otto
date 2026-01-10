@@ -4,6 +4,8 @@
 
 June is a read-only TUI for viewing Claude Code subagent activity. It watches `~/.claude/projects/{project}/agent-*.jsonl` files and displays their transcripts in a terminal interface.
 
+June is also a Claude Code plugin. Run `claude --plugin-dir .` to use june:* skills.
+
 ## Quick Commands
 
 ```bash

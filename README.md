@@ -84,6 +84,44 @@ Tasks are scoped to the current git repo and branch.
 
 All state is stored in `~/.june/june.db`.
 
+## Claude Code Plugin
+
+June is also a Claude Code plugin providing task-aware workflow skills.
+
+### Installation
+
+```bash
+git clone https://github.com/sky-xo/june
+cd june
+claude --plugin-dir .
+```
+
+### Skills
+
+June includes all superpowers skills plus customizations:
+
+| Skill | Customization |
+|-------|---------------|
+| `june:writing-plans` | Fresheyes review integration, june task persistence |
+| `june:executing-plans` | June task status tracking, resume after compaction |
+| `june:subagent-driven-development` | Model selection (haiku/opus), conditional code quality review |
+| `june:fresheyes` | Multi-agent code review (Claude/Codex/Gemini) |
+| `june:review-pr-comments` | PR feedback workflow with approval gates |
+
+### Building Skills
+
+To rebuild after editing `june-skills/`:
+
+```bash
+make build-skills
+```
+
+To check for superpowers updates:
+
+```bash
+make update-superpowers
+```
+
 ## How It Works
 
 June watches agent transcripts from multiple sources:

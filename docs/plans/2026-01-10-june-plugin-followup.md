@@ -58,6 +58,35 @@ The design doc mentions a hook that catches TodoWrite calls and syncs to june ta
 
 ## Ideas to Explore
 
+### 0. Full tree dump flag
+
+Add a flag like `--full` or `--verbose` to `june task list` that shows the entire task tree with all notes:
+
+```bash
+june task list t-a6891 --full
+```
+
+Output:
+```
+t-a6891 "Implement June Plugin" [closed]
+  Note: All 9 tasks completed
+
+  t-7a70d "Task 1: Add --note flag" [closed]
+    Note: Implemented, spec compliant, code quality approved
+
+  t-2a8e9 "Task 2: Create plugin infrastructure" [closed]
+    Note: Implemented, spec compliant, code quality approved
+
+  t-a88d0 "Task 3: Create june-skills directory" [closed]
+    Note: Implemented, spec compliant, code quality approved
+
+  ... (all children with all notes)
+```
+
+**Why:** After compaction, Claude needs the full context dump to understand where things stand. Current output is too terse - you'd need multiple commands to get the full picture.
+
+**Implementation:** Recursively fetch all children, include notes, format with indentation.
+
 ### 1. TUI integration
 Show june task progress in the TUI alongside agent activity. Would make the overhead feel more worthwhile.
 

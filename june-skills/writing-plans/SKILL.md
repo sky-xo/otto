@@ -1,6 +1,8 @@
 ---
 name: writing-plans
 description: Use when you have a spec or requirements for a multi-step task, before touching code
+# Based on: superpowers v4.0.3
+# Customization: Fresheyes review integration, june task persistence
 ---
 
 # Writing Plans
@@ -93,6 +95,66 @@ git commit -m "feat: add specific feature"
 - Exact commands with expected output
 - Reference relevant skills with @ syntax
 - DRY, YAGNI, TDD, frequent commits
+
+## Plan Review
+
+After saving the plan:
+
+**Step 1: Run quick fresheyes**
+
+Always run a quick fresheyes self-review (baseline sanity check). Invoke the fresheyes skill with "quick" mode:
+
+Use the Skill tool: `skill: "fresheyes", args: "quick on the plan"`
+
+This runs a structured self-review checklist without spawning external agents.
+
+**Step 2: Suggest based on plan size**
+
+Check the plan line count and present options:
+
+**If < 400 lines:**
+
+"Plan saved to `docs/plans/<filename>.md` (N lines). Quick fresheyes complete.
+
+Ready to proceed to execution?"
+
+**If >= 400 lines:**
+
+"Plan saved to `docs/plans/<filename>.md` (N lines). Quick fresheyes complete.
+
+This is a larger plan. Recommend full fresheyes with 2x Claude for independent review.
+
+1. **Run full fresheyes** (2x Claude, ~15 min) - recommended for plans this size
+2. **Proceed to execution** - skip full review
+
+Which approach?"
+
+User can override either way.
+
+## Task Persistence
+
+After fresheyes review (if proceeding to execution), create June tasks:
+
+```bash
+# Create parent task for the plan
+june task create "<Plan Title>" --json
+# Returns: {"id": "t-xxxx"}
+
+# Create child tasks for each numbered task in the plan
+june task create "Task 1: <title>" --parent t-xxxx
+june task create "Task 2: <title>" --parent t-xxxx
+# ... for each task
+```
+
+Output to user:
+
+```
+Tasks created: t-xxxx (N children)
+
+Run `june task list t-xxxx` to see task breakdown.
+```
+
+**Important:** The parent task ID (e.g., `t-xxxx`) must be provided to the execution skill (executing-plans or subagent-driven-development). Include it in the handoff message so the executor knows which task tree to read.
 
 ## Execution Handoff
 

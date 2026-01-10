@@ -4,7 +4,7 @@
 
 **Goal:** Transform June into a Claude Code plugin with task-aware workflow skills.
 
-**Architecture:** Add plugin structure (.claude-plugin/), create june-skills/ for custom skills, add Makefile targets to vendor superpowers and overlay customizations. Modify skills to use `june task` commands instead of TodoWrite.
+**Architecture:** Add plugin structure (.claude-plugin/), create june-skills/ for custom skills, add Makefile targets to vendor superpowers and overlay customizations. Modify skills to use `june task` commands and add fresheyes integration.
 
 **Tech Stack:** Go (CLI enhancement), Makefile (build process), Markdown (skills)
 
@@ -173,6 +173,10 @@ git commit -m "feat(cli): add --note flag to task create"
 
 **Step 1: Create plugin.json**
 
+```bash
+mkdir -p .claude-plugin
+```
+
 Create `.claude-plugin/plugin.json`:
 
 ```json
@@ -232,40 +236,24 @@ git commit -m "feat: add plugin infrastructure for Claude Code"
 
 ---
 
-### Task 3: Create june-skills directory with custom skills
+### Task 3: Create june-skills directory structure
 
 **Files:**
 - Create: `june-skills/writing-plans/SKILL.md`
+- Create: `june-skills/executing-plans/SKILL.md`
 - Create: `june-skills/subagent-driven-development/SKILL.md`
 - Create: `june-skills/fresheyes/SKILL.md`
 - Create: `june-skills/fresheyes/fresheyes-full.md`
 - Create: `june-skills/fresheyes/fresheyes-quick.md`
-- Create: `june-skills/design-review/SKILL.md`
 - Create: `june-skills/review-pr-comments/SKILL.md`
-- Create: `june-skills/tool-scout/SKILL.md`
-- Create: `june-skills/webresearcher/SKILL.md`
-- Create: `june-skills/executing-plans/SKILL.md`
 
-**Step 1: Create june-skills directory structure**
+**Step 1: Create directory structure**
 
 ```bash
-mkdir -p june-skills/{writing-plans,subagent-driven-development,fresheyes,design-review,review-pr-comments,tool-scout,webresearcher,executing-plans}
+mkdir -p june-skills/{writing-plans,executing-plans,subagent-driven-development,fresheyes,review-pr-comments}
 ```
 
-**Step 2: Copy existing custom skills**
-
-Copy from user's `~/.claude/skills/`:
-
-```bash
-cp ~/.claude/skills/writing-plans/SKILL.md june-skills/writing-plans/
-cp ~/.claude/skills/subagent-driven-development/SKILL.md june-skills/subagent-driven-development/
-cp ~/.claude/skills/design-review/SKILL.md june-skills/design-review/
-cp ~/.claude/skills/review-pr-comments/SKILL.md june-skills/review-pr-comments/
-cp ~/.claude/skills/tool-scout/SKILL.md june-skills/tool-scout/
-cp ~/.claude/skills/webresearcher/SKILL.md june-skills/webresearcher/
-```
-
-**Step 3: Copy fresheyes skill (from separate repo)**
+**Step 2: Copy fresheyes skill (from separate repo)**
 
 ```bash
 cp /Users/glowy/code/fresheyes/skills/fresheyes/SKILL.md june-skills/fresheyes/
@@ -273,43 +261,101 @@ cp /Users/glowy/code/fresheyes/skills/fresheyes/fresheyes-full.md june-skills/fr
 cp /Users/glowy/code/fresheyes/skills/fresheyes/fresheyes-quick.md june-skills/fresheyes/
 ```
 
-**Step 4: Copy executing-plans from superpowers as base**
+**Step 3: Copy review-pr-comments skill**
 
 ```bash
-cp ~/.claude/plugins/cache/superpowers-marketplace/superpowers/4.0.3/skills/executing-plans/SKILL.md june-skills/executing-plans/
+cp ~/.claude/skills/review-pr-comments/SKILL.md june-skills/review-pr-comments/
 ```
 
-**Step 5: Verify all skills copied**
+**Step 4: Copy superpowers skills as base for modification**
+
+```bash
+cp ~/.claude/plugins/cache/superpowers-marketplace/superpowers/4.0.3/skills/writing-plans/SKILL.md june-skills/writing-plans/
+cp ~/.claude/plugins/cache/superpowers-marketplace/superpowers/4.0.3/skills/executing-plans/SKILL.md june-skills/executing-plans/
+cp ~/.claude/plugins/cache/superpowers-marketplace/superpowers/4.0.3/skills/subagent-driven-development/SKILL.md june-skills/subagent-driven-development/
+```
+
+**Step 5: Copy subagent-driven-development supporting files**
+
+```bash
+cp ~/.claude/plugins/cache/superpowers-marketplace/superpowers/4.0.3/skills/subagent-driven-development/*.md june-skills/subagent-driven-development/
+```
+
+**Step 6: Verify all files copied**
 
 Run: `find june-skills -name "*.md" | wc -l`
-Expected: At least 10 files
+Expected: At least 8 files
 
-**Step 6: Commit**
+**Step 7: Commit**
 
 ```bash
 git add june-skills/
-git commit -m "feat: add june-skills directory with custom skills"
+git commit -m "feat: add june-skills directory with base skills"
 ```
 
 ---
 
-### Task 4: Modify writing-plans to use june tasks
+### Task 4: Modify writing-plans for fresheyes integration
 
 **Files:**
 - Modify: `june-skills/writing-plans/SKILL.md`
 
-**Step 1: Read current writing-plans skill**
+**Step 1: Add header comment**
 
-Review the skill to understand current structure.
+At the top of the frontmatter, add:
 
-**Step 2: Add task creation section**
+```yaml
+---
+name: writing-plans
+description: Use when you have a spec or requirements for a multi-step task, before touching code
+# Based on: superpowers v4.0.3
+# Customization: Fresheyes review integration, june task persistence
+---
+```
 
-Add after "Save plans to" section, before "Execution Handoff":
+**Step 2: Add Plan Review section before Execution Handoff**
+
+Insert before the "## Execution Handoff" section:
+
+```markdown
+## Plan Review
+
+After saving the plan:
+
+**Step 1: Run quick fresheyes**
+
+Always run a quick fresheyes self-review (baseline sanity check).
+
+**Step 2: Suggest based on plan size**
+
+Check the plan line count and present options:
+
+**If < 400 lines:**
+
+"Plan saved to `docs/plans/<filename>.md` (N lines). Quick fresheyes complete.
+
+Ready to proceed to execution?"
+
+**If >= 400 lines:**
+
+"Plan saved to `docs/plans/<filename>.md` (N lines). Quick fresheyes complete.
+
+This is a larger plan. Recommend full fresheyes with 2x Claude for independent review.
+
+1. **Run full fresheyes** (2x Claude, ~15 min) - recommended for plans this size
+2. **Proceed to execution** - skip full review
+
+Which approach?"
+
+User can override either way.
+```
+
+**Step 3: Add Task Persistence section after Plan Review**
 
 ```markdown
 ## Task Persistence
 
-After saving the plan, create June tasks for tracking:
+After fresheyes review (if proceeding to execution), create June tasks:
 
 ```bash
 # Create parent task for the plan
@@ -325,62 +371,139 @@ june task create "Task 2: <title>" --parent t-xxxx
 Output to user:
 
 ```
-Plan saved to docs/plans/<filename>.md
 Tasks created: t-xxxx (N children)
 
 Run `june task list t-xxxx` to see task breakdown.
 ```
 ```
 
-**Step 3: Update skill header comment**
+**Step 4: Commit**
 
-Update the comment at top to indicate June integration:
+```bash
+git add june-skills/writing-plans/SKILL.md
+git commit -m "feat(skills): add fresheyes review and june tasks to writing-plans"
+```
+
+---
+
+### Task 5: Modify subagent-driven-development for model selection
+
+**Files:**
+- Modify: `june-skills/subagent-driven-development/SKILL.md`
+
+**Step 1: Add header comment**
+
+Update the frontmatter:
+
+```yaml
+---
+name: subagent-driven-development
+description: Use when executing implementation plans with independent tasks in the current session
+# Based on: superpowers v4.0.3
+# Customization: Model selection per step, conditional code quality review, june task persistence
+---
+```
+
+**Step 2: Add Model Selection section after the title**
+
+Insert after `# Subagent-Driven Development` heading, before "## When to Use":
 
 ```markdown
-# Based on: superpowers v4.0.3
-# Customization: Fresheyes review for plans 200+ lines, June task persistence
+## Model Selection
+
+| Step | Model | Rationale |
+|------|-------|-----------|
+| **Implementer** (simple task) | `haiku` | Fast, focused tasks with clear specs |
+| **Implementer** (complex task) | `opus` | Ambiguous, multi-file, or architectural work |
+| **Spec Reviewer** | `haiku` | Verification is pattern matching, not creative |
+| **Code Quality Reviewer** | `opus` | Needs nuanced judgment on patterns/architecture |
+
+**How to decide simple vs complex:**
+- Simple: Single file, clear requirements, well-defined scope
+- Complex: Multiple files, ambiguous requirements, architectural decisions
+
+## Code Quality Review Guidelines
+
+**Run code quality review for all tasks unless the change is purely mechanical.**
+
+Skip code quality review ONLY when:
+- Pure mechanical change with zero judgment calls
+- Examples: import reordering, variable rename, formatting fix, moving unchanged code
+- The implementer self-review is sufficient
+
+**If there's any doubt → review.**
+
+The final fresheyes review after all tasks provides a safety net for anything missed.
+```
+
+**Step 3: Update process to use june tasks**
+
+Find the TodoWrite references and update:
+
+Change:
+```
+"Read plan, extract all tasks with full text, note context, create TodoWrite"
+```
+
+To:
+```
+"Read plan, extract all tasks with full text, note context. Check for existing june tasks with `june task list <parent-id> --json` or create new ones."
+```
+
+Change:
+```
+"Mark task complete in TodoWrite"
+```
+
+To:
+```
+"Mark task complete: `june task update <task-id> --status closed --note 'Verified'`"
 ```
 
 **Step 4: Commit**
 
 ```bash
-git add june-skills/writing-plans/SKILL.md
-git commit -m "feat(skills): add june task creation to writing-plans"
+git add june-skills/subagent-driven-development/SKILL.md
+git commit -m "feat(skills): add model selection and june tasks to subagent-driven-development"
 ```
 
 ---
 
-### Task 5: Modify executing-plans to use june tasks
+### Task 6: Modify executing-plans for june task integration
 
 **Files:**
 - Modify: `june-skills/executing-plans/SKILL.md`
 
-**Step 1: Read current executing-plans skill**
+**Step 1: Add header comment**
 
-Review the skill structure.
+Update the frontmatter:
 
-**Step 2: Replace TodoWrite references with june task commands**
+```yaml
+---
+name: executing-plans
+description: Use when you have a written implementation plan to execute in a separate session with review checkpoints
+# Based on: superpowers v4.0.3
+# Customization: June task persistence instead of TodoWrite
+---
+```
 
-In Step 1, change:
+**Step 2: Update Step 1 to use june tasks**
 
+Change:
 ```markdown
 4. If no concerns: Create TodoWrite and proceed
 ```
 
-to:
-
+To:
 ```markdown
 4. If no concerns: Read tasks with `june task list <parent-id> --json` and proceed
 ```
 
 **Step 3: Update Step 2 for task status**
 
-Change task status updates:
+Add to the "For each task" section:
 
 ```markdown
-### Step 2: Execute Batch
-**Default: First 3 tasks**
-
 For each task:
 1. Mark as in_progress: `june task update <task-id> --status in_progress`
 2. Follow each step exactly (plan has bite-sized steps)
@@ -388,9 +511,9 @@ For each task:
 4. Mark as completed: `june task update <task-id> --status closed --note "Verified"`
 ```
 
-**Step 4: Add resume section**
+**Step 4: Add Resume section**
 
-Add new section after "The Process":
+Add new section after "## The Process":
 
 ```markdown
 ## Resuming After Compaction
@@ -401,80 +524,27 @@ If context was compacted, check task state:
 june task list <parent-id>
 ```
 
+Output shows:
+```
+t-a3f8  "Implement feature"  [in_progress]
+  t-7bc2  "Add middleware"   [closed]
+  t-9de1  "Write tests"      [in_progress]  ← resume here
+  t-3fg5  "Update docs"      [open]
+```
+
 Find the first task with status `open` or `in_progress` and resume from there.
-```
-
-**Step 5: Add header comment**
-
-```markdown
-# Based on: superpowers v4.0.3
-# Customization: June task persistence instead of TodoWrite
-```
-
-**Step 6: Commit**
-
-```bash
-git add june-skills/executing-plans/SKILL.md
-git commit -m "feat(skills): add june task updates to executing-plans"
-```
-
----
-
-### Task 6: Modify subagent-driven-development to use june tasks
-
-**Files:**
-- Modify: `june-skills/subagent-driven-development/SKILL.md`
-
-**Step 1: Read current skill**
-
-Review the skill structure.
-
-**Step 2: Replace TodoWrite with june task commands**
-
-Change step 1 from:
-
-```markdown
-1. **Read plan, extract tasks, create TodoWrite**
-```
-
-to:
-
-```markdown
-1. **Read plan, check existing tasks or create new ones**
-   - If parent task ID provided: `june task list <parent-id> --json`
-   - If no tasks exist: Create from plan using `june task create`
-```
-
-**Step 3: Update per-task flow**
-
-```markdown
-2. **Per task:**
-   - `june task update <task-id> --status in_progress`
-   - Dispatch **implementer** (haiku or opus based on complexity)
-   - ... (reviews as before) ...
-   - `june task update <task-id> --status closed --note "Implemented, tests pass"`
-```
-
-**Step 4: Update header comment**
-
-```markdown
-# Based on: superpowers v4.0.3
-# Customization: Model selection per step, June task persistence
 ```
 
 **Step 5: Commit**
 
 ```bash
-git add june-skills/subagent-driven-development/SKILL.md
-git commit -m "feat(skills): add june task updates to subagent-driven-development"
+git add june-skills/executing-plans/SKILL.md
+git commit -m "feat(skills): add june task integration to executing-plans"
 ```
 
 ---
 
 ### Task 7: Build and verify skills assembly
-
-**Files:**
-- Creates: `skills/` (assembled from superpowers + june-skills)
 
 **Step 1: Run build-skills**
 
@@ -498,19 +568,18 @@ Expected: 14 skills (all from superpowers)
 **Step 3: Verify june overrides applied**
 
 ```bash
-head -5 skills/writing-plans/SKILL.md
+grep "Based on: superpowers" skills/writing-plans/SKILL.md
 ```
 
-Expected: Should show June customization comment, not original superpowers.
+Expected: Should show the June customization comment.
 
-**Step 4: Verify plugin structure**
+**Step 4: Verify fresheyes copied correctly**
 
 ```bash
-ls -la .claude-plugin/
-ls skills/
+ls skills/fresheyes/
 ```
 
-Expected: plugin.json exists, skills/ has all skills.
+Expected: SKILL.md, fresheyes-full.md, fresheyes-quick.md
 
 **Step 5: Commit assembled skills**
 
@@ -526,36 +595,27 @@ git commit -m "feat: assemble skills from superpowers + june overrides"
 **Step 1: Test plugin loads**
 
 ```bash
-claude --plugin-dir . --version
+claude --plugin-dir .
 ```
 
 Expected: Claude Code starts without plugin errors.
 
-**Step 2: Verify skills are available**
+**Step 2: Verify skills are namespaced**
 
-Start Claude Code with plugin:
+In Claude Code, type: `/june:`
 
-```bash
-claude --plugin-dir .
-```
+Expected: Should show autocomplete for june:writing-plans, june:fresheyes, etc.
 
-Then type: `/june:writing-plans`
-
-Expected: Skill should be recognized and loaded.
-
-**Step 3: Test task create with note**
+**Step 3: Test june task create with note**
 
 ```bash
 ./june task create "Test task" --note "Test note" --json
+./june task list
 ```
 
-Expected: Task created with note visible in `june task list <id>`.
+Expected: Task created with note visible.
 
-**Step 4: Document test results**
-
-If any issues found, fix and re-test before proceeding.
-
-**Step 5: Final commit (if any fixes)**
+**Step 4: Commit any fixes**
 
 ```bash
 git add -A
@@ -587,26 +647,40 @@ cd june
 claude --plugin-dir .
 ```
 
-### Available Skills
+### Skills
 
-All superpowers skills plus June-specific customizations:
-- `june:writing-plans` - Creates persistent June tasks from plans
-- `june:executing-plans` - Updates task status during execution
-- `june:subagent-driven-development` - Model selection + task tracking
-- `june:fresheyes` - Multi-agent code review
+June includes all superpowers skills plus customizations:
+
+| Skill | Customization |
+|-------|---------------|
+| `june:writing-plans` | Fresheyes review integration, june task persistence |
+| `june:executing-plans` | June task status tracking, resume after compaction |
+| `june:subagent-driven-development` | Model selection (haiku/opus), conditional code quality review |
+| `june:fresheyes` | Multi-agent code review (Claude/Codex/Gemini) |
+| `june:review-pr-comments` | PR feedback workflow with approval gates |
 
 ### Building Skills
 
-To update vendored superpowers or rebuild skills:
+To rebuild after editing `june-skills/`:
 
 ```bash
 make build-skills
+```
+
+To check for superpowers updates:
+
+```bash
+make update-superpowers
 ```
 ```
 
 **Step 2: Update CLAUDE.md**
 
-Add note about plugin capability in the "What is June?" section.
+Add to "What is June?" section:
+
+```markdown
+June is also a Claude Code plugin. Run `claude --plugin-dir .` to use june:* skills.
+```
 
 **Step 3: Commit**
 
@@ -623,12 +697,24 @@ git commit -m "docs: add plugin documentation"
 |------|-------------|
 | 1 | Add --note flag to task create |
 | 2 | Create plugin infrastructure |
-| 3 | Create june-skills directory with custom skills |
-| 4 | Modify writing-plans to use june tasks |
-| 5 | Modify executing-plans to use june tasks |
-| 6 | Modify subagent-driven-development to use june tasks |
+| 3 | Create june-skills directory structure |
+| 4 | Modify writing-plans for fresheyes integration |
+| 5 | Modify subagent-driven-development for model selection |
+| 6 | Modify executing-plans for june task integration |
 | 7 | Build and verify skills assembly |
 | 8 | Test plugin with Claude Code |
 | 9 | Update documentation |
+
+**Skills in June:**
+- writing-plans (superpowers + fresheyes + june tasks)
+- executing-plans (superpowers + june tasks)
+- subagent-driven-development (superpowers + model selection + june tasks)
+- fresheyes (custom)
+- review-pr-comments (custom)
+
+**Skills NOT in June (stay in ~/.claude/skills/):**
+- design-review
+- tool-scout
+- webresearcher
 
 **Estimated commits:** 9

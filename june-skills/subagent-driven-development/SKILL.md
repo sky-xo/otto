@@ -1,6 +1,8 @@
 ---
 name: subagent-driven-development
 description: Use when executing implementation plans with independent tasks in the current session
+# Based on: superpowers v4.0.3
+# Customization: Model selection per step, conditional code quality review, june task persistence
 ---
 
 # Subagent-Driven Development
@@ -8,6 +10,32 @@ description: Use when executing implementation plans with independent tasks in t
 Execute plan by dispatching fresh subagent per task, with two-stage review after each: spec compliance review first, then code quality review.
 
 **Core principle:** Fresh subagent per task + two-stage review (spec then quality) = high quality, fast iteration
+
+## Model Selection
+
+| Step | Model | Rationale |
+|------|-------|-----------|
+| **Implementer** (simple task) | `haiku` | Fast, focused tasks with clear specs |
+| **Implementer** (complex task) | `opus` | Ambiguous, multi-file, or architectural work |
+| **Spec Reviewer** | `haiku` | Verification is pattern matching, not creative |
+| **Code Quality Reviewer** | `opus` | Needs nuanced judgment on patterns/architecture |
+
+**How to decide simple vs complex:**
+- Simple: Single file, clear requirements, well-defined scope
+- Complex: Multiple files, ambiguous requirements, architectural decisions
+
+## Code Quality Review Guidelines
+
+**Run code quality review for all tasks unless the change is purely mechanical.**
+
+Skip code quality review ONLY when:
+- Pure mechanical change with zero judgment calls
+- Examples: import reordering, variable rename, formatting fix, moving unchanged code
+- The implementer self-review is sufficient
+
+**If there's any doubt → review.**
+
+The final fresheyes review after all tasks provides a safety net for anything missed.
 
 ## When to Use
 
@@ -53,15 +81,15 @@ digraph process {
         "Dispatch code quality reviewer subagent (./code-quality-reviewer-prompt.md)" [shape=box];
         "Code quality reviewer subagent approves?" [shape=diamond];
         "Implementer subagent fixes quality issues" [shape=box];
-        "Mark task complete in TodoWrite" [shape=box];
+        "Mark task complete: june task update" [shape=box];
     }
 
-    "Read plan, extract all tasks with full text, note context, create TodoWrite" [shape=box];
+    "Read plan, extract all tasks with full text, note context, load june tasks" [shape=box];
     "More tasks remain?" [shape=diamond];
     "Dispatch final code reviewer subagent for entire implementation" [shape=box];
     "Use superpowers:finishing-a-development-branch" [shape=box style=filled fillcolor=lightgreen];
 
-    "Read plan, extract all tasks with full text, note context, create TodoWrite" -> "Dispatch implementer subagent (./implementer-prompt.md)";
+    "Read plan, extract all tasks with full text, note context, load june tasks" -> "Dispatch implementer subagent (./implementer-prompt.md)";
     "Dispatch implementer subagent (./implementer-prompt.md)" -> "Implementer subagent asks questions?";
     "Implementer subagent asks questions?" -> "Answer questions, provide context" [label="yes"];
     "Answer questions, provide context" -> "Dispatch implementer subagent (./implementer-prompt.md)";
@@ -74,8 +102,8 @@ digraph process {
     "Dispatch code quality reviewer subagent (./code-quality-reviewer-prompt.md)" -> "Code quality reviewer subagent approves?";
     "Code quality reviewer subagent approves?" -> "Implementer subagent fixes quality issues" [label="no"];
     "Implementer subagent fixes quality issues" -> "Dispatch code quality reviewer subagent (./code-quality-reviewer-prompt.md)" [label="re-review"];
-    "Code quality reviewer subagent approves?" -> "Mark task complete in TodoWrite" [label="yes"];
-    "Mark task complete in TodoWrite" -> "More tasks remain?";
+    "Code quality reviewer subagent approves?" -> "Mark task complete: june task update" [label="yes"];
+    "Mark task complete: june task update" -> "More tasks remain?";
     "More tasks remain?" -> "Dispatch implementer subagent (./implementer-prompt.md)" [label="yes"];
     "More tasks remain?" -> "Dispatch final code reviewer subagent for entire implementation" [label="no"];
     "Dispatch final code reviewer subagent for entire implementation" -> "Use superpowers:finishing-a-development-branch";
@@ -95,7 +123,7 @@ You: I'm using Subagent-Driven Development to execute this plan.
 
 [Read plan file once: docs/plans/feature-plan.md]
 [Extract all 5 tasks with full text and context]
-[Create TodoWrite with all tasks]
+[Load june tasks: june task list <parent-id> --json]
 
 Task 1: Hook installation script
 
@@ -119,7 +147,7 @@ Spec reviewer: ✅ Spec compliant - all requirements met, nothing extra
 [Get git SHAs, dispatch code quality reviewer]
 Code reviewer: Strengths: Good test coverage, clean. Issues: None. Approved.
 
-[Mark Task 1 complete]
+[Mark Task 1 complete: june task update <task-id> --status closed --note 'Verified']
 
 Task 2: Recovery modes
 
@@ -153,7 +181,7 @@ Implementer: Extracted PROGRESS_INTERVAL constant
 [Code reviewer reviews again]
 Code reviewer: ✅ Approved
 
-[Mark Task 2 complete]
+[Mark Task 2 complete: june task update <task-id> --status closed --note 'Verified']
 
 ...
 

@@ -1,6 +1,8 @@
 ---
 name: executing-plans
 description: Use when you have a written implementation plan to execute in a separate session with review checkpoints
+# Based on: superpowers v4.0.3
+# Customization: June task persistence instead of TodoWrite
 ---
 
 # Executing Plans
@@ -19,16 +21,16 @@ Load plan, review critically, execute tasks in batches, report for review betwee
 1. Read plan file
 2. Review critically - identify any questions or concerns about the plan
 3. If concerns: Raise them with your human partner before starting
-4. If no concerns: Create TodoWrite and proceed
+4. If no concerns: The parent task ID should be provided by the user or found in the plan handoff (e.g., 'Tasks created: t-xxxx'). Read tasks with `june task list <parent-id> --json` and proceed.
 
 ### Step 2: Execute Batch
 **Default: First 3 tasks**
 
 For each task:
-1. Mark as in_progress
+1. Mark as in_progress: `june task update <task-id> --status in_progress`
 2. Follow each step exactly (plan has bite-sized steps)
 3. Run verifications as specified
-4. Mark as completed
+4. Mark as completed: `june task update <task-id> --status closed --note "Verified"`
 
 ### Step 3: Report
 When batch complete:
@@ -48,6 +50,25 @@ After all tasks complete and verified:
 - Announce: "I'm using the finishing-a-development-branch skill to complete this work."
 - **REQUIRED SUB-SKILL:** Use superpowers:finishing-a-development-branch
 - Follow that skill to verify tests, present options, execute choice
+
+## Resuming After Compaction
+
+If context was compacted, check task state:
+
+```bash
+june task list <parent-id>
+```
+
+Output shows:
+
+```
+t-a3f8  "Implement feature"  [in_progress]
+  t-7bc2  "Add middleware"   [closed]
+  t-9de1  "Write tests"      [in_progress]  ← resume here
+  t-3fg5  "Update docs"      [open]
+```
+
+Find the first task with status `open` or `in_progress` and resume from there.
 
 ## When to Stop and Ask for Help
 

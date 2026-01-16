@@ -81,36 +81,36 @@ func TestEnsureCodexHome_NoAuthJsonOK(t *testing.T) {
 	}
 }
 
-func TestEnsureCodexHome_DoesNotOverwriteExistingAuthJson(t *testing.T) {
+func TestEnsureCodexHome_OverwritesAuthJsonWithFreshTokens(t *testing.T) {
 	tmpDir := t.TempDir()
 	origHome := os.Getenv("HOME")
 	os.Setenv("HOME", tmpDir)
 	defer os.Setenv("HOME", origHome)
 
-	// Create fake user codex with auth.json (source)
+	// Create fake user codex with auth.json (source - fresh tokens)
 	userCodex := filepath.Join(tmpDir, ".codex")
 	os.MkdirAll(userCodex, 0755)
-	newContent := []byte(`{"token":"new-token"}`)
-	os.WriteFile(filepath.Join(userCodex, "auth.json"), newContent, 0600)
+	freshContent := []byte(`{"token":"fresh-token"}`)
+	os.WriteFile(filepath.Join(userCodex, "auth.json"), freshContent, 0600)
 
-	// Pre-create june codex home with existing auth.json (destination)
+	// Pre-create june codex home with stale auth.json (destination)
 	juneCodex := filepath.Join(tmpDir, ".june", "codex")
 	os.MkdirAll(juneCodex, 0755)
-	existingContent := []byte(`{"token":"existing-token"}`)
-	os.WriteFile(filepath.Join(juneCodex, "auth.json"), existingContent, 0600)
+	staleContent := []byte(`{"token":"stale-token"}`)
+	os.WriteFile(filepath.Join(juneCodex, "auth.json"), staleContent, 0600)
 
-	// Call EnsureCodexHome - should NOT overwrite the existing auth.json
+	// Call EnsureCodexHome - should overwrite with fresh tokens
 	codexHome, err := EnsureCodexHome()
 	if err != nil {
 		t.Fatalf("EnsureCodexHome failed: %v", err)
 	}
 
-	// Verify auth.json was NOT overwritten
+	// Verify auth.json WAS overwritten with fresh tokens
 	data, err := os.ReadFile(filepath.Join(codexHome, "auth.json"))
 	if err != nil {
 		t.Fatalf("failed to read auth.json: %v", err)
 	}
-	if string(data) != string(existingContent) {
-		t.Errorf("auth.json was overwritten! got %q, want %q", string(data), string(existingContent))
+	if string(data) != string(freshContent) {
+		t.Errorf("auth.json not updated with fresh tokens: got %q, want %q", string(data), string(freshContent))
 	}
 }

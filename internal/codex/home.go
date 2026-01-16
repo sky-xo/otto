@@ -21,21 +21,13 @@ func EnsureCodexHome() (string, error) {
 	}
 
 	// Copy auth.json from user's ~/.codex/ if it exists
+	// Always copy to pick up refreshed tokens after re-authentication
 	userCodex := filepath.Join(home, ".codex")
 	authSrc := filepath.Join(userCodex, "auth.json")
 	authDst := filepath.Join(codexHome, "auth.json")
 
-	// Only copy if source exists and destination doesn't
-	// Use O_CREATE|O_EXCL for atomic create-if-not-exists to avoid TOCTOU race
 	if authData, err := os.ReadFile(authSrc); err == nil {
-		// Try to create the file exclusively - fails if it already exists
-		f, err := os.OpenFile(authDst, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
-		if err == nil {
-			_, _ = f.Write(authData)
-			f.Close()
-		}
-		// Ignore errors - auth.json is optional (user may not have authenticated yet)
-		// or file already exists (which is fine - don't overwrite)
+		_ = os.WriteFile(authDst, authData, 0600)
 	}
 
 	return codexHome, nil

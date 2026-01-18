@@ -1,5 +1,6 @@
 .worktrees/
 .gocache/
+.skill-cache/
 
 # Test artifacts
 *.test

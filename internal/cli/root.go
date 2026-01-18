@@ -57,6 +57,7 @@ func Execute() {
 	rootCmd.AddCommand(newSpawnCmd())
 	rootCmd.AddCommand(newPeekCmd())
 	rootCmd.AddCommand(newLogsCmd())
+	rootCmd.AddCommand(newTaskCmd())
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)

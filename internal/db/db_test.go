@@ -256,6 +256,50 @@ func TestMigration_AddsNewColumns(t *testing.T) {
 	}
 }
 
+func TestTasksTableExists(t *testing.T) {
+	db := openTestDB(t)
+	defer db.Close()
+
+	// Query pragma to verify table structure
+	// Note: DB embeds *sql.DB, so methods are promoted directly
+	rows, err := db.Query("PRAGMA table_info(tasks)")
+	if err != nil {
+		t.Fatalf("Query failed: %v", err)
+	}
+	defer rows.Close()
+
+	columns := make(map[string]string)
+	for rows.Next() {
+		var cid int
+		var name, typ string
+		var notnull, pk int
+		var dfltValue any
+		if err := rows.Scan(&cid, &name, &typ, &notnull, &dfltValue, &pk); err != nil {
+			t.Fatalf("Scan failed: %v", err)
+		}
+		columns[name] = typ
+	}
+
+	expected := map[string]string{
+		"id":         "TEXT",
+		"parent_id":  "TEXT",
+		"title":      "TEXT",
+		"status":     "TEXT",
+		"notes":      "TEXT",
+		"created_at": "TEXT",
+		"updated_at": "TEXT",
+		"deleted_at": "TEXT",
+		"repo_path":  "TEXT",
+		"branch":     "TEXT",
+	}
+
+	for col, typ := range expected {
+		if columns[col] != typ {
+			t.Errorf("Column %s: got type %q, want %q", col, columns[col], typ)
+		}
+	}
+}
+
 func openTestDB(t *testing.T) *DB {
 	t.Helper()
 	tmpDir := t.TempDir()
@@ -506,6 +550,58 @@ func TestMigration_AddsTypeColumn(t *testing.T) {
 	}
 	if got.Type != "codex" {
 		t.Errorf("expected type 'codex' for migrated agent, got %q", got.Type)
+	}
+}
+
+func TestMigrationAddsTasksTable(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+
+	// Create DB with only agents table (simulating old schema)
+	oldDB, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	_, err = oldDB.Exec(`
+		CREATE TABLE agents (
+			name TEXT PRIMARY KEY,
+			ulid TEXT,
+			session_file TEXT,
+			cursor INTEGER DEFAULT 0,
+			pid INTEGER,
+			spawned_at TEXT,
+			repo_path TEXT DEFAULT '',
+			branch TEXT DEFAULT '',
+			type TEXT DEFAULT 'codex'
+		)
+	`)
+	if err != nil {
+		t.Fatalf("Create agents table failed: %v", err)
+	}
+	oldDB.Close()
+
+	// Open with our DB package (should migrate)
+	database, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("Open with migration failed: %v", err)
+	}
+	defer database.Close()
+
+	// Verify tasks table exists
+	rows, err := database.Query("PRAGMA table_info(tasks)")
+	if err != nil {
+		t.Fatalf("Query pragma failed: %v", err)
+	}
+	defer rows.Close()
+
+	hasTasksTable := false
+	for rows.Next() {
+		hasTasksTable = true
+		break
+	}
+
+	if !hasTasksTable {
+		t.Error("tasks table not created during migration")
 	}
 }
 

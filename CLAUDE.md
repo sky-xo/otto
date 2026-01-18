@@ -4,6 +4,8 @@
 
 June is a read-only TUI for viewing Claude Code subagent activity. It watches `~/.claude/projects/{project}/agent-*.jsonl` files and displays their transcripts in a terminal interface.
 
+June is also a Claude Code plugin. Run `claude --plugin-dir .` to use june:* skills.
+
 ## Quick Commands
 
 ```bash
@@ -54,6 +56,41 @@ june logs refactor-9c4f                   # Show full transcript
 Names always include a unique 4-char ULID suffix. `--name` sets a prefix; if omitted, an adjective-noun prefix is auto-generated.
 
 Agent state is stored in `~/.june/june.db` (SQLite).
+
+## Task Commands
+
+Persist tasks across context compaction:
+
+```bash
+# Create root task
+june task create "Implement auth feature"   # Output: t-a3f8b
+
+# Create child tasks
+june task create "Add middleware" --parent t-a3f8b
+
+# Create multiple tasks at once
+june task create "Task 1" "Task 2" "Task 3"
+
+# List root tasks
+june task list
+
+# Show task details and children
+june task list t-a3f8b
+
+# Update task
+june task update t-a3f8b --status in_progress
+june task update t-a3f8b --note "Started work"
+june task update t-a3f8b --status closed --note "Done"
+
+# Delete task (soft delete, cascades to children)
+june task delete t-a3f8b
+
+# JSON output for machine consumption
+june task list --json
+june task create "New task" --json
+```
+
+Tasks are scoped to the current git repo and branch.
 
 ## Coding Conventions
 

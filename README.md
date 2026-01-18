@@ -58,7 +58,76 @@ Names always include a unique 4-character suffix. The `--name` flag sets a prefi
 | `--model` | Model to use (Codex: `o3`, `o4-mini`; Gemini: `gemini-2.5-pro`, etc.) |
 | `--yolo` | Auto-approve all tool calls (Gemini only) |
 
-Agent state is stored in `~/.june/june.db`.
+## Persistent Tasks
+
+Track tasks that survive context compaction:
+
+```bash
+# Create tasks
+june task create "Implement auth feature"         # Returns: t-a3f8b
+june task create "Subtask 1" --parent t-a3f8b     # Create child task
+
+# View tasks
+june task list                                     # List root tasks
+june task list t-a3f8b                             # Show task details + children
+
+# Update tasks
+june task update t-a3f8b --status in_progress     # Change status
+june task update t-a3f8b --note "WIP: auth flow"  # Add note
+june task update t-a3f8b --title "New title"      # Rename
+
+# Delete (cascades to children)
+june task delete t-a3f8b
+```
+
+Tasks are scoped to the current git repo and branch.
+
+All state is stored in `~/.june/june.db`.
+
+## Claude Code Plugin
+
+June is also a Claude Code plugin providing task-aware workflow skills.
+
+### Installation
+
+**Via marketplace (recommended):**
+```
+/plugin marketplace add sky-xo/june
+/plugin install june@june
+```
+
+**For development:**
+```bash
+git clone https://github.com/sky-xo/june
+cd june
+claude --plugin-dir .
+```
+
+### Skills
+
+June includes all superpowers skills plus customizations:
+
+| Skill | Customization |
+|-------|---------------|
+| `june:writing-plans` | Fresheyes review integration, june task persistence |
+| `june:executing-plans` | June task status tracking, resume after compaction |
+| `june:subagent-driven-development` | Model selection (haiku/opus), conditional code quality review |
+| `june:fresheyes` | Multi-agent code review (Claude/Codex/Gemini) |
+| `june:review-pr-comments` | PR feedback workflow with approval gates |
+
+### Building Skills
+
+To rebuild after editing `june-skills/`:
+
+```bash
+make build-skills
+```
+
+To check for superpowers updates:
+
+```bash
+make update-superpowers
+```
 
 ## How It Works
 

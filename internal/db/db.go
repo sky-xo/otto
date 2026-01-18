@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -67,6 +68,24 @@ CREATE TABLE IF NOT EXISTS agents (
 	branch TEXT DEFAULT '',
 	type TEXT DEFAULT 'codex'
 );
+
+CREATE TABLE IF NOT EXISTS tasks (
+	id TEXT PRIMARY KEY,
+	parent_id TEXT,
+	title TEXT NOT NULL,
+	status TEXT NOT NULL DEFAULT 'open',
+	notes TEXT,
+	created_at TEXT NOT NULL,
+	updated_at TEXT NOT NULL,
+	deleted_at TEXT,
+	repo_path TEXT NOT NULL,
+	branch TEXT NOT NULL,
+	FOREIGN KEY (parent_id) REFERENCES tasks(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parent_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_scope ON tasks(repo_path, branch);
+CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
 `
 
 // DB wraps a SQLite database connection
@@ -136,6 +155,36 @@ func migrate(db *sql.DB) error {
 	if typeCount == 0 {
 		if _, err := db.Exec(`ALTER TABLE agents ADD COLUMN type TEXT DEFAULT 'codex'`); err != nil {
 			return err
+		}
+	}
+
+	// Check if tasks table exists and create if missing (for existing installations)
+	var tasksTableCount int
+	err = db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='tasks'`).Scan(&tasksTableCount)
+	if err != nil {
+		return err
+	}
+	if tasksTableCount == 0 {
+		_, err = db.Exec(`
+			CREATE TABLE IF NOT EXISTS tasks (
+				id TEXT PRIMARY KEY,
+				parent_id TEXT,
+				title TEXT NOT NULL,
+				status TEXT NOT NULL DEFAULT 'open',
+				notes TEXT,
+				created_at TEXT NOT NULL,
+				updated_at TEXT NOT NULL,
+				deleted_at TEXT,
+				repo_path TEXT NOT NULL,
+				branch TEXT NOT NULL,
+				FOREIGN KEY (parent_id) REFERENCES tasks(id)
+			);
+			CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parent_id);
+			CREATE INDEX IF NOT EXISTS idx_tasks_scope ON tasks(repo_path, branch);
+			CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+		`)
+		if err != nil {
+			return fmt.Errorf("create tasks table: %w", err)
 		}
 	}
 
